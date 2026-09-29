@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Аналитика обращений в 1С Корпоративная поддержка</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+       background:#f4f7fc; color:#1a2332; display:flex; flex-direction:column; align-items:center; min-height:100vh; padding:20px; }
+.presentation-container { max-width:1320px; width:100%; background:#fff; border-radius:24px;
+       box-shadow:0 20px 60px rgba(0,20,40,.12); overflow:hidden; }
+.slide { display:none; padding:40px 48px; min-height:640px; animation:fadeSlide .35s ease; }
+.slide.active { display:block; }
+@keyframes fadeSlide { 0%{opacity:0;transform:translateY(12px);} 100%{opacity:1;transform:translateY(0);} }
+.slide-title { font-size:27px; font-weight:700; color:#0b1a2e; margin-bottom:6px; letter-spacing:-.3px; }
+.slide-subtitle { font-size:15px; color:#5e6f8d; margin-bottom:24px; border-bottom:2px solid #e9edf4; padding-bottom:14px; }
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+.grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
+.grid-2-1 { display:grid; grid-template-columns:2fr 1fr; gap:24px; }
+.grid-1-2 { display:grid; grid-template-columns:1fr 2fr; gap:24px; }
+.card { background:#f8faff; border-radius:16px; padding:18px 22px; border:1px solid #e9edf4; }
+.card-title { font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:.4px; color:#5e6f8d; margin-bottom:8px; }
+.card-value { font-size:34px; font-weight:700; color:#0b1a2e; line-height:1.1; }
+.card-value small { font-size:16px; font-weight:400; color:#5e6f8d; margin-left:6px; }
+.card-desc { font-size:13px; color:#3e4f6b; margin-top:4px; }
+.table-wrap { overflow-x:auto; margin-top:10px; border-radius:12px; border:1px solid #e9edf4; }
+table { width:100%; border-collapse:collapse; font-size:13.5px; }
+th { background:#f0f4fc; color:#1a2b44; font-weight:600; padding:10px 14px; text-align:left; border-bottom:2px solid #dce2ed; }
+td { padding:10px 14px; border-bottom:1px solid #e9edf4; vertical-align:top; }
+tr:last-child td { border-bottom:none; }
+tr.row-crit td { background:#fdf2f2; }
+td.num { text-align:center; }
+td.zero { text-align:center; color:#cbd5e1; }
+tr.total-row td { background:#f0f4fc; font-weight:700; }
+.badge { display:inline-block; padding:3px 12px; border-radius:20px; font-size:12px; font-weight:600; white-space:nowrap; }
+.badge-green, .badge.excellent { background:#e1f7e8; color:#0f6e3a; }
+.badge-yellow, .badge.good { background:#fef6e0; color:#8a6d0b; }
+.badge-red, .badge.bad { background:#fde8e8; color:#b33636; }
+.badge-blue, .badge.orange { background:#dbeafe; color:#1a56db; }
+.badge-grey { background:#eef1f6; color:#5e6f8d; }
+.kpi-row { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:20px; }
+.kpi-item { flex:1 1 150px; background:#f8faff; border-radius:14px; padding:14px 18px; border:1px solid #e9edf4; }
+.kpi-item .number { font-size:26px; font-weight:700; color:#0b1a2e; }
+.kpi-item .label { font-size:12.5px; color:#5e6f8d; margin-top:2px; }
+.kpi-item .note { font-size:11.5px; color:#8695ac; margin-top:4px; }
+.card-list { display:flex; flex-direction:column; gap:12px; }
+.card-list .item { background:#f8faff; border-radius:12px; padding:14px 18px; border:1px solid #e9edf4; border-left:4px solid #2a6df4; }
+.card-list .item .head { font-weight:600; font-size:15px; color:#0b1a2e; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+.card-list .item .meta { font-size:12.5px; color:#5e6f8d; margin-top:4px; }
+.card-list .item .body { font-size:13.5px; color:#2a3b57; margin-top:6px; white-space:pre-wrap; }
+.card-list .item .body b { color:#0b1a2e; }
+.card-list .item .rec { margin-top:8px; padding:8px 12px; background:#fff; border-radius:8px; border:1px solid #dbe3ef; font-size:13px; }
+.tiles { display:flex; height:46px; border-radius:10px; overflow:hidden; border:1px solid #e9edf4; }
+.tiles div { display:flex; align-items:center; justify-content:center; color:#fff; font-size:12.5px; font-weight:600; }
+.tiles-legend { display:flex; flex-wrap:wrap; gap:14px; margin-top:10px; font-size:12.5px; color:#3e4f6b; }
+.tiles-legend span.dot { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; }
+.tl { display:flex; align-items:center; gap:6px; margin-top:10px; }
+.tl .node { text-align:center; flex:0 0 auto; }
+.tl .node .dot { width:14px; height:14px; border-radius:50%; margin:0 auto 4px; }
+.tl .node .cap { font-size:11px; color:#5e6f8d; max-width:86px; }
+.tl .seg { flex:1; text-align:center; }
+.tl .seg .bar { height:4px; background:#c7d5ee; border-radius:2px; }
+.tl .seg .val { font-size:12.5px; font-weight:700; color:#1a56db; margin-bottom:3px; }
+.bars .bar-row { margin-bottom:9px; }
+.bars .bar-label { display:flex; justify-content:space-between; font-size:12.5px; color:#3e4f6b; margin-bottom:3px; gap:10px; }
+.bars .bar-track { background:#eef2f9; border-radius:5px; height:16px; position:relative; overflow:hidden; }
+.bars .bar-fill { background:#1a56db; height:100%; border-radius:5px; }
+.bars .bar-inc { background:#ea4335; height:100%; position:absolute; left:0; top:0; border-radius:5px; }
+.ai-box { background:#f0f7ff; border:1px solid #cfe0f7; border-radius:14px; padding:16px 20px; line-height:1.65; font-size:13.5px; color:#26374f; }
+.ai-box p { margin-bottom:8px; } .ai-box ul { padding-left:20px; margin-bottom:8px; } .ai-box li { margin-bottom:4px; }
+.ai-box b { color:#0b1a2e; }
+.scroll { max-height:calc(100vh - 300px); overflow-y:auto; padding-right:8px; }
+.scroll::-webkit-scrollbar { width:6px; } .scroll::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }
+/* ЧТО ИЗМЕНЕНО: навигация переехала из подвала в липкую шапку, справа от заголовка
+   ПОЧЕМУ: на длинных слайдах кнопки приходилось искать прокруткой вниз */
+.nav-controls { position:sticky; top:0; z-index:40; display:flex; justify-content:flex-end; align-items:center;
+  gap:14px; padding:10px 48px; background:rgba(248,250,255,.94); backdrop-filter:blur(6px);
+  border-bottom:1px solid #e9edf4; }
+.nav-controls .counter { font-size:13px; color:#5e6f8d; margin-right:auto; } .nav-controls .counter span { font-weight:700; color:#0b1a2e; }
+.btn { background:#fff; border:1px solid #d0d9e8; padding:7px 18px; border-radius:40px; font-size:13px; color:#1a2b44; cursor:pointer; }
+.btn:hover { background:#eef3fc; } .btn:disabled { opacity:.4; cursor:not-allowed; }
+.btn-primary { background:#1a2b44; border-color:#1a2b44; color:#fff; } .btn-primary:hover { background:#0f1e33; }
+.muted { color:#8695ac; font-size:12.5px; }
+
+/* --- Карточка состава обращений: тянется по высоте колонки KPI --- */
+.type-card .tiles { height:50px; margin:14px 0 0; }
+.type-card .tiles div { font-size:15px; }
+
+/* --- Компактные KPI справа от полоски типов --- */
+.kpi-mini { padding:10px 16px; }
+.kpi-mini .card-title { margin-bottom:2px; }
+.kpi-mini .card-value { font-size:23px; line-height:1.15; }
+.kpi-mini .card-desc { font-size:11.5px; }
+
+/* --- Плашка периода на первом слайде --- */
+.period-banner { display:flex; align-items:center; gap:18px; flex-wrap:wrap; margin:4px 0 20px;
+  padding:16px 24px; border-radius:16px; color:#fff;
+  background:linear-gradient(110deg,#0b1a2e 0%,#17325c 55%,#1a56db 100%);
+  box-shadow:0 8px 24px rgba(11,26,46,.22); }
+.period-banner .pb-week { font-size:30px; font-weight:800; letter-spacing:-.6px; line-height:1.05; }
+.period-banner .pb-range { font-size:15px; font-weight:600; opacity:.95; }
+.period-banner .pb-sep { width:1px; align-self:stretch; background:rgba(255,255,255,.28); }
+.period-banner .pb-item { font-size:12.5px; opacity:.88; line-height:1.5; }
+.period-banner .pb-item b { display:block; font-size:14.5px; font-weight:700; opacity:1; }
+
+/* --- Крупные значения отрезков таймлайна --- */
+.tl .seg .val.big { font-size:21px; font-weight:800; letter-spacing:-.4px;
+  background:linear-gradient(95deg,#1a56db,#7c3aed); -webkit-background-clip:text;
+  background-clip:text; color:transparent; margin-bottom:5px; }
+.tl .seg .val.big::before { content:'\26a1'; -webkit-text-fill-color:#f5a623; margin-right:4px; font-size:16px; }
+.tl .seg .bar.thick { height:6px; background:linear-gradient(90deg,#c7d5ee,#9db8e8); }
+
+/* --- Столбчатые графики: дни недели и возрастные корзины --- */
+.vbars { display:flex; align-items:flex-end; gap:10px; height:150px; margin:14px 0 6px; }
+.vbars .vb { flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; height:100%; gap:4px; }
+.vbars .vb .vb-val { font-size:13px; font-weight:700; color:#1a2b44; }
+.vbars .vb .vb-fill { width:100%; min-height:3px; border-radius:4px 4px 0 0; background:#1a56db; }
+.vbars .vb.weekend .vb-fill { background:#c3cede; }
+.vbars-x { display:flex; gap:10px; border-top:1px solid #e3e9f3; padding-top:7px; }
+.vbars-x div { flex:1; text-align:center; font-size:12px; color:#5e6f8d; }
+.vbars-x div b { display:block; color:#1a2b44; font-size:12.5px; }
+.vbars-x div.weekend { color:#a7b3c6; }
+@media (max-width:980px){ .slide{padding:26px 20px;min-height:auto;} .grid-2,.grid-3,.grid-2-1,.grid-1-2{grid-template-columns:1fr;} .nav-controls{padding:10px 20px;} .period-banner{padding:14px 16px;} .period-banner .pb-week{font-size:23px;} }
+@media print { .nav-controls{display:none;} .slide{display:block !important; page-break-after:always;} }
+</style>
+</head>
+<body>
+
+{% macro matrix_table(m) -%}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Раздел</th>{% for c in m.cols %}<th style="text-align:center;">{{ c }}</th>{% endfor %}<th style="text-align:center;">Итого</th></tr></thead>
+    <tbody>
+      {% for row in m.rows %}
+      <tr><td><b>{{ row.name }}</b></td>{% for cell in row.cells %}<td class="{{ 'zero' if cell == 0 else 'num' }}">{{ cell }}</td>{% endfor %}<td class="num"><b>{{ row.total }}</b></td></tr>
+      {% endfor %}
+      <tr class="total-row"><td>Итого</td>{% for t in m.totals %}<td class="num">{{ t }}</td>{% endfor %}<td class="num">{{ m.total }}</td></tr>
+    </tbody>
+  </table>
+</div>
+{%- endmacro %}
+
+{# ЧТО ИЗМЕНЕНО: значения отрезков укрупнены, под «всего» добавлено пояснение
+   ПОЧЕМУ: 7.8 + 26.8 не равно 46.3, и без оговорки это читается как ошибка #}
+{% macro timeline_card(tl, color) -%}
+<div class="card">
+  <div class="card-title">{{ tl.label }} времени решения</div>
+  <div class="card-value">{{ tl.to_cls if tl.to_cls else tl.to_res }}<small>ч всего</small></div>
+  <div class="tl">
+    <div class="node"><div class="dot" style="background:#5e6f8d;"></div><div class="cap">Зарегистри­ровано</div></div>
+    <div class="seg"><div class="val big">{{ tl.to_res }} ч</div><div class="bar thick"></div></div>
+    <div class="node"><div class="dot" style="background:{{ color }};"></div><div class="cap">Решение предложено</div></div>
+    <div class="seg"><div class="val big">{{ tl.res_to_cls }} ч</div><div class="bar thick"></div></div>
+    <div class="node"><div class="dot" style="background:#0f6e3a;"></div><div class="cap">Закрыто</div></div>
+  </div>
+  <div class="muted" style="margin-top:8px;">Решение — по {{ tl.n_res }} обращениям, подтверждение — по {{ tl.n_cls }}.
+    Крупная цифра — не сумма отрезков: медианы считаются по разным выборкам.</div>
+</div>
+{%- endmacro %}
+
+{# Столбчатый график по дням недели: 7 колонок, выходные приглушены #}
+{% macro vbars_card(series, title, color) -%}
+<div class="card">
+  <div class="card-title">{{ title }} — всего {{ series.total }}</div>
+  <div class="vbars">
+    {% for p in series.points %}
+    <div class="vb {{ 'weekend' if p.is_weekend }}" title="{{ p.day }} {{ p.date }} — {{ p.count }}">
+      <div class="vb-val">{{ p.count if p.count else '' }}</div>
+      <div class="vb-fill" style="height:{{ p.pct if p.pct > 0 else 0 }}%;{% if not p.is_weekend %}background:{{ color }};{% endif %}"></div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="vbars-x">
+    {% for p in series.points %}<div class="{{ 'weekend' if p.is_weekend }}"><b>{{ p.day }}</b>{{ p.date }}</div>{% endfor %}
+  </div>
+</div>
+{%- endmacro %}
+
+{# Горизонтальные столбцы возрастных корзин — общая модель для открытых и инцидентов #}
+{% macro age_bars_card(series, title, note) -%}
+<div class="card">
+  <div class="card-title">{{ title }} — всего {{ series.total }}</div>
+  <div class="bars" style="margin-top:12px;">
+    {% for b in series.bars %}
+    <div class="bar-row">
+      <div class="bar-label"><span>{{ b.name }}</span><span><b>{{ b.count }}</b> · {{ b.pct_of_total }}%</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:{{ b.pct }}%;background:{{ b.color }};"></div></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% if note %}<div class="muted" style="margin-top:8px;">{{ note }}</div>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro case_card(row, color, rec_label) -%}
+<div class="item" style="border-left-color:{{ color }};">
+  <div class="head">
+    <span>{{ row.id }} — {{ row.get('issue_summary', '') or row.topic_cluster }}</span>
+    <span><span class="badge {{ badge_class(row.final_grade) }}">{{ row.final_grade }}</span></span>
+  </div>
+  <div class="meta">Раздел: <b>{{ row.sec }}</b> · сложность {{ row.complexity }} · аналитик: {{ row.anl }} · инициатор: {{ row.cli }}</div>
+  <div class="body"><b>Описание:</b> {{ row.get('desc', '')[:700] }}</div>
+  <div class="body"><b>Решение:</b> {{ row.get('sol', '')[:700] }}</div>
+  <div class="body"><b>Аргументация:</b> {{ row.get('grade_argument', '') }}</div>
+  {% if row.get('recommendation', '') %}<div class="rec"><b>{{ rec_label }}:</b> {{ row.recommendation }}</div>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro incident_table(rows) -%}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th style="width:8%;">Дата</th><th style="width:9%;">Номер</th><th style="width:12%;">Статус</th><th style="width:10%;">Раздел</th><th style="width:25%;">Суть</th><th style="width:26%;">Решение</th><th style="width:10%;">Аналитик</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr class="{{ 'row-crit' if r.is_crit else '' }}">
+        <td>{{ r.reg }}</td>
+        <td><b {% if r.is_crit %}style="color:#ea4335;"{% endif %}>{{ r.id }}</b></td>
+        <td><span class="badge {{ 'badge-green' if r.is_closed else 'badge-yellow' }}">{{ r.st }}</span></td>
+        <td>{{ r.sec }}</td>
+        <td>{{ r.summary }}</td>
+        <td style="font-size:12.5px;">{{ r.sol[:400] }}</td>
+        <td style="font-size:12.5px;">{{ r.anl }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" style="text-align:center;">Нет обращений</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{%- endmacro %}
+
+<div class="presentation-container">
+
+<div class="nav-controls">
+  <div class="counter">Слайд <span id="cur">1</span> / <span id="tot">1</span></div>
+  <button class="btn" id="prev">◀ Назад</button>
+  <button class="btn btn-primary" id="next">Вперед ▶</button>
+</div>
+
+<!-- 1. ОБЩАЯ СТАТИСТИКА -->
+<!-- ЧТО ИЗМЕНЕНО: слайд собран заново — сюда переехала динамика недель, три KPI
+     и два новых суточных графика; распределение по группам ушло на слайд 2;
+     старый слайд «Динамика поступления» удалён как дублирующий -->
+<div class="slide active">
+  <h2 class="slide-title">📊 Общая статистика по решению обращений</h2>
+
+  <div class="period-banner">
+    <div>
+      <div class="pb-week">{{ week_label_short }}</div>
+      <div class="pb-range">{{ week_range }}</div>
+    </div>
+    <div class="pb-sep"></div>
+    <div class="pb-item"><b>{{ done_total }}</b>завершено за неделю</div>
+    <div class="pb-item"><b>{{ total_all }}</b>строк в выгрузке</div>
+    <div class="pb-item"><b>{{ open_total }}</b>открыто на {{ report_date }}</div>
+  </div>
+
+  <div class="grid-2-1" style="margin-bottom:18px;align-items:start;">
+    <div class="card type-card">
+      <div class="card-title">Всего обращений в выгрузке — {{ total_all }}, завершено за неделю {{ done_total }}
+        ({{ total_tickets }} решено + {{ rejected_total }} отклонено)</div>
+      <div class="tiles">
+        {% for t in type_tiles %}<div style="background:{{ t.color }}; width:{{ t.pct }}%;">{% if t.pct > 7 %}{{ t.count }}{% endif %}</div>{% endfor %}
+      </div>
+      <div class="tiles-legend">
+        {% for t in type_tiles %}<div><span class="dot" style="background:{{ t.color }};"></span>{{ t.name }} — <b>{{ t.count }}</b> ({{ t.pct }}%)</div>{% endfor %}
+      </div>
+    </div>
+    <div>
+      <div class="card kpi-mini" style="margin-bottom:8px;"><div class="card-title">Решено на этой неделе</div>
+        <div class="card-value">{{ total_tickets }}</div>
+        <div class="card-desc">{% if w1_t %}Неделей ранее: {{ w1_t }}{% else %}первая неделя в истории{% endif %}</div></div>
+      <div class="card kpi-mini" style="margin-bottom:8px;"><div class="card-title">Медиана, ч</div>
+        <div class="card-value">{{ med_hour }}</div>
+        <div class="card-desc">{% if w1_m %}Неделей ранее: {{ w1_m }}{% else %}сравнить пока не с чем{% endif %}</div></div>
+      <div class="card kpi-mini"><div class="card-title">Инцидентов</div>
+        <div class="card-value">{{ incident_total }}</div>
+        <div class="card-desc">Критичных: {{ incident_crit }}</div></div>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-bottom:18px;">
+    {{ timeline_card(timeline_median, '#1a56db') }}
+    {{ timeline_card(timeline_mean, '#7c3aed') }}
+  </div>
+
+  <div class="card" style="margin-bottom:18px;">
+    <div class="card-title">📈 Динамика по неделям — синяя линия все обращения, красная инциденты</div>
+    <svg id="weeksTrendChart" width="100%" height="230" viewBox="0 0 900 230"></svg>
+  </div>
+
+  <div class="grid-2" style="margin-bottom:18px;">
+    {{ vbars_card(daily_closed, '⚡ Предложено решений по дням', '#1a56db') }}
+    {{ vbars_card(daily_reg, '📥 Зарегистрировано по дням', '#7c3aed') }}
+  </div>
+
+  <div class="grid-3">
+    {% for s in week_stats %}
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-title">{{ s.icon }} {{ s.label }}</div>
+      <div class="card-value" style="font-size:26px;">{{ s.value }}</div>
+      <div class="card-desc">{{ s.note }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- 3. ТОП ПРОБЛЕМНЫХ ГРУПП -->
+<div class="slide">
+  <h2 class="slide-title">🏷️ Топ-{{ top_topics|length }} точечных проблем</h2>
+  <div class="slide-subtitle">Красным выделены группы, где больше половины обращений — инциденты</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:22%;">Проблема</th><th style="width:11%;">Раздел</th><th style="width:6%;">Кол-во</th><th style="width:9%;">Инциденты</th><th style="width:10%;">Качество</th><th style="width:14%;">Тикеты</th><th style="width:28%;">Примеры (суть)</th></tr></thead>
+      <tbody>
+        {% for row in top_topics %}
+        <tr class="{{ 'row-crit' if row.is_incident_group else '' }}">
+          <td><b {% if row.is_incident_group %}style="color:#b33636;"{% endif %}>{{ row.topic_group }}</b><br><span class="muted">{{ row.clusters[:160] }}</span></td>
+          <td>{{ row.sec_label }}</td>
+          <td class="num"><b>{{ row.count }}</b></td>
+          <td class="num"><span class="badge {{ 'badge-red' if row.is_incident_group else 'badge-grey' }}">{{ row.incident_share }}%</span></td>
+          <td><span class="badge {{ badge_class(row.quality) }}">{{ row.quality }}</span></td>
+          <td><div style="max-height:90px;overflow-y:auto;font-size:12px;">{{ row.tickets }}</div></td>
+          <td>{% for d in row.sample_descs %}<div style="margin-bottom:5px;padding-bottom:5px;border-bottom:1px dashed #cbd5e1;font-size:12.5px;">{{ d }}</div>{% endfor %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# ЧТО ИЗМЕНЕНО: распределение по группам переехало сюда с первого слайда
+     ПОЧЕМУ: обе таблицы про одно и то же — группы проблем, им место рядом #}
+  <div class="card" style="margin-top:18px;">
+    <div class="card-title">Распределение по группам проблем (красным — доля инцидентов)</div>
+    <div class="bars" style="margin-top:12px;">
+      {% for b in group_bars %}
+      <div class="bar-row">
+        <div class="bar-label"><span>{{ b.name }}</span><span><b>{{ b.count }}</b> · {{ b.pct }}%</span></div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:{{ b.width }}%;"></div>
+          {% if b.inc %}<div class="bar-inc" style="width:{{ b.inc_width }}%;"></div>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% if group_rest %}<div class="muted" style="margin-top:8px;">Остальные группы суммарно: {{ group_rest }} обращений</div>{% endif %}
+  </div>
+</div>
+
+<!-- 4. ТАЙМЛАЙН ИНЦИДЕНТОВ -->
+<!-- ЧТО ИЗМЕНЕНО: таймлайн режется отчётной неделей, добавлены корзины возраста
+     и таблица критичных
+     ПОЧЕМУ: раньше на ось ложились все инциденты с 2022 года и точки слипались -->
+<div class="slide">
+  <h2 class="slide-title">⏳ Инциденты недели</h2>
+  <div class="slide-subtitle">На оси — инциденты, зарегистрированные за {{ week_range }}. Красные — критичные, полые — ещё не закрыты</div>
+  <div class="kpi-row">
+    <div class="kpi-item"><div class="number">{{ timeline_points|length }}</div><div class="label">Заведено за неделю</div></div>
+    <div class="kpi-item"><div class="number">{{ incident_total }}</div><div class="label">Всего в выгрузке</div></div>
+    <div class="kpi-item"><div class="number">{{ incident_open }}</div><div class="label">В работе</div></div>
+    <div class="kpi-item"><div class="number">{{ incident_crit }}</div><div class="label">Критичных</div></div>
+  </div>
+  <div class="card">
+    <svg width="100%" height="150" viewBox="0 0 1000 150" preserveAspectRatio="xMidYMid meet">
+      <line x1="30" y1="75" x2="970" y2="75" stroke="#dce2ed" stroke-width="3"/>
+      {% for p in timeline_points %}
+        <circle cx="{{ p.x }}" cy="75" r="8"
+                fill="{{ '#ea4335' if p.is_crit else ('#1a56db' if p.is_closed else '#ffffff') }}"
+                stroke="{{ '#ea4335' if p.is_crit else '#1a56db' }}" stroke-width="2"/>
+        <text x="{{ p.x }}" y="{{ 57 if p.up else 101 }}" text-anchor="middle" font-size="9"
+              fill="{{ '#ea4335' if p.is_crit else '#1a2b44' }}">{{ p.id[-6:] }}</text>
+        <text x="{{ p.x }}" y="{{ 45 if p.up else 113 }}" text-anchor="middle" font-size="8.5" fill="#8695ac">{{ p.date }}</text>
+      {% else %}
+        <text x="500" y="80" text-anchor="middle" font-size="13" fill="#8695ac">За неделю новых инцидентов не зарегистрировано</text>
+      {% endfor %}
+    </svg>
+  </div>
+
+  <div class="grid-2" style="margin-top:18px;">
+    {{ age_bars_card(inc_age_bars, '🔥 Сколько ждут открытые инциденты',
+       'Возраст от даты регистрации на ' ~ report_date ~ '. Чем правее корзина, тем дольше инцидент в работе.') }}
+    <div class="card">
+      <div class="card-title">🔴 Критичные инциденты ({{ crit_incident_rows|length }})</div>
+      <div class="table-wrap" style="margin-top:10px;">
+        <table>
+          <thead><tr><th style="width:19%;">Номер</th><th style="width:12%;">Дата</th><th style="width:17%;">Статус</th><th style="width:14%;">Раздел</th><th style="width:38%;">Суть</th></tr></thead>
+          <tbody>
+            {% for r in crit_incident_rows %}
+            <tr class="row-crit">
+              <td style="white-space:nowrap;"><b style="color:#ea4335;">{{ r.id }}</b></td><td>{{ r.reg }}</td>
+              <td>{{ r.st }}</td><td>{{ r.sec }}</td><td style="font-size:12.5px;">{{ r.summary }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" style="text-align:center;">Критичных инцидентов нет</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="muted" style="margin-top:8px;">Таблица не ограничена неделей: критичное не должно исчезать со слайда.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 5. ИНЦИДЕНТЫ: ЗАКРЫТЫЕ -->
+<div class="slide">
+  <h2 class="slide-title">🚨 Инциденты закрытые ({{ incidents_closed|length }})</h2>
+  <div class="slide-subtitle">Сортировка по статусу; красным — отмеченные ИИ как критичные</div>
+  <div class="scroll">
+    {{ incident_table(incidents_closed) }}
+    <div class="card-title" style="margin-top:20px;">🤖 Разбор закрытых инцидентов</div>
+    <div class="ai-box">{{ ai_comments.inc_closed | safe }}</div>
+  </div>
+</div>
+
+<!-- 6. ИНЦИДЕНТЫ: ОТКРЫТЫЕ -->
+<div class="slide">
+  <h2 class="slide-title">🔥 Инциденты открытые ({{ incident_open }})</h2>
+  <div class="slide-subtitle">Не закрыты на {{ report_date }}; сортировка по статусу</div>
+  <div class="scroll">
+    {{ incident_table(incidents_open) }}
+    <div class="card-title" style="margin-top:20px;">🤖 Разбор открытых инцидентов</div>
+    <div class="ai-box">{{ ai_comments.inc_open | safe }}</div>
+  </div>
+</div>
+
+<!-- 7. ОБЩИЙ ВЫВОД ПО ИНЦИДЕНТАМ -->
+<div class="slide">
+  <h2 class="slide-title">🧠 Инциденты: общая картина</h2>
+  <div class="slide-subtitle">Повторяемость, закономерности и приоритеты на следующую неделю</div>
+  <div class="ai-box scroll">{{ ai_comments.inc_total | safe }}</div>
+</div>
+
+<!-- 8. ТИПЫ ОБРАЩЕНИЙ -->
+<div class="slide">
+  <h2 class="slide-title">🗂️ Типы обращений — только закрытые ({{ total_tickets }})</h2>
+  <div class="slide-subtitle">Строки — функциональные блоки, колонки — тип обращения</div>
+  <div class="scroll">
+    {{ matrix_table(type_matrix) }}
+    <div class="card-title" style="margin-top:20px;">🤖 Комментарий к структуре обращений</div>
+    <div class="ai-box">{{ ai_comments.types | safe }}</div>
+  </div>
+</div>
+
+<!-- 9. НЕВЕРНАЯ КЛАССИФИКАЦИЯ -->
+<div class="slide">
+  <h2 class="slide-title">🔀 Обращения с неверным типом ({{ misclassified_total }})</h2>
+  <div class="slide-subtitle">ИИ определил тип по существу текста и не согласен с тем, что проставлено при регистрации</div>
+  <div class="scroll">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:9%;">Номер</th><th style="width:8%;">Дата</th><th style="width:13%;">Тип старый</th><th style="width:13%;">Тип предлагаемый</th><th style="width:11%;">Раздел</th><th style="width:22%;">Суть</th><th style="width:24%;">Аргументация</th></tr></thead>
+        <tbody>
+          {% for r in misclassified_rows %}
+          <tr>
+            <td><b>{{ r.id }}</b></td>
+            <td>{{ r.reg }}</td>
+            <td><span class="badge" style="background:{{ r.color_old }}22; color:{{ r.color_old }};">{{ r.type_old }}</span></td>
+            <td><span class="badge" style="background:{{ r.color_new }}22; color:{{ r.color_new }};">{{ r.type_new }}</span></td>
+            <td>{{ r.sec }}</td>
+            <td>{{ r.summary }}</td>
+            <td style="font-size:12.5px;">{{ r.argument }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" style="text-align:center;">Расхождений по типам не найдено</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 10. ИНИЦИАТОРЫ -->
+<div class="slide">
+  <h2 class="slide-title">👤 Топ-{{ top_initiators_ext|length }} инициаторов</h2>
+  <div class="slide-subtitle">Обращения каждого сгруппированы по сути — видно, что повторяется</div>
+  <div class="scroll">
+    {% for i in top_initiators_ext %}
+    <div class="card" style="margin-bottom:12px;">
+      <div class="head" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <b style="font-size:15px;">{{ i.cli }}</b>
+        <span><span class="badge badge-blue">{{ i.count }} обращений</span>
+          {% if i.incidents %}<span class="badge badge-red">инцидентов: {{ i.incidents }}</span>{% endif %}</span>
+      </div>
+      <div class="muted" style="margin:6px 0 10px;">Блоки: {{ i.blocks }}</div>
+      <table>
+        <thead><tr><th style="width:52%;">Суть обращения</th><th style="width:8%;">Раз</th><th style="width:14%;">Раздел</th><th style="width:26%;">Тикеты</th></tr></thead>
+        <tbody>
+          {% for s in i.senses %}
+          <tr><td>{{ s.sense }}</td><td class="num"><b>{{ s.cnt }}</b></td><td>{{ s.sec }}</td><td style="font-size:12px;">{{ s.ids }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+    <div class="card-title" style="margin-top:16px;">🤖 Что говорит структура обращений</div>
+    <div class="ai-box">{{ ai_comments.initiators | safe }}</div>
+  </div>
+</div>
+
+<!-- 11. ЭМОЦИОНАЛЬНЫЙ ФОН -->
+<div class="slide">
+  <h2 class="slide-title">😐 Эмоциональный фон обращений</h2>
+  <div class="slide-subtitle">Отклонение от делового тона, по убыванию уровня</div>
+  <div class="kpi-row">
+    <div class="kpi-item"><div class="number">{{ emo_total }}</div><div class="label">Эмоциональных обращений</div></div>
+    <div class="kpi-item"><div class="number">{{ emo_avg }}</div><div class="label">Средний балл</div></div>
+    <div class="kpi-item"><div class="number">{{ emo_max }}</div><div class="label">Максимальный балл</div></div>
+    <div class="kpi-item"><div class="number">{{ ((emo_total / total_tickets) * 100) | round(1) if total_tickets else 0 }}%</div><div class="label">Доля от всех</div></div>
+  </div>
+  <div class="table-wrap scroll">
+    <table>
+      <thead><tr><th>Номер</th><th>Дата</th><th>Уровень</th><th>Раздел</th><th>Инициатор</th><th>Суть</th><th>Аргументация</th></tr></thead>
+      <tbody>
+        {% for row in emo_tickets %}
+        <tr>
+          <td><b>{{ row.id }}</b></td>
+          <td>{{ row.reg_dt.strftime('%d.%m.%Y') if row.reg_dt else 'Н/Д' }}</td>
+          <td><span class="badge {{ 'badge-red' if row.tone_deviation_score > 1 else 'badge-yellow' }}">{{ row.tone_deviation_score }}</span></td>
+          <td>{{ row.sec }}</td>
+          <td>{{ row.cli }}</td>
+          <td>{{ row.get('issue_summary', '') }}</td>
+          <td style="font-size:12.5px;">{{ row.get('emotion_argument', '') }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" style="text-align:center;">Отклонений эмоционального фона не зафиксировано</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 12. РЕЙТИНГ АНАЛИТИКОВ -->
+<div class="slide">
+  <h2 class="slide-title">🏆 Рейтинг аналитиков</h2>
+  <div class="slide-subtitle">Балл = (Отлично×3 + Хорошо×1 − Плохо×3) × средняя сложность. Оценка выставлена по ужесточённым критериям</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Аналитик</th><th>Всего</th><th>⭐ Отлично</th><th>✅ Хорошо</th><th>❌ Плохо</th><th>Ср. сложность</th><th>Балл</th></tr></thead>
+      <tbody>
+        {% for row in top_analysts %}
+        <tr>
+          <td class="num">{{ loop.index }}</td>
+          <td><b>{{ row.anl }}</b></td>
+          <td class="num">{{ row.total }}</td>
+          <td class="num"><span class="badge badge-green">{{ row.get('ОТЛИЧНО', 0) }}</span></td>
+          <td class="num"><span class="badge badge-yellow">{{ row.get('ХОРОШО', 0) }}</span></td>
+          <td class="num"><span class="badge badge-red">{{ row.get('ПЛОХО', 0) }}</span></td>
+          <td class="num">{{ "%.1f"|format(row.comp) }}</td>
+          <td class="num"><b>{{ "%.1f"|format(row.score) }}</b></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 13. ПЛОХО -->
+<div class="slide">
+  <h2 class="slide-title">🔴 Обращения с оценкой «Плохо» ({{ bad_tickets|length }})</h2>
+  <div class="slide-subtitle">Разбор проблемных кейсов с рекомендацией, что исправить в процессе</div>
+  <div class="card-list scroll">
+    {% for row in bad_tickets %}{{ case_card(row, '#ea4335', 'Рекомендация') }}{% else %}
+    <div class="card">Обращений с оценкой «Плохо» не зафиксировано.</div>{% endfor %}
+  </div>
+</div>
+
+<!-- 14. ОТЛИЧНО -->
+<div class="slide">
+  <h2 class="slide-title">🌟 Лучшие решения ({{ exc_tickets|length }})</h2>
+  <div class="slide-subtitle">Эталонные кейсы: устранена причина и сделан шаг против повторения</div>
+  <div class="card-list scroll">
+    {% for row in exc_tickets %}{{ case_card(row, '#34a853', 'Что тиражировать') }}{% else %}
+    <div class="card">Обращений с оценкой «Отлично» не зафиксировано.</div>{% endfor %}
+  </div>
+</div>
+
+<!-- 15. АЛЬТЕРНАТИВНОЕ МНЕНИЕ ИИ -->
+<div class="slide">
+  <h2 class="slide-title">🤖 Альтернативное мнение ИИ ({{ alt_total }})</h2>
+  <div class="slide-subtitle">Кейсы, где обращение формально закрыто, но проблема, по мнению ИИ, осталась</div>
+  <div class="table-wrap scroll">
+    <table>
+      <thead><tr><th style="width:9%;">Номер</th><th style="width:11%;">Раздел</th><th style="width:26%;">Описание</th><th style="width:26%;">Решение аналитика</th><th style="width:28%;">Мнение ИИ</th></tr></thead>
+      <tbody>
+        {% for row in alt_tickets %}
+        <tr>
+          <td><b>{{ row.id }}</b></td>
+          <td style="font-size:12px;">{{ row.topic_cluster[:60] }}</td>
+          <td style="font-size:12.5px;">{{ row.get('desc', '')[:500] }}</td>
+          <td style="font-size:12.5px;">{{ row.get('sol', '')[:500] }}</td>
+          <td style="font-size:12.5px;background:#f0f7ff;">{{ row.get('grade_argument', '') }}
+            {% if row.get('recommendation', '') %}<br><b>Предложение:</b> {{ row.recommendation }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 16. ОТКРЫТЫЕ СТАРШЕ МЕСЯЦА -->
+<div class="slide">
+  <h2 class="slide-title">🧹 Открытые старше месяца ({{ open_old_total }})</h2>
+  <div class="slide-subtitle">Возраст от даты регистрации на {{ report_date }}. В таблице — обращения вне нормального рабочего процесса, их нужно чистить</div>
+  <div class="scroll">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:8%;">Дата</th><th style="width:9%;">Номер</th><th style="width:8%;">Дней</th><th style="width:15%;">Статус</th><th style="width:12%;">Раздел</th><th style="width:48%;">Описание</th></tr></thead>
+        <tbody>
+          {% for r in cleanup_rows %}
+          <tr>
+            <td>{{ r.reg }}</td><td><b>{{ r.id }}</b></td>
+            <td class="num"><span class="badge {{ 'badge-red' if r.age > 60 else 'badge-yellow' }}">{{ r.age }}</span></td>
+            <td>{{ r.st }}</td><td>{{ r.sec }}</td>
+            <td style="font-size:12.5px;">{{ r.desc }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" style="text-align:center;">Зависших обращений вне рабочих статусов нет</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  {# ЧТО ИЗМЕНЕНО: таблица «статус × возраст» заменена столбчатым графиком из 4 корзин
+     ПОЧЕМУ: пять колонок по статусам читались хуже, чем один ряд столбцов #}
+  <div style="margin-top:20px;">
+    {{ age_bars_card(age_bars4, '⏱️ Сколько висят открытые обращения',
+       'Возраст от даты регистрации на ' ~ report_date ~ '. Красная корзина — кандидаты на эскалацию.') }}
+  </div>
+</div>
+
+<!-- 17. ОТКРЫТЫЕ МЛАДШЕ МЕСЯЦА -->
+<div class="slide">
+  <h2 class="slide-title">📂 Открытые младше месяца ({{ open_new_total }})</h2>
+  <div class="slide-subtitle">Нормальный рабочий поток: статусы по функциональным блокам</div>
+  {{ matrix_table(open_matrix_new) }}
+</div>
+
+<!-- 18. ПЛАНШЕТЫ -->
+<div class="slide">
+  <h2 class="slide-title">📱 Обращения по планшетам ({{ planshet_total }})</h2>
+  <div class="slide-subtitle">Открытые и закрытые обращения по планшетам и мобильным АРМ</div>
+  <div class="table-wrap scroll">
+    <table>
+      <thead><tr><th style="width:9%;">Номер</th><th style="width:8%;">Дата</th><th style="width:14%;">Статус</th><th style="width:10%;">Раздел</th><th style="width:25%;">Суть / описание</th><th style="width:24%;">Решение</th><th style="width:10%;">Инициатор</th></tr></thead>
+      <tbody>
+        {% for t in planshet_rows %}
+        <tr>
+          <td><b>{{ t.id }}</b></td><td>{{ t.reg }}</td>
+          <td><span class="badge {{ 'badge-green' if t.is_closed else 'badge-yellow' }}">{{ t.st }}</span></td>
+          <td>{{ t.sec }}</td>
+          <td style="font-size:12.5px;">{{ t.summary or t.desc[:300] }}</td>
+          <td style="font-size:12.5px;">{{ t.sol[:400] }}</td>
+          <td style="font-size:12.5px;">{{ t.cli }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" style="text-align:center;">Обращений по планшетам за период не обнаружено</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 19. ЗАКЛЮЧЕНИЕ -->
+<div class="slide">
+  <h2 class="slide-title">📌 Заключение и рекомендации</h2>
+  <div class="slide-subtitle">Стратегические выводы по качеству поддержки за период</div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">🔍 Выводы ИИ (Root Cause)</div>
+      <ul style="padding-left:20px;line-height:1.8;color:#2a3b57;font-size:13.5px;">{{ ai_conclusions | safe }}</ul>
+    </div>
+    <div class="card">
+      <div class="card-title">🏆 Номинации</div>
+      <div style="padding:8px 0;border-bottom:1px solid #e9edf4;">
+        <div style="font-weight:700;">👑 Лидер по сложности</div><div>{{ nom_hard_anl }}</div><div class="muted">{{ nom_hard_txt }}</div>
+      </div>
+      <div style="padding:8px 0;border-bottom:1px solid #e9edf4;">
+        <div style="font-weight:700;">📊 Лидер по количеству</div><div>{{ nom_qty_anl }}</div><div class="muted">{{ nom_qty_txt }}</div>
+      </div>
+      <div style="padding:8px 0;">
+        <div style="font-weight:700;">⭐ Лидер по качеству</div><div>{{ nom_qual_anl }}</div><div class="muted">{{ nom_qual_txt }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px;background:#f0f7ff;border-color:#cfe0f7;">
+    <div class="card-title">💡 Совет недели</div>
+    <div style="font-size:16px;font-weight:600;color:#1a2b44;">{{ tip_text }}</div>
+  </div>
+</div>
+
+<!-- 20. ПРИЛОЖЕНИЕ -->
+<div class="slide">
+  <h2 class="slide-title">🏅 Приложение. Сложность, длительность, расход ИИ</h2>
+  <div class="slide-subtitle">Технические показатели прогона</div>
+  <div class="scroll">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">🔺 Топ-5 самых сложных</div>
+        <ul style="padding-left:18px;line-height:1.9;font-size:13.5px;">
+          {% for row in hardest_tickets %}<li><b>{{ row.id }}</b> — {{ row.get('issue_summary','') or row.topic_cluster }} — сложность {{ row.complexity }}</li>{% endfor %}
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">🔻 Топ-5 самых простых</div>
+        <ul style="padding-left:18px;line-height:1.9;font-size:13.5px;">
+          {% for row in easiest_tickets %}<li><b>{{ row.id }}</b> — {{ row.get('issue_summary','') or row.topic_cluster }} — сложность {{ row.complexity }}</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+
+    <div class="card-title" style="margin-top:18px;">⏳ Топ-10 самых длительных</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Номер</th><th>Часы</th><th>Раздел</th><th>Аналитик</th><th>Суть</th></tr></thead>
+        <tbody>
+          {% for row in longest_tickets %}
+          <tr><td><b>{{ row.id }}</b></td><td class="num"><b>{{ "%.1f"|format(row.dif_Hour) }}</b></td><td>{{ row.sec }}</td><td>{{ row.anl }}</td>
+            <td>{{ row.get('issue_summary','') or row.topic_cluster }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid-3" style="margin-top:18px;">
+      <div class="card"><div class="card-title">Разметка ({{ batch_model }})</div><div class="card-value" style="font-size:24px;">{{ batch_tokens }}</div><div class="card-desc">токенов</div></div>
+      <div class="card"><div class="card-title">Группировка тем</div><div class="card-value" style="font-size:24px;">{{ group_tokens }}</div><div class="card-desc">{{ groups_count }} групп</div></div>
+      <div class="card"><div class="card-title">Аналитика ({{ summary_model }})</div><div class="card-value" style="font-size:24px;">{{ summary_tokens + incidents_tokens }}</div><div class="card-desc">Root Cause и комментарии</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 21. ВАЛИДАЦИЯ -->
+<div class="slide">
+  <h2 class="slide-title">🔒 Проверка целостности данных</h2>
+  <div class="slide-subtitle">Сходимость чисел между слайдами — если что-то разошлось, отчёту верить нельзя</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th style="width:60%;">Проверка</th><th style="width:13%;">Слева</th><th style="width:13%;">Справа</th><th style="width:14%;">Итог</th></tr></thead>
+      <tbody>
+        {% for v in validation_rows %}
+        <tr><td>{{ v.name }}</td><td class="num">{{ v.left }}</td><td class="num">{{ v.right }}</td>
+          <td class="num"><span class="badge {{ 'badge-green' if v.ok else 'badge-red' }}">{{ '✓ сходится' if v.ok else '✗ расхождение' }}</span></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card" style="margin-top:16px;background:{{ '#e1f7e8' if validation_ok else '#fde8e8' }};border-color:{{ '#b6e3c6' if validation_ok else '#f5c6cb' }};">
+    <div style="font-weight:700;color:{{ '#0f6e3a' if validation_ok else '#b33636' }};font-size:15px;">
+      {{ '✅ Все проверки пройдены — данные отчёта согласованы' if validation_ok else '❌ Есть расхождения — проверьте выгрузку и фильтры' }}
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+(function(){
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;          // считаем по факту, а не константой
+  let cur = 0;
+  const prev = document.getElementById('prev'), next = document.getElementById('next');
+  document.getElementById('tot').textContent = total;
+
+  function upd(){
+    slides.forEach((s,i)=> s.classList.toggle('active', i===cur));
+    document.getElementById('cur').textContent = cur+1;
+    prev.disabled = cur===0; next.disabled = cur===total-1;
+    if (cur===0) drawTrend();
+  }
+  prev.addEventListener('click', ()=>{ if(cur>0){cur--;upd();} });
+  next.addEventListener('click', ()=>{ if(cur<total-1){cur++;upd();} });
+  document.addEventListener('keydown', e=>{
+    if(e.key==='ArrowLeft'&&cur>0){cur--;upd();e.preventDefault();}
+    if((e.key==='ArrowRight'||e.key===' ')&&cur<total-1){cur++;upd();e.preventDefault();}
+  });
+
+  function drawTrend(){
+    const labels = {{ chart_weeks_labels | safe }};
+    const values = {{ chart_weeks_values | safe }};
+    const incs   = {{ chart_weeks_incidents | safe }};
+    const svg = document.getElementById('weeksTrendChart');
+    if(!svg || !values || !values.length) return;
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    const W=900,H=260,pad=44;
+    const maxV = Math.max(...values, ...incs.filter(v=>v!==null), 1)*1.2;
+    const NS='http://www.w3.org/2000/svg';
+
+    for(let i=0;i<=4;i++){
+      const y = pad + i*(H-2*pad)/4;
+      const l = document.createElementNS(NS,'line');
+      l.setAttribute('x1',pad); l.setAttribute('x2',W-pad); l.setAttribute('y1',y); l.setAttribute('y2',y);
+      l.setAttribute('stroke','#eef2f9'); l.setAttribute('stroke-width','1'); svg.appendChild(l);
+      const t = document.createElementNS(NS,'text');
+      t.setAttribute('x',pad-8); t.setAttribute('y',y+4); t.setAttribute('text-anchor','end');
+      t.setAttribute('font-size','10'); t.setAttribute('fill','#8695ac');
+      t.textContent = Math.round(maxV - i*maxV/4); svg.appendChild(t);
+    }
+    const xOf = i => values.length===1 ? W/2 : pad + i*(W-2*pad)/(values.length-1);
+    const yOf = v => H - pad - (v/maxV)*(H-2*pad);
+
+    function series(arr, color, label){
+      const pts = [];
+      arr.forEach((v,i)=>{
+        if(v===null||v===undefined) return;
+        pts.push(`${xOf(i)},${yOf(v)}`);
+        const c=document.createElementNS(NS,'circle');
+        c.setAttribute('cx',xOf(i)); c.setAttribute('cy',yOf(v)); c.setAttribute('r','5'); c.setAttribute('fill',color);
+        svg.appendChild(c);
+        const t=document.createElementNS(NS,'text');
+        t.setAttribute('x',xOf(i)); t.setAttribute('y',yOf(v)-11); t.setAttribute('text-anchor','middle');
+        t.setAttribute('font-size','11'); t.setAttribute('font-weight','600'); t.setAttribute('fill',color);
+        t.textContent=v; svg.appendChild(t);
+      });
+      if(pts.length>1){
+        const p=document.createElementNS(NS,'polyline');
+        p.setAttribute('fill','none'); p.setAttribute('stroke',color); p.setAttribute('stroke-width','3');
+        p.setAttribute('points',pts.join(' ')); svg.insertBefore(p, svg.firstChild);
+      }
+    }
+    series(values,'#1a56db','Обращения');
+    series(incs,'#ea4335','Инциденты');
+
+    labels.forEach((l,i)=>{
+      const t=document.createElementNS(NS,'text');
+      t.setAttribute('x',xOf(i)); t.setAttribute('y',H-pad+18); t.setAttribute('text-anchor','middle');
+      t.setAttribute('font-size','11'); t.setAttribute('fill','#5e6f8d'); t.textContent=l; svg.appendChild(t);
+    });
+  }
+
+  upd();
+  drawTrend();
+})();
+</script>
+
+</body>
+</html>

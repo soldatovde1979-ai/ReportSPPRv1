@@ -5,7 +5,7 @@
 # ПОЧЕМУ: цифры макета должны быть воспроизводимы и проверяемы (Р-2 в my-FT).
 # Запуск (Linux / Bash):  python3 examples/build_mockup_v2.py
 # ----------------------------------------------------------------------
-VERSION = "2.1"
+VERSION = "2.2"
 # выгрузка; демо-копия с табличными частями — examples/sppr_dump_20260929_180748_842rec_demo_tab.json
 DUMP_FILE = "examples/sppr_dump_20260929_180748_842rec_demo_tab.json"
 DEMO_TAB = "_demo_tab" in DUMP_FILE   # табличные части выдуманы — блоки на них помечаются «демо»
@@ -129,7 +129,8 @@ def in_per(dt, a=WS, b=WE):
 sol = [r for r in rows if r["is_sol"] and in_per(r["done_dt"])]
 inc = [r for r in rows if in_per(r["reg_dt"])]
 rej = [r for r in rows if r["is_rej"] and in_per(r["cls_dt"])]
-opn = [r for r in rows if r["is_open"]]
+opn_svc = [r for r in rows if r["is_open"] and r["cat"] == "Служебное"]
+opn = [r for r in rows if r["is_open"] and r["cat"] != "Служебное"]   # служебные карточки — не очередь
 for r in sol:
     r["ai"] = AIT.get(r["id"], {})
     st = r["ai"].get("st")
@@ -254,6 +255,7 @@ for key, pref in (("krav", "Кравченко"), ("mord", "Морденко")):
     M["sol_" + key] = sum(r["anl"].startswith(pref) for r in sol)
 M["med_krav"] = med([r["h"] for r in sol if r["anl"].startswith("Кравченко")])
 M["bad_n"] = sum(r["ai"].get("gr") == "П" for r in sol_ai)
+OPEN_CRIT = {x["id"]: x["why"] for x in AI.get("open_crit", []) if x["id"] in BYID and BYID[x["id"]]["is_open"]}
 # планшеты — 4 недели по дате регистрации + открытые
 W4S = WEEKS4[0][0]
 pl = [r for r in rows if re.search("планшет", r["desc"] + r["sol"], re.I) and (r["reg_dt"] >= W4S or r["is_open"])]
@@ -272,8 +274,9 @@ def pl_kind(r):
     return "Доработки и прочее"
 
 
+PLK = AI.get("planshet", {})
 for r in pl:
-    r["pl_kind"] = pl_kind(r)
+    r["pl_kind"] = PLK.get(r["id"]) or pl_kind(r)   # причина — разметка ИИ; для неразмеченных — по словам
 M["pl_mass"] = sum(r["pl_kind"] == "Массовый сбой 02.09" for r in pl)
 M["pl_login"] = sum(r["pl_kind"] == "Вход и учётная запись" for r in pl)
 M["pl_sd"] = sum(bool(re.search("сервис деск|отработано сервис", r["sol"], re.I)) for r in pl)
@@ -508,7 +511,8 @@ def slide1():
     # строка 4 — динамика по неделям
     wgroups = []
     for w in wk:
-        lab = f'W{w["a"].isocalendar()[1]}|{w["a"]:%d.%m}'
+        nd = (w["b"] - w["a"]).days
+        lab = f'W{w["a"].isocalendar()[1]}|{w["a"]:%d.%m}' + (f" · {nd} дн." if nd < 7 else "")
         wgroups += [(lab.replace("|", " пришло|"), Counter(r["cat"] for r in w["i"]), False),
                     (lab.replace("|", " решено|"), Counter(r["cat"] for r in w["s"]), False)]
     tbl = "".join(f'<tr><td>W{w["a"].isocalendar()[1]} · {w["a"]:%d.%m}–{(w["b"]-timedelta(days=1)):%d.%m}</td><td>{len(w["i"])}</td><td>{len(w["s"])}</td>'
@@ -546,9 +550,14 @@ def slide1():
                  f'<h4 class="sub">Контроль решений прошлой недели</h4><div class="tw"><table><thead><tr><th>Что решили (макет W38)</th><th>Было</th><th>Сейчас</th><th>Статус</th></tr></thead><tbody>{prev}</tbody></table></div>',
                  "Пять решений недели по схеме «проблема — факт — действие — кому — эффект». Ручные правки считаются без НСИ. Ниже — что было решено на прошлой неделе и что из этого сдвинулось: решения сохраняются в истории и возвращаются в следующий отчёт (Т-52).",
                  "Совещание начинается с этого блока: не «что случилось», а что делаем и кто отвечает. Невыполненные решения не теряются — они висят здесь, пока не сдвинутся.")
+    ra = "".join(f'<tr><td><b>{E(x["cause"])}</b></td><td>{tks(x["ids"])}</td><td><b>{E(x["act"])}</b></td><td>{E(x["who"])}</td></tr>' for x in S["root_all"])
+    row7 = panel("Первопричины недели — все типы обращений", stamps("ai", "sol", "open"),
+                 f'<div class="tw"><table class="ai"><thead><tr><th>Первопричина</th><th>Обращения</th><th>Что сделать</th><th>Кому</th></tr></thead><tbody>{ra}</tbody></table></div>',
+                 "Корневые причины, которые ИИ видит сразу в нескольких обращениях разных типов — правках, консультациях, инцидентах (бывшие «Выводы ИИ» старого отчёта, Т-50).",
+                 "Одна мера по первопричине снимает сразу группу обращений разных типов — это уровень решений руководителя, а не аналитика.")
     return (f'<article class="slide" id="s1"><div class="sh"><h2>Неделя {WEEK}: поток, скорость, решения</h2>'
             f'<p class="lead">Период {PER} ({rule}) · срез открытых на {NOW:%d.%m.%Y %H:%M} · выгрузка {len(raw)} строк</p></div>'
-            + p0 + row1 + row2 + row3 + row4 + row5 + row6 + ai_block("s1") + "</article>")
+            + p0 + row1 + row2 + row3 + row4 + row5 + row6 + row7 + ai_block("s1") + "</article>")
 
 
 # ================================================================ СЛАЙД 2 — очередь
@@ -579,6 +588,37 @@ def slide2():
                        f"Календарные часы в каждом статусе из табличной части tab_status для {len(ws)} решённых за период; держатель — по статусу (data.md, разд. 10).",
                        "Показывает, где на самом деле теряется время: у пользователя, в анализе или у разработки. Пинг-понг с уточнениями и автозакрытие видны по фактам, а не по догадке.",
                        "demo" if DEMO_TAB else "")
+    # прогноз очереди (Т-52): по потоку 4 недель; разработка — по истории статусов, если она есть
+    nets = [w["dq"] for w in wk]
+    per_w = [7 / max(1, (w["b"] - w["a"]).days) for w in wk]          # неполная неделя — к 7 дням
+    avg = sum(n * k for n, k in zip(nets, per_w)) / len(nets)
+    fc = [len(opn) + round(avg * k) for k in range(1, 5)]
+    dev_line = ""
+    DEV = {"Планирование разработки", "Разработка", "Внутреннее тестирование", "Внутреннее тестирование на Предпроде", "Проверка релиза", "Релиз установлен"}
+    if TAB_ON["tab_status"]:
+        ins = outs = 0
+        for r in rows:
+            ev = sorted(r["tab_status"], key=lambda e: e[0])
+            for k, e in enumerate(ev):
+                if e[0] < W4S: continue
+                prev_dev = k > 0 and ev[k - 1][3] in DEV
+                if e[3] in DEV and not prev_dev: ins += 1
+                if e[3] not in DEV and prev_dev: outs += 1
+        wks = (WE - W4S).days / 7
+        net = (ins - outs) / wks
+        tail = sum(r["age"] > OLD_DAYS for r in dev)
+        c1 = lambda x: f"{x:.1f}".replace(".", ",")
+        verdict = (f"хвост старше 30 дней ({tail}) при таком темпе выхода разберётся примерно за <b>{tail / (outs / wks):.0f} нед.</b>" if outs else "из разработки ничего не выходит — хвост не разберётся")
+        dev_line = (f'<p class="cmp">Разработка: входит <b>{c1(ins / wks)}</b> в неделю, выходит <b>{c1(outs / wks)}</b> — очередь {"растёт" if net > 0 else "тает"} на {c1(abs(net))} в неделю; {verdict}'
+                    + (' <span class="stt warn">демо</span>' if DEMO_TAB else "") + "</p>")
+    wrow = "".join(f'<td>{n:+d}</td>' for n in nets)
+    p_fc = panel("Прогноз очереди", stamps("w4", "open"),
+                 f'<div class="tw"><table class="num"><thead><tr><th></th>' + "".join(f'<th>W{w["a"].isocalendar()[1]}</th>' for w in wk) +
+                 f'<th>Через 1 нед.</th><th>2</th><th>3</th><th>4</th></tr></thead><tbody><tr><th>Изменение очереди</th>{wrow}' +
+                 "".join(f'<td class="mut">≈ {avg:+.0f}</td>' for _ in fc) + f'</tr><tr><th>Открыто</th><td colspan="{len(wk)}" class="mut">сейчас {len(opn)}</td>' +
+                 "".join(f'<td><b>{v}</b></td>' for v in fc) + f'</tr></tbody></table></div>{dev_line}',
+                 "Изменение очереди по неделям (пришло − решено − отклонено; неполная неделя пересчитана на 7 дней) и простая экстраполяция средним на 4 недели вперёд. Строка про разработку — по истории статусов (tab_status).",
+                 "Отвечает на вопрос «справимся ли без изменений»: если очередь или хвост разработки не тает — нужны люди, приоритеты или отказ от части обращений.")
     # аналитик × держатель, старше 30 дней
     anl = sorted(set(r["anl"] for r in old), key=lambda a: (-sum(r["anl"] == a for r in old), a))
     body = ""
@@ -633,7 +673,7 @@ def slide2():
                "Рабочий список на разбор очереди: по каждой строке — решение «закрыть / объединить / срок / в релиз».")
     return (f'<article class="slide" id="s2"><div class="sh"><h2>Очередь на {NOW:%d.%m}: у кого мяч и как её сократить</h2>'
             f'<p class="lead">Открыто {len(opn)}: не решены и не отклонены на момент выгрузки; старше {OLD_DAYS} дней — {len(old)}</p></div>'
-            + p1 + p_wait + '<div class="grid g21">' + p2 + p3 + "</div>" + p4 + p5 + ai_block("s2") + "</article>")
+            + p1 + p_fc + p_wait + '<div class="grid g21">' + p2 + p3 + "</div>" + p4 + p5 + ai_block("s2") + "</article>")
 
 
 # ================================================================ СЛАЙД 3 — инциденты
@@ -652,7 +692,7 @@ def slide3():
              ("Решено за период", M["inc_sol"], "W36–W39: " + " · ".join(map(str, sol_w)), sol_w, "sol"),
              ("По сути инцидентов", M["inc_ai"], f"среди решённых — в {M['hidden_ratio']} раза больше зарегистрированных", None, "ai"),
              ("Старше 30 дней", M["inc_old"], f"из них у разработки {M['inc_dev']}", None, "open"),
-             ("Критичные", sum(1 for r in sol if r["ai"].get("crit")), "ИИ: остановка процесса", None, "ai")]
+             ("Критичные", sum(1 for r in sol if r["ai"].get("crit")) + len(OPEN_CRIT), f"ИИ: {len(OPEN_CRIT)} открыто · {sum(1 for r in sol if r['ai'].get('crit'))} решено", None, "ai")]
     t = "".join(f'<div class="itile t-{k}"><span>{E(a)}</span><b>{v}</b>{spark(sp) if sp else ""}<small>{E(n)}</small></div>' for a, v, n, sp, k in tiles)
     p1 = panel("Инциденты в цифрах", stamps("in", "sol", "open"), f'<div class="itiles">{t}</div>',
                "Тип «Инцидент» при регистрации; «по сути» — оценка ИИ по тексту решения. Линии — 4 недели W36–W39.",
@@ -683,7 +723,7 @@ def slide3():
         x = x0 + (x1 - x0) * (r["reg_dt"] - WS).total_seconds() / span
         up = k % 2 == 0; y = (58 if k % 4 == 0 else 32) if up else (140 if k % 4 == 1 else 166)
         hidden = r["type"] != "Инцидент"
-        crit = r.get("ai", {}).get("crit")
+        crit = r.get("ai", {}).get("crit") or r["id"] in OPEN_CRIT
         fill = "#fff" if r["is_open"] else ("#B7800F" if hidden else "#D93025")
         svg.append(f'<line x1="{x:.0f}" x2="{x:.0f}" y1="95" y2="{y:.0f}" stroke="#C3CCD5"/>'
                    f'<circle cx="{x:.0f}" cy="95" r="{9 if crit else 6}" fill="{fill}" stroke="{"#7A0F0A" if crit else "#D93025"}" stroke-width="{3 if crit else 2}"><title>{r["id"]} · {r["reg_dt"]:%d.%m %H:%M} · {E(r["st"])} · {E(short(r["anl"]))}</title></circle>'
@@ -695,11 +735,15 @@ def slide3():
                f"Все инциденты, зарегистрированные за {PER_S}, плюс скрытые (по сути — инцидент). Точка — момент регистрации, подпись — последние цифры номера.",
                "Картинка недели: всплески в один день — массовый сбой, а не отдельные обращения.")
     crit = [r for r in sol if r["ai"].get("crit")]
-    body = "".join(f'<tr><td>{tk(r["id"])}</td><td>{E(r["sec"])}</td><td>{E(r["ai"]["s"])}</td><td>{E(r["ai"].get("rec", ""))}</td></tr>' for r in crit)
-    p4 = panel(f"Критичные — {len(crit)}", stamps("sol", "ai"),
-               f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Раздел</th><th>Что случилось</th><th>Что сделать</th></tr></thead><tbody>{body}</tbody></table></div>',
-               "Инциденты, которые ИИ отметил как остановку процесса: не выставляются акты, стоит работа, затронуты несколько разделов.",
-               "Критичное не должно теряться среди рядовых: по каждому — разбор причины, даже если «уже починили».")
+    oc = sorted([BYID[i] for i in OPEN_CRIT], key=lambda r: r["reg_dt"])
+    body = (f'<tr class="grp"><th colspan="4">Открытые — {len(oc)}</th></tr>' +
+            "".join(f'<tr><td>{tk(r["id"])}</td><td>{E(r["st"])}<br><small>{E(r["sec"])}</small></td><td>{E(OPEN_CRIT[r["id"]])}</td><td>{E(AIO.get(r["id"], {}).get("a", "Срок решения — на ближайший разбор"))}</td></tr>' for r in oc) +
+            f'<tr class="grp"><th colspan="4">Решённые за период — {len(crit)}</th></tr>' +
+            "".join(f'<tr><td>{tk(r["id"])}</td><td>{E(r["st"])}<br><small>{E(r["sec"])}</small></td><td>{E(r["ai"]["s"])}</td><td>{E(r["ai"].get("rec", ""))}</td></tr>' for r in crit))
+    p4 = panel(f"Критичные — {len(oc) + len(crit)}", stamps("open", "sol", "ai"),
+               f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Статус · раздел</th><th>Почему критично / что случилось</th><th>Что сделать</th></tr></thead><tbody>{body}</tbody></table></div>',
+               "Инциденты, которые ИИ отметил как критичные: остановка оплаты или процесса, налоговый и юридический риск, массовый пользователь. Открытые — без ограничения неделей, решённые — за период.",
+               "Критичное не должно теряться среди рядовых: открытое — срок сегодня, решённое — разбор причины, даже если «уже починили».")
     p5 = panel("Кто сейчас держит открытые инциденты", stamps("open"), holder_rows(inc_types),
                f"{len(inc_types)} открытых инцидентов по держателю и возрасту.",
                "Где застряли дефекты: у разработки — план, у поддержки — анализ, у пользователя — ждём ответа.")
@@ -1053,28 +1097,43 @@ def slide8():
 
 # ================================================================ СЛАЙД 9 — аналитики
 def slide9():
-    catmed = {c: med([r["h"] for r in l]) for c, l in bycat.items()}
     S = AI["slides"]["s9"]
+    s4a = [r for r in rows if r["is_sol"] and r["done_dt"] >= W4S and r["cat"] != "Служебное"]
+    catmed = {c: med([r["h"] for r in l]) for c, l in by(s4a, lambda r: r["cat"]).items()}
+    per = by(real, lambda r: r["anl"])
     body = ""
-    for a, l in sorted(by(real, lambda r: r["anl"]).items(), key=lambda kv: -len(kv[1])):
-        rel = [r["h"] / catmed[r["cat"]] for r in l if catmed.get(r["cat"])]
+    for a, l4 in sorted(by(s4a, lambda r: r["anl"]).items(), key=lambda kv: -len(kv[1])):
+        l = per.get(a, [])
+        rel = [r["h"] / catmed[r["cat"]] for r in l4 if catmed.get(r["cat"])]
         k = statistics.median(rel) if rel else None
-        mi = sum(r in mis for r in l)
-        bd = sum(r["ai"].get("gr") == "П" for r in l)
-        ex = sum(r["ai"].get("gr") == "О" for r in l)
-        z = sum(r["trud"] == 0 for r in l)
-        dim = "" if len(l) >= 5 else ' class="dim"'
-        line = "1-я" if pct(sum(r["line"] == "L1" for r in l), len(l)) >= 50 else "2-я"
-        body += (f'<tr{dim}><th>{E(short(a))}</th><td>{line}</td><td class="c"><b>{len(l)}</b></td><td class="c">{str(med([r["h"] for r in l])).replace(".", ",")}</td>'
-                 f'<td class="c {"bad" if k and k > 1.5 else "ok" if k and k < 0.8 else ""}">×{str(round(k, 1)).replace(".", ",") if k else "—"}</td>'
-                 f'<td class="c">{hsum(l):.0f}</td><td class="c">{pct(sum(r["cat"] == "Правка данных" for r in l), len(l))}%</td>'
+        mi = sum(r in mis for r in l); bd = sum(r["ai"].get("gr") == "П" for r in l); ex = sum(r["ai"].get("gr") == "О" for r in l)
+        cxs = [r["ai"]["cx"] for r in l if r["ai"].get("cx")]
+        z = sum(r["trud"] == 0 for r in l4)
+        dim = "" if len(l4) >= 5 else ' class="dim"'
+        line = f'{pct(sum(r["line"] == "L1" for r in l4), len(l4))}%'
+        c1 = lambda x: str(x).replace(".", ",")
+        body += (f'<tr{dim}><th>{E(short(a))}</th><td>{line}</td><td class="c"><b>{len(l4)}</b></td><td class="c">{len(l) or "·"}</td>'
+                 f'<td class="c">{c1(med([r["h"] for r in l4]))}</td>'
+                 f'<td class="c {"bad" if k and k > 1.5 else "ok" if k and k < 0.8 else ""}">×{c1(round(k, 1)) if k else "—"}</td>'
+                 f'<td class="c">{hsum(l4):.0f}</td><td class="c">{pct(sum(r["cat"] == "Правка данных" for r in l4), len(l4))}%</td>'
+                 f'<td class="c {"bad" if pct(z, len(l4)) >= 30 else ""}">{pct(z, len(l4))}%</td>'
+                 f'<td class="c">{c1(round(statistics.mean(cxs), 1)) if cxs else "·"}</td>'
                  f'<td class="c {"bad" if bd else ""}">{bd or "·"}</td><td class="c">{ex or "·"}</td><td class="c {"bad" if mi and pct(mi, len(l)) >= 25 else ""}">{mi or "·"}</td>'
-                 f'<td class="c">{z or "·"}</td><td style="text-align:left">{E(S["fix"].get(a, ""))}</td></tr>')
-    p1 = panel("Сводная таблица и что поправить", stamps("sol", "ai"),
-               f'<div class="tw"><table class="num"><thead><tr><th>Аналитик</th><th>Линия</th><th>Решено</th><th>Медиана, раб. ч</th><th>К медиане типа</th><th>Часы</th><th>Доля правок</th>'
-               f'<th>Плохо</th><th>Отлично</th><th>Неверный тип</th><th>0 ч</th><th>Что поправить (ИИ)</th></tr></thead><tbody>{body}</tbody></table></div>',
-               "Решённые за период без служебных карточек. «К медиане типа» — скорость относительно медианы своего типа: правка сравнивается с правкой, инцидент — с инцидентом. Меньше 5 решённых — серым, вне сравнения.",
+                 f'<td style="text-align:left">{E(S["fix"].get(a, ""))}</td></tr>')
+    p1 = panel("Сводная таблица и что поправить", stamps("w4", "sol", "ai"),
+               f'<div class="tw"><table class="num"><thead><tr><th rowspan="2">Аналитик</th><th rowspan="2">Доля 1-й линии</th><th colspan="7">4 недели — скорость и объём</th><th colspan="4">Период {PER_S} — разбор ИИ</th><th rowspan="2" style="text-align:left">Что поправить (ИИ)</th></tr>'
+               f'<tr><th>Решено</th><th>за период</th><th>Медиана, раб. ч</th><th>К медиане типа</th><th>Часы</th><th>Доля правок</th><th>Без часов</th><th>Сложн. 1–5</th><th>Плохо</th><th>Отлично</th><th>Неверный тип</th></tr></thead><tbody>{body}</tbody></table></div>',
+               f"Скорость, объём и часы — за 4 недели ({W4S:%d.%m}–{PER_S[-5:]}), чтобы доли не прыгали от одного обращения; качество, сложность и тип — разбор ИИ решённых за период. «Доля 1-й линии» — сколько его решений по правилу Т-10 относятся к первой линии. «К медиане типа» — правка сравнивается с правкой, инцидент — с инцидентом. Меньше 5 решённых за 4 недели — серым.",
                "Один балл не строится: скорость, качество и классификация смотрятся рядом. Последняя колонка — конкретная ошибка человека с номером обращения.")
+    cx_l = [r for r in real if r["ai"].get("cx")]
+    hard = sorted(cx_l, key=lambda r: (-r["ai"]["cx"], -r["trud"]))[:5]
+    easy = sorted(cx_l, key=lambda r: (r["ai"]["cx"], r["trud"]))[:5]
+    row_ = lambda r: f'<tr><td>{tk(r["id"])}</td><td class="c"><b>{r["ai"]["cx"]}</b></td><td class="c">{str(r["trud"]).replace(".", ",")}</td><td>{E(r["ai"]["s"])}</td></tr>'
+    p_cx = panel("Самые сложные и самые простые решения", stamps("sol", "ai"),
+                 f'<div class="grid g2"><div><div class="ch">Сложные — 5</div><div class="tw"><table><thead><tr><th>Обращение</th><th>Сложн.</th><th>Часы</th><th>Суть</th></tr></thead><tbody>{"".join(map(row_, hard))}</tbody></table></div></div>'
+                 f'<div><div class="ch">Простые — 5</div><div class="tw"><table><thead><tr><th>Обращение</th><th>Сложн.</th><th>Часы</th><th>Суть</th></tr></thead><tbody>{"".join(map(row_, easy))}</tbody></table></div></div></div>',
+                 "Сложность 1–5 — оценка ИИ по решению: 1 — кнопка или штатная правка, 3 — анализ и исправление цепочки документов, 5 — перерасчёт регистров (бывшее приложение старого отчёта, Т-51).",
+                 "Сложные — эталон для базы знаний и кандидаты в доработку; простые — первые кандидаты на самообслуживание и первую линию.")
     # Т-56: вторая линия решает обращения первой (в решении — ссылка на инструкцию confluence)
     s4 = [r for r in rows if r["is_sol"] and r["done_dt"] >= W4S and r["cat"] != "Служебное"]
     grab = [r for r in s4 if L1_WORD in r["sol"].lower() and not r["anl"].startswith(L1_ANALYST)]
@@ -1098,12 +1157,12 @@ def slide9():
                "Вместо номинаций: один лучший и один худший случай недели с номерами (Т-50).",
                "Пример для команды: что тиражировать и чего не допускать — на реальном обращении, а не на абстрактном балле.")
     return (f'<article class="slide" id="s9"><div class="sh"><h2>Аналитики: скорость, качество, что поправить</h2>'
-            f'<p class="lead">Решённые за {PER}; оценки пользователей в выгрузке пока нет</p></div>' + p1 + p_grab + p2 + ai_block("s9") + "</article>")
+            f'<p class="lead">Скорость — за 4 недели, качество — разбор ИИ за {PER}; оценки пользователей в выгрузке пока нет</p></div>' + p1 + p_grab + p_cx + p2 + ai_block("s9") + "</article>")
 
 
 # ================================================================ СЛАЙД 10 — паспорт данных
 def slide10():
-    ch = [("Строк в выгрузке = решено + отклонено + открыто + старая доска", len(raw), sum(r["is_sol"] for r in rows) + sum(r["is_rej"] for r in rows) + len(opn) + len(dropped)),
+    ch = [("Строк в выгрузке = решено + отклонено + открыто + открытые служебные + старая доска", len(raw), sum(r["is_sol"] for r in rows) + sum(r["is_rej"] for r in rows) + len(opn) + len(opn_svc) + len(dropped)),
           ("Решённые за период размечены ИИ", len(sol), len([r for r in sol if r["ai"]])),
           ("Номера в разборах ИИ есть в выгрузке", "все", "все"),
           ("Сумма «кто держит» = открытые", len(opn), sum(1 for r in opn if r["holder"] in HOLDERS)),
@@ -1119,6 +1178,7 @@ def slide10():
              ("НСИ", f"Раздел «{NSI_SECTION}» целиком; «Правка данных» — тип «Изменение данных в системе» вне НСИ."),
              ("Срок решения", f"(дата решения − дата регистрации) / {SLA_DIVIDER}, раб. ч. Дата решения — «Отработано»; «Закрыто» — формальная."),
              ("Трудозатраты", "AmountTrud, часы по обращению на момент выгрузки; 0 — не списано."),
+             ("Сложность и расход ИИ", "Сложность 1–5 — поле разметки ИИ. Расход токенов в макете не считается (разметку делал Claude вручную); в отчёте — токены разметки, группировки и разборов из лога прогона."),
              ("Служебные карточки", f"ИИ помечает карточки учёта времени и поручения, плюс явные признаки в тексте ({SVC_RX}) — из скорости и цены исключаются.")]
     r_ = "".join(f"<tr><td><b>{a}</b></td><td>{E(b)}</td></tr>" for a, b in rules)
     miss = [("Оценка пользователя и комментарий", "Настоящий сигнал качества вместо автозакрытия; учёт в рейтинге"),
@@ -1232,7 +1292,7 @@ tr.grp th{background:var(--wash);padding:6px 8px;border-bottom:1px solid var(--i
 .strip3{display:grid;grid-template-columns:repeat(3,1fr);margin-top:14px;border-top:1px solid var(--rule)}.strip3 div{padding:8px 0}.strip3 b{display:block;font:600 30px/1 var(--num)}.strip3 span{font-size:12.5px;color:var(--muted)}
 .case{border:1px solid var(--rule);border-radius:10px;padding:12px 14px}.case span{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:block;margin-bottom:6px}
 .case.good{border-left:5px solid #0F6E3A}.case.badc{border-left:5px solid #B3261E}.case p{margin:6px 0}
-.cmp{margin-top:10px;font-size:14px}td.rank{width:28px}
+.cmp{margin-top:10px;font-size:14px}@media screen{tr.hid{display:none}}.more{margin-top:8px;font:13px var(--text);color:var(--ink2);background:var(--wash);border:1px solid var(--rule);border-radius:6px;padding:5px 12px;cursor:pointer}@media print{.more{display:none}}td.rank{width:28px}
 @media (max-width:1100px){.wrap{grid-template-columns:1fr}.rail{display:none}.g4{grid-template-columns:1fr 1fr}.itiles{grid-template-columns:repeat(3,1fr)}.eqbar{grid-template-columns:1fr 1fr}.eqbar em{display:none}.g21{grid-template-columns:1fr}}
 @media (max-width:760px){.g2,.g4{grid-template-columns:1fr}.itiles{grid-template-columns:1fr 1fr}.own{grid-template-columns:1fr}.top .per,.top h1{display:none}.top{gap:10px;padding:10px 16px}.ph{flex-direction:column}.stamps{justify-content:flex-start}main{padding:16px}}
 @media print{.top,.rail,.mock{display:none}.wrap{display:block}.slide{display:block;break-after:page}}
@@ -1244,6 +1304,11 @@ links.forEach((a,k)=>a.addEventListener('click',e=>{e.preventDefault();document.
 document.getElementById('prev').onclick=()=>show(cur-1);document.getElementById('next').onclick=()=>show(cur+1);
 document.getElementById('all').onclick=()=>document.body.classList.toggle('all');
 document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')show(cur+1);if(e.key==='ArrowLeft')show(cur-1)});
+// длинные таблицы: видны первые 10 строк, остальное — по кнопке (печать показывает всё)
+document.querySelectorAll('table:not(.heat) > tbody').forEach(tb=>{const rs=[...tb.rows];if(rs.length<=12||tb.querySelector('tr.grp'))return;
+rs.slice(10).forEach(r=>r.classList.add('hid'));const b=document.createElement('button');b.className='more';b.textContent='Показать все строки: '+rs.length;
+b.onclick=()=>{const open=b.dataset.o!=='1';rs.slice(10).forEach(r=>r.classList.toggle('hid',!open));b.dataset.o=open?'1':'';b.textContent=open?'Свернуть':'Показать все строки: '+rs.length};
+(tb.closest('.tw')||tb.parentNode).after(b)});
 const go=()=>{const h=slides.findIndex(x=>'#'+x.id===location.hash);show(h>0?h:0)};window.addEventListener('hashchange',go);go();
 """
 NAV = [("Состояние недели", [("s1", f"Неделя {WEEK}"), ("s2", f"Очередь на {NOW:%d.%m}")]),

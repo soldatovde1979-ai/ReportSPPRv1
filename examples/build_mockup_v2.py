@@ -5,8 +5,10 @@
 # ПОЧЕМУ: цифры макета должны быть воспроизводимы и проверяемы (Р-2 в my-FT).
 # Запуск (Linux / Bash):  python3 examples/build_mockup_v2.py
 # ----------------------------------------------------------------------
-VERSION = "2.0"
-DUMP_FILE = "data/sppr_dump_20260929_180748_842rec.json"
+VERSION = "2.1"
+# выгрузка; демо-копия с табличными частями — examples/sppr_dump_20260929_180748_842rec_demo_tab.json
+DUMP_FILE = "examples/sppr_dump_20260929_180748_842rec_demo_tab.json"
+DEMO_TAB = "_demo_tab" in DUMP_FILE   # табличные части выдуманы — блоки на них помечаются «демо»
 AI_FILE = "examples/mockup_v2_ai.json"
 OUT_FILE = "examples/mockup_report_v2.html"
 REPORT_WEEK = None          # номер ISO-недели; None — с понедельника недели максимальной даты решения
@@ -36,7 +38,15 @@ ST2TYPE = {"I": "Инцидент", "D": "Изменение данных в с�
 TYPE_SHORT = {"Инцидент": "Инцидент", "Изменение данных в системе": "Правка данных", "Консультация": "Консультация",
               "Права доступа": "Права", "Дубль": "Дубль", "Служебное": "Служебное"}
 HOLDERS = ["Пользователь", "Поддержка", "Разработка"]
-HOLDER_OF = {"Уточнение": "Пользователь", "Ожидает анализа": "Поддержка", "Анализ": "Поддержка"}
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО: добавлены статусы требования, которые с 29.09 может отдать выгрузка
+# ПОЧЕМУ: иначе «Возврат на доработку» и подобные попадали к разработке (data.md, разд. 10, п. 4)
+# ----------------------------------------------------------------------
+HOLDER_OF = {"Уточнение": "Пользователь", "Ожидает анализа": "Поддержка", "Анализ": "Поддержка",
+             "Новое": "Поддержка", "Передано в работу": "Поддержка", "Уточнение предоставлено": "Поддержка",
+             "Возврат на доработку": "Поддержка", "Перенесено": "Поддержка"}
+FINAL_ST = {"Отработано, требует подтверждения", "Закрыто", "Отклонено"}
+TAB_COLS = {"tab_trud": 2, "tab_status": 4}   # число колонок строки табличной части (data.md, разд. 10)
 WD = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 MON = ["", "янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
 
@@ -58,6 +68,7 @@ AIO = {a["id"]: a for a in AI["open_old"]}
 NOW = dump_moment(DUMP_FILE) or max(P(r["reg"]) for r in raw)
 
 rows, dropped = [], []
+TAB_BAD = Counter()
 for r in raw:
     r = {k: (v.strip() if isinstance(v, str) else v) for k, v in r.items()}
     if r["st"].startswith(OLD_BOARD_PREFIX):
@@ -66,6 +77,21 @@ for r in raw:
     r["done_dt"] = r["res_dt"] or r["cls_dt"]
     r["h"] = round(max(0, (r["done_dt"] - r["reg_dt"]).total_seconds() / 3600 / SLA_DIVIDER), 1) if r["done_dt"] else None
     r["trud"] = float(r.get("AmountTrud") or 0)
+    # табличные части: нет поля / null / [] — нет данных; кривые строки отбрасываются
+    for tname, ncol in TAB_COLS.items():
+        good = []
+        for row in (r.get(tname) or []):
+            try:
+                if len(row) != ncol: raise ValueError
+                if tname == "tab_trud":
+                    good.append((str(row[0]).strip(), float(row[1])))
+                else:
+                    dt = P(row[0])
+                    if dt is None: raise ValueError
+                    good.append((dt, str(row[1]).strip(), row[2], str(row[3]).strip()))
+            except (ValueError, TypeError):
+                TAB_BAD[tname] += 1
+        r[tname] = good
     r["line"] = "L1" if r["anl"].startswith(L1_ANALYST) or L1_WORD in r["sol"].lower() else "L2"
     r["cat"] = "НСИ" if r["sec"] == NSI_SECTION else TYPE_SHORT.get(r["type"], r["type"]).replace("Права", "Права доступа")
     r["is_sol"] = r["st"] in SOLVED
@@ -132,6 +158,29 @@ def weeks_back(n):
 
 
 WEEKS4 = weeks_back(4)
+
+# ---------------------------------------------------------------- табличные части: метрики
+TAB_ON = {t: sum(1 for r in rows if r[t]) for t in TAB_COLS}
+TRUD_MISMATCH = [r["id"] for r in rows if r["tab_trud"] and abs(sum(h for _, h in r["tab_trud"]) - r["trud"]) > 0.05]
+
+
+def status_holder(st):
+    if st in FINAL_ST: return None
+    return HOLDER_OF.get(st, "Разработка")
+
+
+def holder_hours(r):
+    """Календарные часы у каждого держателя по истории статусов (tab_status)."""
+    ev = sorted(r["tab_status"], key=lambda e: e[0])
+    out = Counter()
+    for k, e in enumerate(ev):
+        h = status_holder(e[3])
+        if not h: continue
+        end = ev[k + 1][0] if k + 1 < len(ev) else (NOW if r["is_open"] else e[0])
+        out[h] += max(0, (end - e[0]).total_seconds() / 3600)
+    return out
+print(f"Табличные части: {TAB_ON}; отброшено строк {dict(TAB_BAD)}; расхождений tab_trud с AmountTrud {len(TRUD_MISMATCH)}"
+      + (" (ДЕМО)" if DEMO_TAB else ""))
 
 
 # ================================================================ МЕТРИКИ
@@ -281,7 +330,7 @@ DD = lambda d: f"{d:%d.%m}" if d else "—"
 STAMP = {
     "in": ("▲", f"Пришло {PER_S}"), "sol": ("▼", f"Решено {PER_S}"), "rej": ("✕", f"Отклонено {PER_S}"),
     "open": ("●", f"Открыто на {NOW:%d.%m}"), "w4": ("◇", f"4 недели {WEEKS4[0][0]:%d.%m}–{PER_S[-5:]}"),
-    "ai": ("✦", "Разбор ИИ"), "all": ("◆", "Вся выгрузка"),
+    "ai": ("✦", "Разбор ИИ"), "all": ("◆", "Вся выгрузка"), "demo": ("⚠", "Демо-данные: табличные части выдуманы"),
 }
 
 
@@ -508,6 +557,28 @@ def slide2():
                f"Все {len(opn)} открытых на {NOW:%d.%m}. Уточнение — ждём пользователя; ожидает анализа и анализ — поддержка; от планирования до проверки релиза — разработка. "
                f"Статусы старой доски ({len(dropped)} шт.) отброшены при загрузке. Возраст — от даты регистрации.",
                "Показывает, у кого мяч. Красная часть полосы — то, что висит больше трёх месяцев: с неё начинается разбор.")
+    p_wait = ""
+    ws = [r for r in sol if r["tab_status"]]
+    if ws:
+        hh = {r["id"]: holder_hours(r) for r in ws}
+        tot = sum(sum(v.values()) for v in hh.values()) or 1
+        body = ""
+        for h in HOLDERS:
+            vals = [v[h] for v in hh.values() if v[h] > 0]
+            body += (f'<tr><th>{h}</th><td>{len(vals)}</td><td>{str(med(vals) or 0).replace(".", ",")}</td>'
+                     f'<td><b>{pct(sum(vals), tot)}%</b></td><td><span class="hb-t" style="display:block;width:180px"><i style="width:{100*sum(vals)/tot:.0f}%;background:#5D86B0"></i></span></td></tr>')
+        pingpong = [r["id"] for r in ws if sum(e[3] == "Уточнение" for e in r["tab_status"]) >= 2]
+        auto = [r for r in ws if any(e[3] == "Закрыто" and e[1] == "Регламентное задание" for e in r["tab_status"])]
+        closed = [r for r in ws if any(e[3] == "Закрыто" for e in r["tab_status"])]
+        top = sorted(ws, key=lambda r: -hh[r["id"]]["Пользователь"])[:5]
+        tt = "".join(f'<tr><td>{tk(r["id"])}</td><td class="c">{hh[r["id"]]["Пользователь"]:.0f}</td><td class="c">{hh[r["id"]]["Поддержка"]:.0f}</td><td class="c">{hh[r["id"]]["Разработка"]:.0f}</td></tr>' for r in top if hh[r["id"]]["Пользователь"] > 0)
+        p_wait = panel("Где ждали решённые за период — по истории статусов", stamps("sol", "demo" if DEMO_TAB else "sol"),
+                       f'<div class="grid g2"><div class="tw"><table class="num"><thead><tr><th>Держатель</th><th>Обращ.</th><th>Медиана, ч</th><th>Доля времени</th><th></th></tr></thead><tbody>{body}</tbody></table>'
+                       f'<p class="cmp">Возвращали пользователю на уточнение дважды и больше: <b>{len(pingpong)}</b>. Закрыто автоматически: <b>{len(auto)}</b> из {len(closed)} закрытых.</p></div>'
+                       f'<div><div class="ch">Дольше всего ждали пользователя, ч</div><div class="tw"><table class="num"><thead><tr><th>Обращение</th><th>Пользователь</th><th>Поддержка</th><th>Разработка</th></tr></thead><tbody>{tt}</tbody></table></div></div></div>',
+                       f"Календарные часы в каждом статусе из табличной части tab_status для {len(ws)} решённых за период; держатель — по статусу (data.md, разд. 10).",
+                       "Показывает, где на самом деле теряется время: у пользователя, в анализе или у разработки. Пинг-понг с уточнениями и автозакрытие видны по фактам, а не по догадке.",
+                       "demo" if DEMO_TAB else "")
     # аналитик × держатель, старше 30 дней
     anl = sorted(set(r["anl"] for r in old), key=lambda a: (-sum(r["anl"] == a for r in old), a))
     body = ""
@@ -562,7 +633,7 @@ def slide2():
                "Рабочий список на разбор очереди: по каждой строке — решение «закрыть / объединить / срок / в релиз».")
     return (f'<article class="slide" id="s2"><div class="sh"><h2>Очередь на {NOW:%d.%m}: у кого мяч и как её сократить</h2>'
             f'<p class="lead">Открыто {len(opn)}: не решены и не отклонены на момент выгрузки; старше {OLD_DAYS} дней — {len(old)}</p></div>'
-            + p1 + '<div class="grid g21">' + p2 + p3 + "</div>" + p4 + p5 + ai_block("s2") + "</article>")
+            + p1 + p_wait + '<div class="grid g21">' + p2 + p3 + "</div>" + p4 + p5 + ai_block("s2") + "</article>")
 
 
 # ================================================================ СЛАЙД 3 — инциденты
@@ -959,8 +1030,25 @@ def slide8():
                f'<div><div class="ch">«Зомби»: старше 30 дней и ни одного часа — {len(zomb)}</div><div class="tw"><table><tbody>{t7}</tbody></table></div></div></div>',
                "Трудозатраты, уже списанные на открытые обращения, и старые обращения, по которым не списано ни часа.",
                "Слева — дорогие и незаконченные: решать, доводить или останавливать. Справа — за них никто не брался: закрыть или назначить.")
+    p5 = ""
+    st_ = [r for r in real if r["tab_trud"]]
+    if st_:
+        per = defaultdict(lambda: [0.0, 0.0, set()])
+        for r in st_:
+            for who, h in r["tab_trud"]:
+                per[who][0 if who == r["anl"] else 1] += h
+                per[who][2].add(r["id"])
+        body = "".join(f'<tr><th>{E(short(w))}</th><td>{len(v[2])}</td><td><b>{f"{v[0] + v[1]:.1f}".replace(".", ",")}</b></td><td>{f"{v[0]:.1f}".replace(".", ",")}</td><td class="{"warn" if v[1] > v[0] else ""}">{f"{v[1]:.1f}".replace(".", ",")}</td></tr>'
+                       for w, v in sorted(per.items(), key=lambda kv: -(kv[1][0] + kv[1][1])))
+        helped = sum(1 for r in st_ if len(r["tab_trud"]) > 1)
+        p5 = panel("Трудозатраты по исполнителям — кто реально работал", stamps("sol", "demo" if DEMO_TAB else "sol"),
+                   f'<div class="tw"><table class="num"><thead><tr><th>Исполнитель</th><th>Обращ.</th><th>Часов всего</th><th>На своих</th><th>На чужих</th></tr></thead><tbody>{body}</tbody></table></div>'
+                   f'<p class="cmp">Обращений, где работали двое и больше: <b>{helped}</b> из {len(st_)}.</p>',
+                   f"Табличная часть tab_trud решённых за период: часы каждого исполнителя. «На чужих» — часы на обращениях, где ответственный — другой человек.",
+                   "Нагрузка по людям, а не по ответственному: кто тянет чужие обращения и где ответственный только числится.",
+                   "demo" if DEMO_TAB else "")
     return (f'<article class="slide" id="s8"><div class="sh"><h2>Цена поддержки в часах</h2>'
-            f'<p class="lead">Трудозатраты по обращениям (AmountTrud); решённые за 4 недели и открытые на {NOW:%d.%m}</p></div>' + p1 + p2 + p3 + p4 + ai_block("s8") + "</article>")
+            f'<p class="lead">Трудозатраты по обращениям (AmountTrud); решённые за 4 недели и открытые на {NOW:%d.%m}</p></div>' + p1 + p5 + p2 + p3 + p4 + ai_block("s8") + "</article>")
 
 
 # ================================================================ СЛАЙД 9 — аналитики
@@ -1019,7 +1107,7 @@ def slide10():
     r_ = "".join(f"<tr><td><b>{a}</b></td><td>{E(b)}</td></tr>" for a, b in rules)
     miss = [("Оценка пользователя и комментарий", "Настоящий сигнал качества вместо автозакрытия; учёт в рейтинге"),
             ("Дата последнего изменения обращения", "Сколько дней обращение без движения — точнее, чем возраст"),
-            ("История статусов (статус — дата — автор)", "Сколько ждали пользователя, анализ и разработку; возвраты на доработку"),
+            ("История статусов и трудозатраты по исполнителям", "Постановка есть — tab_status, tab_trud (vygruzka-1c.md, п. 2.4); в 1С пока не выгружаются"),
             ("Номер релиза, которым закрыт инцидент", "Какие инциденты ждут какой релиз"),
             ("Выгрузка за 6 месяцев (разово)", "Полная динамика по месяцам"),
             ("Решения руководителя недели", "Хранить в истории недель — для контроля решений в следующем отчёте")]
@@ -1029,10 +1117,17 @@ def slide10():
     p2 = panel("Проверки сходимости", "", f'<div class="tw"><table><thead><tr><th>Проверка</th><th>Слева</th><th>Справа</th><th>Итог</th></tr></thead><tbody>{body}</tbody></table></div>',
                "Сверка сумм по разным разрезам.", "Красное — ошибка отчёта: такой отчёт не рассылается.")
     p3 = panel("Правила расчёта", "", f'<div class="tw"><table><tbody>{r_}</tbody></table></div>', "Определения, на которых стоят все цифры.", "Одно определение на весь отчёт — нет «57 против 58» на разных слайдах.")
+    tb = "".join(f'<tr><td><b>{t}</b></td><td class="c">{TAB_ON[t]}</td><td class="c">{sum(len(r[t]) for r in rows)}</td><td class="c">{TAB_BAD[t] or "·"}</td></tr>' for t in TAB_COLS)
+    tchk = (f'<p class="cmp">Сумма tab_trud = AmountTrud: <span class="{"ok" if not TRUD_MISMATCH else "bad"}">{"сходится у всех" if not TRUD_MISMATCH else "расхождений " + str(len(TRUD_MISMATCH))}</span>.'
+            + (' <b class="warn">Части в этой выгрузке выдуманы (демо).</b>' if DEMO_TAB else "") + "</p>")
+    p5 = panel("Табличные части обращения", stamps("demo") if DEMO_TAB else "",
+               f'<div class="tw"><table class="num"><thead><tr><th>Часть</th><th>Обращений с частью</th><th>Строк</th><th>Отброшено строк</th></tr></thead><tbody>{tb}</tbody></table></div>{tchk}',
+               "Необязательные поля-массивы внутри обращения (data.md, разд. 10). Нет части — нет данных, блоки на ней не показываются.",
+               "Контроль, что доп. данные пришли и сходятся с основными полями.", "demo" if DEMO_TAB else "")
     p4 = panel("Чего нет в выгрузке", "", f'<div class="tw"><table><thead><tr><th>Поле</th><th>Что даст отчёту</th></tr></thead><tbody>{m_}</tbody></table></div>',
                "Список для доработки выгрузки 1С и истории.", "Каждая строка открывает новый блок аналитики.")
     return (f'<article class="slide" id="s10"><div class="sh"><h2>Паспорт данных и проверки</h2><p class="lead">Какие выборки в отчёте и можно ли верить цифрам · генератор v{VERSION}</p></div>'
-            + '<div class="grid g2">' + p1 + p2 + "</div>" + '<div class="grid g2">' + p3 + p4 + "</div></article>")
+            + '<div class="grid g2">' + p1 + p2 + "</div>" + '<div class="grid g2">' + p3 + p4 + "</div>" + p5 + "</article>")
 
 
 # ================================================================ СБОРКА HTML
@@ -1059,7 +1154,7 @@ main{padding:22px 28px 60px 10px;min-width:0}.pb{min-width:0}
 .ph{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px}.ph h3{font-size:17px;font-weight:600;line-height:1.3}
 .stamps{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
 .stamp{display:inline-flex;align-items:center;gap:5px;font-size:12px;line-height:1;padding:5px 8px;border:1px solid var(--rule);border-radius:4px;color:var(--ink2);white-space:nowrap;background:var(--wash)}
-.stamp i{font-style:normal;font-size:10px}.s-in{border-color:#9DB6CF}.s-sol{border-color:#8FC1A0}.s-open{border-color:#E0C27A}.s-ai{background:#fff;border-style:dashed;border-color:#7E57C2;color:#5B3C99}
+.stamp i{font-style:normal;font-size:10px}.s-demo{background:#FFF1CC;border-color:#E0C27A;color:#7A5A00;font-weight:600}.demo{border:2px dashed #E0C27A}.s-in{border-color:#9DB6CF}.s-sol{border-color:#8FC1A0}.s-open{border-color:#E0C27A}.s-ai{background:#fff;border-style:dashed;border-color:#7E57C2;color:#5B3C99}
 .why,.use{margin-top:8px;font-size:12.5px;line-height:1.45;color:var(--muted);max-width:110ch}.use{margin-top:3px}.why b,.use b{color:var(--ink2);font-weight:600}
 .rowwhy{margin:-8px 0 16px 4px}
 .grid{display:grid;gap:16px;margin-bottom:16px}.grid>*{min-width:0}.grid>.panel{margin-bottom:0}.g2{grid-template-columns:1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}.g21{grid-template-columns:1.3fr 1fr}

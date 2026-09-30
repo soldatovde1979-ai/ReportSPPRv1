@@ -1075,6 +1075,22 @@ def slide9():
                f'<th>Плохо</th><th>Отлично</th><th>Неверный тип</th><th>0 ч</th><th>Что поправить (ИИ)</th></tr></thead><tbody>{body}</tbody></table></div>',
                "Решённые за период без служебных карточек. «К медиане типа» — скорость относительно медианы своего типа: правка сравнивается с правкой, инцидент — с инцидентом. Меньше 5 решённых — серым, вне сравнения.",
                "Один балл не строится: скорость, качество и классификация смотрятся рядом. Последняя колонка — конкретная ошибка человека с номером обращения.")
+    # Т-56: вторая линия решает обращения первой (в решении — ссылка на инструкцию confluence)
+    s4 = [r for r in rows if r["is_sol"] and r["done_dt"] >= W4S and r["cat"] != "Служебное"]
+    grab = [r for r in s4 if L1_WORD in r["sol"].lower() and not r["anl"].startswith(L1_ANALYST)]
+    gb = by(grab, lambda r: r["anl"])
+    body = ""
+    for a, l in sorted(gb.items(), key=lambda kv: -len(kv[1])):
+        own = [r for r in s4 if r["anl"] == a]
+        body += (f'<tr><th>{E(short(a))}</th><td class="c"><b>{len(l)}</b></td><td class="c">{sum(in_per(r["done_dt"]) for r in l)}</td>'
+                 f'<td class="c">{pct(len(l), len(own))}%</td><td class="c">{str(hsum(l)).replace(".", ",")}</td>'
+                 f'<td style="text-align:left">{tks([r["id"] for r in sorted(l, key=lambda r: r["done_dt"], reverse=True)])}</td></tr>')
+    p_grab = panel("Вторая линия решает обращения первой — по ФИО", stamps("w4", "sol"),
+                   f'<div class="tw"><table class="num"><thead><tr><th>Аналитик</th><th>Обращ. за 4 нед.</th><th>из них за период</th>'
+                   f'<th>Доля его решённых</th><th>Часов</th><th style="text-align:left">Обращения</th></tr></thead><tbody>{body}</tbody></table></div>'
+                   f'<p class="cmp">Всего за 4 недели: <b>{len(grab)}</b> обращений, <b>{str(hsum(grab)).replace(".", ",")} ч</b> второй линии — это работа, которую могла сделать первая линия.</p>',
+                   f"Решённые за 4 недели обращения, где в решении есть ссылка на confluence (значит, есть инструкция), а ответственный — не {L1_ANALYST}. Служебные карточки исключены.",
+                   "Показывает, кто из второй линии берёт на себя работу первой. Такие обращения — кандидаты на передачу первой линии: вторая линия освобождает часы для сложных задач (shift-left, Т-56).")
     cb, cw = S["case_best"], S["case_worst"]
     p2 = panel("Случай недели", stamps("ai", "sol"),
                f'<div class="grid g2"><div class="case good"><span>Лучший</span>{tk(cb["id"])}<p>{E(BYID[cb["id"]]["ai"]["s"])}</p><b>{E(cb["why"])}</b></div>'
@@ -1082,7 +1098,7 @@ def slide9():
                "Вместо номинаций: один лучший и один худший случай недели с номерами (Т-50).",
                "Пример для команды: что тиражировать и чего не допускать — на реальном обращении, а не на абстрактном балле.")
     return (f'<article class="slide" id="s9"><div class="sh"><h2>Аналитики: скорость, качество, что поправить</h2>'
-            f'<p class="lead">Решённые за {PER}; оценки пользователей в выгрузке пока нет</p></div>' + p1 + p2 + ai_block("s9") + "</article>")
+            f'<p class="lead">Решённые за {PER}; оценки пользователей в выгрузке пока нет</p></div>' + p1 + p_grab + p2 + ai_block("s9") + "</article>")
 
 
 # ================================================================ СЛАЙД 10 — паспорт данных

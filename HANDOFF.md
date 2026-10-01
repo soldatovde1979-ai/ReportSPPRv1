@@ -53,7 +53,7 @@
 | `src/vygruzka-1c.md` 1.1 | Модель 1С, постановка, боевой текст функции | актуален на 29.09 |
 | `examples/mockup_v2_ai.json` | Разметка ИИ для макета | для макета |
 | `examples/mockup_report_v1.html` | Макет v1 | удалить после приёмки v2 (Р-3) |
-| `RepSSPR_v4.0.ipynb`, `template_v4.html` | Код отчёта | без изменений |
+| `RepSSPR_v4.1.ipynb` (+ `RepSSPR_v4.0.ipynb` до приёмки), `template_v4.html` | Код отчёта | 4.1: кэш разметки по id, `Н/Д` при сбое ИИ, `REPORT_DATE` по выгрузке, ключ DeepSeek по провайдеру; в Colab не запускался |
 | `docs/spec.md` 2.2, `docs/data.md` 2.3 | Спецификация и схемы | описывают v4.0; `AmountTrud` и новые правила ещё не внесены |
 | `docs/review_report_W38_v1.2.md` | Разбор W38 и предложения | справочно |
 

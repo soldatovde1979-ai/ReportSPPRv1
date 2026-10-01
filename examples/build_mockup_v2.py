@@ -6,7 +6,7 @@
 #         один модуль, разойтись они не могут. До 2.5 расчёт и вёрстка жили в этом файле (1500 строк).
 # Запуск (Linux / Bash):  python3 examples/build_mockup_v2.py
 # ----------------------------------------------------------------------
-VERSION = "2.5"
+VERSION = "2.6"
 # выгрузка; демо-копия с табличными частями — examples/sppr_dump_20260929_180748_842rec_demo_tab.json
 DUMP_FILE = "examples/sppr_dump_20260929_180748_842rec_demo_tab.json"
 AI_FILE = "examples/mockup_v2_ai.json"

@@ -5,7 +5,7 @@
 # ПОЧЕМУ: цифры макета должны быть воспроизводимы и проверяемы (Р-2 в my-FT).
 # Запуск (Linux / Bash):  python3 examples/build_mockup_v2.py
 # ----------------------------------------------------------------------
-VERSION = "2.2"
+VERSION = "2.3"
 # выгрузка; демо-копия с табличными частями — examples/sppr_dump_20260929_180748_842rec_demo_tab.json
 DUMP_FILE = "examples/sppr_dump_20260929_180748_842rec_demo_tab.json"
 DEMO_TAB = "_demo_tab" in DUMP_FILE   # табличные части выдуманы — блоки на них помечаются «демо»
@@ -392,12 +392,20 @@ def stack_svg(groups, cats, w=560, h=230, ymax=None, label_top=True):
     """groups: [(подпись, {кат: n}, признак_пусто)] → столбцы с разбивкой по категориям."""
     n = len(groups); pad_l, pad_b, pad_t = 30, 34, 18
     ymax = ymax or max([sum(g[1].values()) for g in groups] + [1])
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО: шкала Y — «круглые» деления (шаг 1/2/5/10/20/25/50/100…), линии сетки темнее
+    # ПОЧЕМУ: Т-58 — прежние 4 равные доли давали повторы подписей (0,1,1,4,5) и бледную сетку;
+    #         при общем ymax у двух графиков шкала совпадает (поток по дням)
+    # ----------------------------------------------------------------------
+    tick = next(s for s in (1, 2, 5, 10, 20, 25, 50, 100, 200, 500) if -(-ymax // s) <= 5)
+    nt = -(-ymax // tick)
+    ymax = nt * tick
     bw = (w - pad_l - 10) / n * 0.62
     step = (w - pad_l - 10) / n
     out = [f'<svg class="chart" viewBox="0 0 {w} {h}" role="img">']
-    for k in range(0, 5):
-        y = h - pad_b - (h - pad_b - pad_t) * k / 4
-        v = round(ymax * k / 4)
+    for k in range(0, nt + 1):
+        y = h - pad_b - (h - pad_b - pad_t) * k / nt
+        v = k * tick
         out.append(f'<line class="grid" x1="{pad_l}" x2="{w-4}" y1="{y:.1f}" y2="{y:.1f}"/><text class="ax" x="{pad_l-6}" y="{y+4:.1f}" text-anchor="end">{v}</text>')
     for gi, (lab, vals, empty) in enumerate(groups):
         x = pad_l + step * gi + (step - bw) / 2
@@ -459,10 +467,29 @@ def slide1():
     inc_c, sol_c, rej_c = cc(inc), cc(sol), cc(rej)
     top2 = lambda c: " · ".join(f"{k.lower()} {v}" for k, v in c.most_common(2))
     was = len(opn) - M["dq"]
-    bal = (f'<div class="eqbar"><div><span class="k">▲ Пришло</span><b>{len(inc)}</b><small>{top2(inc_c)}</small></div><em>−</em>'
-           f'<div><span class="k">▼ Решено</span><b>{len(sol)}</b><small>{top2(sol_c)}</small></div><em>−</em>'
-           f'<div><span class="k">✕ Отклонено</span><b>{len(rej)}</b><small>{top2(rej_c) or "—"}</small></div><em>=</em>'
-           f'<div class="res {"up" if M["dq"] > 0 else ""}"><span class="k">Очередь за период</span><b>{M["dq"]:+d}</b><small>было ≈ {was} → стало {len(opn)} открытых на {NOW:%d.%m}</small></div></div>')
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО: баланс потока — цветные числа, у каждого из четырёх чисел плашки I / II линия,
+    #               под числами — яркие разбивки: «Пришло» (инциденты / правка данных / остальное),
+    #               «Решено» (из пришедших за период / из прошлых периодов), «Отклонено» (все типы)
+    # ПОЧЕМУ: Т-60 — цифры под значениями это информация, а не комментарий; разбивка «из прошлых
+    #         периодов» показывает, разбираем ли мы хвост или только текущий поток
+    # ----------------------------------------------------------------------
+    ln = lambda lst: (f'<div class="ln"><span title="первая линия"><i>I</i>{sum(r["line"] == "L1" for r in lst)}</span>'
+                      f'<span title="вторая линия"><i>II</i>{sum(r["line"] == "L2" for r in lst)}</span></div>')
+    dl1 = sum(r["line"] == "L1" for r in inc) - sum(r["line"] == "L1" for r in sol) - sum(r["line"] == "L1" for r in rej)
+    dl2 = M["dq"] - dl1
+    other = len(inc) - inc_c["Инцидент"] - inc_c["Правка данных"]
+    sol_new = sum(in_per(r["reg_dt"]) for r in sol)
+    sub = lambda *p: '<div class="sub3">' + "".join(f'<span>{a}<b>{b}</b></span>' for a, b in p) + "</div>"
+    rej_sub = sub(*[(k.lower(), v) for k, v in rej_c.most_common()]) if rej_c else '<div class="sub3"><span>нет</span></div>'
+    bal = (f'<div class="eqbar"><div class="in"><span class="k">▲ Пришло</span><b>{len(inc)}</b>{ln(inc)}'
+           f'{sub(("инциденты", inc_c["Инцидент"]), ("правка данных", inc_c["Правка данных"]), ("остальное", other))}</div><em>−</em>'
+           f'<div class="sl"><span class="k">▼ Решено</span><b>{len(sol)}</b>{ln(sol)}'
+           f'{sub(("из пришедших за период", sol_new), ("из прошлых периодов", len(sol) - sol_new))}</div><em>−</em>'
+           f'<div class="rj"><span class="k">✕ Отклонено</span><b>{len(rej)}</b>{ln(rej)}{rej_sub}</div><em>=</em>'
+           f'<div class="res {"up" if M["dq"] > 0 else ""}"><span class="k">Очередь за период</span><b>{M["dq"]:+d}</b>'
+           f'<div class="ln"><span title="первая линия"><i>I</i>{dl1:+d}</span><span title="вторая линия"><i>II</i>{dl2:+d}</span></div>'
+           f'{sub(("было ≈", was), ("стало", len(opn)))}</div></div>')
     p0 = panel("Справились ли с потоком", stamps("in", "sol", "rej", "open"), bal,
                f"Пришедшие, решённые и отклонённые за {PER}; «было» — расчётно: открыто сейчас минус изменение за период.",
                "Главный вопрос недели одной строкой: растёт очередь или тает. Рост две недели подряд — сигнал добавлять людей или резать поток.", "hero")
@@ -477,7 +504,9 @@ def slide1():
          kpi("Решено в пределах рабочего дня", stamps("sol"), le8(real)[:-1], "%", le8(L1), le8(L2), f"≤ {FAST_H} раб. ч от регистрации до решения"),
          kpi("Долгострой", stamps("sol"), str(M["long_all"]), "обращ.", str(M["long_l1"]), str(M["long_l2"]), f"решены, но шли дольше {LONG_H} раб. ч"),
          kpi("Инциденты", stamps("open", "in"), str(len(oi)), "открыто", f'{sum(r["line"]=="L1" for r in oi)} откр.', f'{sum(r["line"]=="L2" for r in oi)} откр.',
-             f'пришло за период: <b>{len(ii)}</b> (первая линия {sum(r["line"]=="L1" for r in ii)}, вторая {sum(r["line"]=="L2" for r in ii)})', "kpi-inc")]
+             # ЧТО ИЗМЕНЕНО: «пришло за период» — отдельная крупная красная строка с разбивкой I / II
+             # ПОЧЕМУ: Т-62 — число было серым комментарием, а это главный сигнал плитки
+             f'<div class="inc-new"><b>{len(ii)}</b> пришло за {PER_S}<span>I {sum(r["line"]=="L1" for r in ii)} · II {sum(r["line"]=="L2" for r in ii)}</span></div>', "kpi-inc")]
     row1 = ('<div class="grid g4">' + "".join(k) + "</div>"
             '<p class="why rowwhy"><b>Что это.</b> Крупно — общее значение, мелко — первая линия (Попова А. В. или решение со ссылкой на confluence) и вторая. '
             'Служебные карточки из расчёта исключены.</p><p class="use rowwhy"><b>Польза / проблема.</b> Видно, чья скорость тянет общую цифру вниз: '
@@ -679,9 +708,16 @@ def slide2():
 # ================================================================ СЛАЙД 3 — инциденты
 def spark(vals, color="#fff"):
     w, h = 120, 34; mx = max(vals + [1])
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО: у мини-графика две тонкие линии — ноль и максимум, максимум подписан
+    # ПОЧЕМУ: Т-58 — без линий и подписи не читалось значение точки
+    # ----------------------------------------------------------------------
+    grid = (f'<line x1="0" x2="{w}" y1="{h-5}" y2="{h-5}" stroke="{color}" stroke-opacity=".35" stroke-width="1"/>'
+            f'<line x1="0" x2="{w}" y1="7" y2="7" stroke="{color}" stroke-opacity=".35" stroke-width="1"/>'
+            f'<text x="{w}" y="6" text-anchor="end" font-size="9" fill="{color}" fill-opacity=".85">{mx}</text>')
     pts = " ".join(f"{6 + i * (w - 12) / (len(vals) - 1):.1f},{h - 5 - (h - 12) * v / mx:.1f}" for i, v in enumerate(vals))
     dots = "".join(f'<circle cx="{6 + i * (w - 12) / (len(vals) - 1):.1f}" cy="{h - 5 - (h - 12) * v / mx:.1f}" r="3" fill="{color}"><title>W{wk[i]["a"].isocalendar()[1]}: {v}</title></circle>' for i, v in enumerate(vals))
-    return f'<svg class="spark" viewBox="0 0 {w} {h}"><polyline points="{pts}" fill="none" stroke="{color}" stroke-width="2"/>{dots}</svg>'
+    return f'<svg class="spark" viewBox="0 0 {w} {h}">{grid}<polyline points="{pts}" fill="none" stroke="{color}" stroke-width="2"/>{dots}</svg>'
 
 
 def slide3():
@@ -1231,13 +1267,21 @@ main{padding:22px 28px 60px 10px;min-width:0}.pb{min-width:0}
 .stamps{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
 .stamp{display:inline-flex;align-items:center;gap:5px;font-size:12px;line-height:1;padding:5px 8px;border:1px solid var(--rule);border-radius:4px;color:var(--ink2);white-space:nowrap;background:var(--wash)}
 .stamp i{font-style:normal;font-size:10px}.s-demo{background:#FFF1CC;border-color:#E0C27A;color:#7A5A00;font-weight:600}.demo{border:2px dashed #E0C27A}.s-in{border-color:#9DB6CF}.s-sol{border-color:#8FC1A0}.s-open{border-color:#E0C27A}.s-ai{background:#fff;border-style:dashed;border-color:#7E57C2;color:#5B3C99}
-.why,.use{margin-top:8px;font-size:12.5px;line-height:1.45;color:var(--muted);max-width:110ch}.use{margin-top:3px}.why b,.use b{color:var(--ink2);font-weight:600}
+.why,.use{margin-top:8px;font-size:12.5px;line-height:1.45;color:var(--muted)}.use{margin-top:3px}.why b,.use b{color:var(--ink2);font-weight:600}
 .rowwhy{margin:-8px 0 16px 4px}
 .grid{display:grid;gap:16px;margin-bottom:16px}.grid>*{min-width:0}.grid>.panel{margin-bottom:0}.g2{grid-template-columns:1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}.g21{grid-template-columns:1.3fr 1fr}
 .hero{border-color:var(--ink)}
 .eqbar{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1.4fr;gap:14px;align-items:start}
 .eqbar .k{font-size:13px;color:var(--muted)}.eqbar b{display:block;font:600 56px/1 var(--num);margin:4px 0 6px}.eqbar small{font-size:12.5px;color:var(--muted)}
 .eqbar em{font:300 44px/1 var(--num);color:var(--muted);padding-top:24px;font-style:normal}.eqbar .res b{color:#0F6E3A}.eqbar .res.up b{color:#B3261E}
+/* Т-60: баланс потока — цвет, плашки линий и разбивки не серые */
+.eqbar .in b{color:#1A56DB}.eqbar .sl b{color:#0F6E3A}.eqbar .rj b{color:#B7800F}
+.eqbar>div{border-top:4px solid var(--rule);padding-top:8px}.eqbar .in{border-top-color:#1A56DB}.eqbar .sl{border-top-color:#0F6E3A}.eqbar .rj{border-top-color:#B7800F}
+.eqbar .res{border-top-color:#0F6E3A}.eqbar .res.up{border-top-color:#B3261E}
+.eqbar b{margin-bottom:8px}
+.ln{display:flex;gap:8px;margin-bottom:8px}.ln span{background:var(--wash);border-radius:6px;padding:3px 9px;font:700 16px var(--num);color:var(--ink)}.ln i{font:600 12px var(--text);font-style:normal;color:var(--ink2);margin-right:5px}
+.sub3{display:grid;gap:3px;font-size:13.5px;color:var(--ink)}.sub3 span{display:flex;justify-content:space-between;gap:10px;border-bottom:1px dotted var(--rule);padding-bottom:2px}.sub3 b{display:inline;font:700 15px var(--num);margin:0;color:var(--ink)}
+.inc-new{margin-top:6px;font-size:13px;font-weight:600;color:#B3261E}.inc-new b{font:700 34px/1 var(--num);margin-right:6px;color:#D93025}.inc-new span{display:block;font:600 13px var(--num);color:var(--ink);margin-top:2px}
 .kpi{background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:14px 16px}
 .kpi .stamps{justify-content:flex-start;margin-bottom:8px}.kpi .stamp{padding:4px 6px;font-size:11px}.kpi h4{font-size:14px;font-weight:600}
 .kpi-v{font:600 46px/1 var(--num);margin:10px 0 6px}.kpi-v span{font:14px var(--text);color:var(--muted);margin-left:6px}
@@ -1247,7 +1291,7 @@ main{padding:22px 28px 60px 10px;min-width:0}.pb{min-width:0}
 .tc{border:1px solid var(--rule);border-top:4px solid var(--c);border-radius:8px;padding:10px 12px}.tc span{font-size:13px;font-weight:600}.tc b{display:block;font:600 34px/1.1 var(--num);margin-top:4px}
 .tc small{font-size:11.5px;color:var(--muted)}.tc em{display:block;font-style:normal;font-size:12px;color:var(--ink2);margin-top:6px}
 .ch{font-size:13.5px;font-weight:600;color:var(--ink2);margin-bottom:4px}.sub{font-size:14.5px;margin:16px 0 6px}
-.chart{width:100%;height:auto;display:block}.chart .grid{stroke:#E6EAEE;stroke-width:1}
+.chart{width:100%;height:auto;display:block}.chart .grid{stroke:#C9D1D9;stroke-width:1}
 .chart .ax{font:12px var(--text);fill:var(--muted)}.chart .day{fill:var(--ink2);font-weight:600}.chart .val{font:600 13px var(--num);fill:var(--ink)}
 .chart .nodata{fill:none;stroke:#B8C2CC;stroke-dasharray:4 3}.chart .lbl{font:11px var(--num);fill:var(--ink2)}
 .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;font-size:12.5px;color:var(--ink2)}.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px}
@@ -1271,7 +1315,7 @@ table.ai td:first-child{min-width:170px}table.dec td:first-child{width:18%}
 .own-b{display:flex;height:26px;border-radius:3px;overflow:hidden;min-width:8px;gap:2px}.own-b i{display:flex;align-items:center;justify-content:center;font:600 12px var(--num);color:#fff;font-style:normal}
 .own-n{font:600 26px/1 var(--num)}.own-n small{display:block;font:12px var(--text);color:var(--muted);margin-top:3px}
 .hbars{display:grid;gap:6px}.hb{display:grid;grid-template-columns:minmax(120px,44%) 1fr 52px;gap:10px;align-items:center;font-size:13.5px}
-.hb-l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hb-t{height:14px;background:var(--wash);border-radius:2px;overflow:hidden}.hb-t i{display:block;height:100%}
+.hb-l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hb-t{height:14px;background:var(--wash);border-radius:2px;overflow:hidden;background-image:repeating-linear-gradient(90deg,transparent 0,transparent calc(25% - 1px),#C9D1D9 calc(25% - 1px),#C9D1D9 25%)}.hb-t i{display:block;height:100%}
 .hb-v{font:600 15px var(--num);text-align:right}.hb-v small{font:12px var(--text);color:var(--muted)}
 .big-claim{display:flex;gap:22px;align-items:center}.bc-n{font:600 96px/0.9 var(--num);color:#B7800F}.bc-n span{font-size:48px}
 .bc-t{font-size:15px;color:var(--ink2)}.bc-t b{font-size:19px;color:var(--ink)}

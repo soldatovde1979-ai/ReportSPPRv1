@@ -357,7 +357,13 @@ def tk(i, full=False):
     d = f"рег {DD(reg)}" + (f" · реш {DD(res)}" if res else "")
     if not res and r.get("st") not in SOLVED + [REJECTED]:
         d += f" · {(NOW - reg).days} дн."
-    return (f'<span class="tk"><span class="tid">{E(i)}</span><small>{d} · {E(short(r["anl"]))}</small></span>')
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО: если у обращения есть поле url — номер становится ссылкой, как пришла из выгрузки
+    # ПОЧЕМУ: Т-57 (В-13: тонкий клиент, ссылка приходит готовой и просто открывается; нет поля — номер остаётся текстом)
+    # ----------------------------------------------------------------------
+    url = r.get("url")
+    tid = f'<a class="tid" href="{E(url)}">{E(i)}</a>' if url else f'<span class="tid">{E(i)}</span>'
+    return (f'<span class="tk">{tid}<small>{d} · {E(short(r["anl"]))}</small></span>')
 
 
 def tks(ids):
@@ -557,7 +563,11 @@ def slide1():
     first_res = min(r["done_dt"] for r in rows if r["is_sol"])
     for y, m in months:
         lab = f"{MON[m]}"
-        full = datetime(y, m, 1) >= datetime(first_res.year, first_res.month, 1) + timedelta(days=32)
+        # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО: «полный» месяц — начиная с первого числа месяца, следующего за первым решением в выгрузке
+        # ПОЧЕМУ: было «+32 дня от 1-го числа» — первое число сдвигалось на 2 сентября, и сентябрь ошибочно показывался как «н/д»
+        # ----------------------------------------------------------------------
+        full = datetime(y, m, 1) >= (datetime(first_res.year, first_res.month, 1) + timedelta(days=32)).replace(day=1)
         part = (y, m) == (first_res.year, first_res.month)
         si = Counter(r["cat"] for r in rows if r["is_sol"] and r["done_dt"].year == y and r["done_dt"].month == m)
         ci = Counter(r["cat"] for r in rows if r["reg_dt"].year == y and r["reg_dt"].month == m)
@@ -854,7 +864,7 @@ def slide3():
                "Ответ на вопрос «какой инцидент сделать первым»: одна доработка снимает сразу несколько обращений и часы поддержки.")
     return (f'<article class="slide" id="s3"><div class="sh"><h2>Инциденты: что сломалось и что вернётся</h2>'
             f'<p class="lead">Период {PER}; открытые — на {NOW:%d.%m}; разборы ИИ — по решённым за период и открытым</p></div>'
-            + p1 + '<div class="grid g2">' + p2 + p5 + "</div>" + p3 + p4 + p6 + p7 + p8 + ai_block("s3") + "</article>")
+            + p1 + '<div class="grid g21">' + p2 + p5 + "</div>" + p3 + p4 + p6 + p7 + p8 + ai_block("s3") + "</article>")
 
 
 # ================================================================ СЛАЙД 4 — ручные правки и НСИ
@@ -1347,6 +1357,7 @@ th{text-align:left;font-weight:600;color:var(--ink2);border-bottom:1px solid var
 td{border-bottom:1px solid var(--rule);padding:8px 10px 8px 0;vertical-align:top}tbody th{font-weight:600;border-bottom:1px solid var(--rule);vertical-align:top}
 table.num td,td.c{text-align:center}table.num th{text-align:center}table.num tbody th{text-align:left}
 .tk{display:inline-flex;flex-direction:column;margin:0 8px 6px 0;vertical-align:top}.tk small{font-size:11.5px;color:var(--muted);white-space:nowrap}
+a.tid{color:#1A56DB;text-decoration:none}a.tid:hover{text-decoration:underline}
 .tid{font:13px var(--num);white-space:nowrap;background:var(--wash);border:1px solid var(--rule);border-radius:3px;padding:1px 5px;display:inline-block;width:max-content}
 .ids{margin-top:6px}
 table.ai td:first-child{min-width:170px}table.dec td:first-child{width:18%}

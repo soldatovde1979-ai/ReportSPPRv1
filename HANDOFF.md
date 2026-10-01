@@ -1,5 +1,9 @@
 # Handoff: ReportSPPR — 01.10.2026 (сессия 2)
 
+## Ветка
+
+Работа только в `main` (my-FT Р-4, `CLAUDE.md` раздел «Git»). Ветка `claude/awesome-gates-ns0nhd` слита в `main` 01.10 и удалена.
+
 ## Контекст
 
 Проект [[report-sppr]]: еженедельный HTML-отчёт о качестве 1С-поддержки, строится Colab-ноутбуком по JSON-выгрузке из 1С с разметкой через LLM. Код отчёта — `RepSSPR_v4.0.ipynb` + `template_v4.html` (в этой сессии не менялись). Требования пользователя — `docs/my-FT.md`.
@@ -78,4 +82,4 @@
 
 ## Сообщение для старта нового чата
 
-> Проект ReportSPPR, всё в git. Прочитай CLAUDE.md, HANDOFF.md, docs/my-FT.md (требования), docs/spec.md и docs/data.md. Макет нового отчёта — examples/mockup_report_v2.html, собирается examples/build_mockup_v2.py по выгрузке data/sppr_dump_20260929_180748_842rec.json. Начинаем с правок макета v2 или с плана переноса в RepSSPR_v5.0.
+> Проект ReportSPPR, всё в git, работаем только в ветке main. Прочитай CLAUDE.md, HANDOFF.md, docs/my-FT.md (требования), docs/spec.md и docs/data.md. Макет нового отчёта — examples/mockup_report_v2.html, собирается examples/build_mockup_v2.py по выгрузке data/sppr_dump_20260929_180748_842rec.json. Начинаем с правок макета v2 или с плана переноса в RepSSPR_v5.0.

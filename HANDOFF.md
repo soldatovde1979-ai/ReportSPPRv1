@@ -2,7 +2,7 @@
 
 ## Ветка
 
-Работа только в `main` (my-FT Р-4, `CLAUDE.md` раздел «Git»). Ветка `claude/awesome-gates-ns0nhd` слита в `main` 01.10 и удалена.
+Работа только в `main` (my-FT Р-4, `CLAUDE.md` раздел «Git»). Ветка `claude/awesome-gates-ns0nhd` слита в `main` 01.10 (PR #1). Удалить её на GitHub сессия не смогла (прокси: 403) — удалить вручную: GitHub → Branches → корзина у ветки.
 
 ## Контекст
 

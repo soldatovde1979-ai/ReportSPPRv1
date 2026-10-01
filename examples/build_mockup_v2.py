@@ -478,12 +478,14 @@ def slide1():
                       f'<span title="вторая линия"><i>II</i>{sum(r["line"] == "L2" for r in lst)}</span></div>')
     dl1 = sum(r["line"] == "L1" for r in inc) - sum(r["line"] == "L1" for r in sol) - sum(r["line"] == "L1" for r in rej)
     dl2 = M["dq"] - dl1
-    other = len(inc) - inc_c["Инцидент"] - inc_c["Правка данных"]
+    # инциденты — по типу при регистрации, как в плитке «Инциденты» (включая инциденты в разделе НСИ), чтобы числа на слайде совпадали
+    inc_i = sum(r["type"] == "Инцидент" for r in inc)
+    other = len(inc) - inc_i - inc_c["Правка данных"]
     sol_new = sum(in_per(r["reg_dt"]) for r in sol)
     sub = lambda *p: '<div class="sub3">' + "".join(f'<span>{a}<b>{b}</b></span>' for a, b in p) + "</div>"
     rej_sub = sub(*[(k.lower(), v) for k, v in rej_c.most_common()]) if rej_c else '<div class="sub3"><span>нет</span></div>'
     bal = (f'<div class="eqbar"><div class="in"><span class="k">▲ Пришло</span><b>{len(inc)}</b>{ln(inc)}'
-           f'{sub(("инциденты", inc_c["Инцидент"]), ("правка данных", inc_c["Правка данных"]), ("остальное", other))}</div><em>−</em>'
+           f'{sub(("инциденты, все разделы", inc_i), ("правка данных без НСИ", inc_c["Правка данных"]), ("остальное", other))}</div><em>−</em>'
            f'<div class="sl"><span class="k">▼ Решено</span><b>{len(sol)}</b>{ln(sol)}'
            f'{sub(("из пришедших за период", sol_new), ("из прошлых периодов", len(sol) - sol_new))}</div><em>−</em>'
            f'<div class="rj"><span class="k">✕ Отклонено</span><b>{len(rej)}</b>{ln(rej)}{rej_sub}</div><em>=</em>'
@@ -502,7 +504,7 @@ def slide1():
              f'{M["med_l1"]:.1f} ч'.replace(".", ","), f'{M["med_l2"]:.1f} ч'.replace(".", ","),
              f'неделей ранее {med([r["h"] for r in wk[-2]["s"]]):.1f} ч'.replace(".", ",") + "; раб. ч = календарные / 3"),
          kpi("Решено в пределах рабочего дня", stamps("sol"), le8(real)[:-1], "%", le8(L1), le8(L2), f"≤ {FAST_H} раб. ч от регистрации до решения"),
-         kpi("Долгострой", stamps("sol"), str(M["long_all"]), "обращ.", str(M["long_l1"]), str(M["long_l2"]), f"решены, но шли дольше {LONG_H} раб. ч"),
+         kpi("Долгострой", stamps("sol"), str(M["long_all"]), "обращ.", str(M["long_l1"]), str(M["long_l2"]), f'решены, но шли дольше {LONG_H} раб. ч · <a href="#s11">подробно →</a>'),
          kpi("Инциденты", stamps("open", "in"), str(len(oi)), "открыто", f'{sum(r["line"]=="L1" for r in oi)} откр.', f'{sum(r["line"]=="L2" for r in oi)} откр.',
              # ЧТО ИЗМЕНЕНО: «пришло за период» — отдельная крупная красная строка с разбивкой I / II
              # ПОЧЕМУ: Т-62 — число было серым комментарием, а это главный сигнал плитки
@@ -511,12 +513,10 @@ def slide1():
             '<p class="why rowwhy"><b>Что это.</b> Крупно — общее значение, мелко — первая линия (Попова А. В. или решение со ссылкой на confluence) и вторая. '
             'Служебные карточки из расчёта исключены.</p><p class="use rowwhy"><b>Польза / проблема.</b> Видно, чья скорость тянет общую цифру вниз: '
             'если вторая линия медленнее в разы, улучшать надо её маршрут, а не всю поддержку.</p>')
-    lng_l = sorted([r for r in real if r["h"] > LONG_H], key=lambda r: -r["h"])
-    body = "".join(f'<tr><td>{tk(r["id"])}</td><td class="c"><b>{r["h"]:g}</b></td><td>{E(r["cat"])}</td><td>{E(r["sec"])}</td><td>{"1-я" if r["line"] == "L1" else "2-я"}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in lng_l[:10])
-    row1 += panel(f"Долгострой — самые долгие {min(10, len(lng_l))} из {len(lng_l)}", stamps("sol", "ai"),
-                  f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Раб. ч</th><th>Тип</th><th>Раздел</th><th>Линия</th><th>Суть (ИИ)</th></tr></thead><tbody>{body}</tbody></table></div>',
-                  f"Решённые за период, шедшие дольше {LONG_H} раб. ч, от самого долгого (бывший «Топ-10 самых длительных» из приложения старого отчёта, Т-51).",
-                  "С этих строк начинается разбор долгостроев: где ждали — у пользователя, в анализе или у разработки.")
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО: таблица «Долгострой» убрана со слайда 1 — теперь отдельный слайд (slide11)
+    # ПОЧЕМУ: Т-61, ответ на В-11 «б» — на первом слайде только крупное, детали по плитке — на своём слайде
+    # ----------------------------------------------------------------------
     # строка 2 — медианы по типам (Т-15)
     cards = ""
     for c in CATS + ["Служебное"]:
@@ -587,6 +587,52 @@ def slide1():
     return (f'<article class="slide" id="s1"><div class="sh"><h2>Неделя {WEEK}: поток, скорость, решения</h2>'
             f'<p class="lead">Период {PER} ({rule}) · срез открытых на {NOW:%d.%m.%Y %H:%M} · выгрузка {len(raw)} строк</p></div>'
             + p0 + row1 + row2 + row3 + row4 + row5 + row6 + row7 + ai_block("s1") + "</article>")
+
+
+# ================================================================ СЛАЙД 11 — долгострой
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО: новый слайд «Долгострой» (бывшая таблица со слайда 1 + плитки, разрезы и разбор ИИ)
+# ПОЧЕМУ: Т-61 — долгострой раскрывает одноимённую плитку слайда 1, а не лежит под ней таблицей
+# ----------------------------------------------------------------------
+def slide11():
+    lng = sorted([r for r in real if r["h"] > LONG_H], key=lambda r: -r["h"])
+    n = len(lng); tot_h = sum(r["h"] for r in lng); tot_w = sum(r["trud"] for r in lng)
+    cons = [r for r in lng if r["cat"] == "Консультация"]
+    top2 = Counter(short(r["anl"]) for r in lng).most_common(2)
+    M.update(real_n=len(real), long_h_thr=LONG_H, lng_share=pct(n, len(real)), lng_h=round(tot_h), lng_trud=round(tot_w), lng_work_pct=pct(tot_w, tot_h),
+             lng_cons=len(cons), lng_cons_trud=round(sum(r["trud"] for r in cons)), lng_cons_h=round(sum(r["h"] for r in cons)),
+             lng_two=sum(v for _, v in top2), lng_top_h=round(lng[0]["h"]), lng_top_pct=pct(lng[0]["h"], tot_h),
+             lng_med=med([r["h"] for r in lng]))
+    medl = lambda l: f'{med([r["h"] for r in l]) or 0:.0f} ч'
+    tl = lambda l: f'{sum(r["trud"] for r in l):.0f} ч'
+    k = [kpi("Долгострой, обращений", stamps("sol"), str(n), "из " + str(len(real)), str(sum(r["line"] == "L1" for r in lng)), str(sum(r["line"] == "L2" for r in lng)),
+             f"{M['lng_share']}% решённых; порог — {LONG_H} раб. ч от регистрации до решения"),
+         kpi("Срок, медиана", stamps("sol"), f"{M['lng_med']:.0f}".replace(".", ","), "раб. ч", medl([r for r in lng if r["line"] == "L1"]), medl([r for r in lng if r["line"] == "L2"]),
+             f"суммарно {M['lng_h']} раб. ч календарного срока"),
+         kpi("Из них работа", stamps("sol"), str(M["lng_trud"]), "ч", tl([r for r in lng if r["line"] == "L1"]), tl([r for r in lng if r["line"] == "L2"]),
+             f"{M['lng_work_pct']}% срока — списанные трудозатраты (AmountTrud); остальное — ожидание"),
+         (f'<div class="kpi">{stamps("sol")}<h4>Самый долгий</h4><div class="kpi-v">{M["lng_top_h"]}<span>раб. ч</span></div>'
+          f'<div class="kpi-lines"><span><b>{M["lng_top_pct"]}%</b> всех часов долгостроя</span></div>'
+          f'<div class="kpi-s">{tk(lng[0]["id"])} {E(lng[0]["ai"].get("s", ""))}</div></div>')]
+    p1 = ('<div class="grid g4">' + "".join(k) + "</div>"
+          f'<p class="why rowwhy"><b>Что это.</b> Решённые за {PER_S} обращения, шедшие дольше {LONG_H} раб. ч (календарные часы / {SLA_DIVIDER}); служебные карточки исключены. Мелко — первая и вторая линия.</p>'
+          '<p class="use rowwhy"><b>Польза / проблема.</b> Сколько обращений «зависает» и как мало в этом времени работы: если работы единицы процентов — проблема в ожидании, а не в сложности.</p>')
+    body = "".join(f'<tr><td>{tk(r["id"])}</td><td class="c"><b>{r["h"]:g}</b></td><td class="c">{r["trud"]:g}</td><td>{E(r["cat"])}</td><td>{E(r["sec"])}</td>'
+                   f'<td>{"1-я" if r["line"] == "L1" else "2-я"}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in lng)
+    p2 = panel(f"Все долгострои периода — {n}", stamps("sol", "ai"),
+               f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Срок, раб. ч</th><th>Работа, ч</th><th>Тип</th><th>Раздел</th><th>Линия</th><th>Суть (ИИ)</th></tr></thead><tbody>{body}</tbody></table></div>',
+               f"Решённые за период, шедшие дольше {LONG_H} раб. ч, от самого долгого (бывший «Топ-10 самых длительных» приложения старого отчёта, Т-51). Дата и аналитик — в номере.",
+               "С этих строк начинается разбор: где ждали — у пользователя, в анализе или у разработки. Большой срок при малой работе — ожидание.")
+    bt = Counter(r["cat"] for r in lng).most_common(); ba = Counter(short(r["anl"]) for r in lng).most_common(); bs = Counter(r["sec"] for r in lng).most_common(6)
+    p3 = panel("Кто и что в долгострое", stamps("sol"),
+               f'<div class="grid g2"><div><div class="ch">По типу обращения</div>{hbars([(c, v, CAT_COLOR[c]) for c, v in bt])}</div>'
+               f'<div><div class="ch">По аналитику</div>{hbars([(a, v, "#3B4754") for a, v in ba])}</div></div>'
+               f'<div class="ch" style="margin-top:12px">По разделу (первые 6)</div>{hbars([(c, v, "#5D6B7A") for c, v in bs])}',
+               f"Те же {n} обращений в трёх разрезах: тип при регистрации, ответственный аналитик, раздел.",
+               "Концентрация — признак системной причины: один аналитик, один раздел или один тип (консультации не должны идти неделями).")
+    return (f'<article class="slide" id="s11"><div class="sh"><h2>Долгострой: что решали дольше {LONG_H} рабочих часов</h2>'
+            f'<p class="lead">Решено за {PER_S}: {n} из {len(real)} обращений</p></div>'
+            + p1 + p2 + p3 + ai_block("s11") + "</article>")
 
 
 # ================================================================ СЛАЙД 2 — очередь
@@ -1355,17 +1401,18 @@ b.onclick=()=>{const open=b.dataset.o!=='1';rs.slice(10).forEach(r=>r.classList.
 (tb.closest('.tw')||tb.parentNode).after(b)});
 const go=()=>{const h=slides.findIndex(x=>'#'+x.id===location.hash);show(h>0?h:0)};window.addEventListener('hashchange',go);go();
 """
-NAV = [("Состояние недели", [("s1", f"Неделя {WEEK}"), ("s2", f"Очередь на {NOW:%d.%m}")]),
+NAV = [("Состояние недели", [("s1", f"Неделя {WEEK}"), ("s11", "Долгострой"), ("s2", f"Очередь на {NOW:%d.%m}")]),
        ("Где болит", [("s3", "Инциденты"), ("s4", "Ручные правки и НСИ"), ("s5", "Повторы"), ("s7", "Планшеты")]),
        ("Качество, люди, цена", [("s6", "Качество и классификация"), ("s9", "Аналитики"), ("s8", "Цена в часах")]),
        ("Приложение", [("s10", "Паспорт данных")])]
-ORDER = ["s1", "s2", "s3", "s4", "s5", "s7", "s6", "s9", "s8", "s10"]
-FN = {"s1": slide1, "s2": slide2, "s3": slide3, "s4": slide4, "s5": slide5, "s6": slide6, "s7": slide7, "s8": slide8, "s9": slide9, "s10": slide10}
+ORDER = ["s1", "s11", "s2", "s3", "s4", "s5", "s7", "s6", "s9", "s8", "s10"]
+FN = {"s1": slide1, "s2": slide2, "s3": slide3, "s4": slide4, "s5": slide5, "s6": slide6, "s7": slide7, "s8": slide8, "s9": slide9, "s10": slide10, "s11": slide11}
 num = {k: i + 1 for i, k in enumerate(ORDER)}
 # ссылки меню идут в порядке ORDER — JS сопоставляет их со слайдами по индексу
 rail_links = {k: t for _, items in NAV for k, t in items}
 rail = "".join(f'<div class="act">{g}</div><ol>' + "".join(f'<li><a href="#{k}"><span>{num[k]}</span>{E(t)}</a></li>' for k, t in sorted(items, key=lambda kt: num[kt[0]])) + "</ol>"
                for g, items in [(g, [(k, rail_links[k]) for k in ORDER if k in dict(it)]) for g, it in NAV])
+M.update(n_s2=num["s2"], n_s3=num["s3"])   # номера слайдов в текстах разборов ИИ — от порядка слайдов
 body = "".join(FN[k]() for k in ORDER)
 doc = (f'<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
        f'<title>Макет v2 — Качество 1С-поддержки · Неделя {WEEK}</title><style>{CSS}</style></head><body>'

@@ -5,7 +5,7 @@
 # ПОЧЕМУ: цифры макета должны быть воспроизводимы и проверяемы (Р-2 в my-FT).
 # Запуск (Linux / Bash):  python3 examples/build_mockup_v2.py
 # ----------------------------------------------------------------------
-VERSION = "2.3"
+VERSION = "2.4"
 # выгрузка; демо-копия с табличными частями — examples/sppr_dump_20260929_180748_842rec_demo_tab.json
 DUMP_FILE = "examples/sppr_dump_20260929_180748_842rec_demo_tab.json"
 DEMO_TAB = "_demo_tab" in DUMP_FILE   # табличные части выдуманы — блоки на них помечаются «демо»
@@ -16,7 +16,10 @@ OLD_BOARD_PREFIX = "Выполнено - "   # статусы старой до�
 L1_ANALYST = "Попова Анна"          # первая линия (Т-10)
 L1_WORD = "confluence"
 NSI_SECTION = "Нормализация"        # НСИ (Т-11)
-SLA_DIVIDER = 3
+SLA_DIVIDER = 3                     # 24 ч / 3 = 8 ч в рабочем дне (Т-68)
+# праздники РФ 2026 (нерабочие дни) — сверить с производственным календарём
+HOLIDAYS = {f"2026-{d}" for d in ("01-01", "01-02", "01-03", "01-04", "01-05", "01-06", "01-07", "01-08",
+                                  "02-23", "03-09", "05-01", "05-11", "06-12", "11-04", "12-31")}
 SVC_RX = r"списания выполнены|планерк|совещани"   # признаки служебной карточки учёта времени
 FAST_H, LONG_H, OLD_DAYS = 8, 40, 30
 
@@ -55,6 +58,20 @@ def P(s):
     return datetime.fromisoformat(s) if s else None
 
 
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО: срок решения — календарные часы только рабочих дней / 3: 8 ч в рабочем дне, выходные и праздники не считаются
+# ПОЧЕМУ: Т-67, Т-68: «/3» по всем дням добавлял выходные — на W39 шесть из 23 «долгостроев» были ими
+# ----------------------------------------------------------------------
+def work_h(a, b):
+    t, d = 0.0, datetime(a.year, a.month, a.day)
+    while d < b:
+        nd = d + timedelta(days=1)
+        if d.weekday() < 5 and f"{d:%Y-%m-%d}" not in HOLIDAYS:
+            t += max(0.0, (min(b, nd) - max(a, d)).total_seconds())
+        d = nd
+    return t / 3600 / SLA_DIVIDER
+
+
 def dump_moment(fname):
     m = re.search(r"(\d{8})_(\d{6})", fname)
     return datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M%S") if m else None
@@ -75,7 +92,7 @@ for r in raw:
         dropped.append(r["id"]); continue
     r["reg_dt"], r["res_dt"], r["cls_dt"] = P(r["reg"]), P(r["res"]), P(r["cls"])
     r["done_dt"] = r["res_dt"] or r["cls_dt"]
-    r["h"] = round(max(0, (r["done_dt"] - r["reg_dt"]).total_seconds() / 3600 / SLA_DIVIDER), 1) if r["done_dt"] else None
+    r["h"] = round(work_h(r["reg_dt"], r["done_dt"]), 1) if r["done_dt"] else None
     r["trud"] = float(r.get("AmountTrud") or 0)
     # табличные части: нет поля / null / [] — нет данных; кривые строки отбрасываются
     for tname, ncol in TAB_COLS.items():
@@ -305,7 +322,8 @@ def fmt(s):
             raise KeyError(f"Разбор ИИ ссылается на неизвестную метрику {{{k}}}")
         v = M[k]
         return str(v).replace(".", ",") if isinstance(v, float) else str(v)
-    return re.sub(r"\{(\w+)\}", rep, s)
+    # ЧТО ИЗМЕНЕНО: текст ИИ экранируется до подстановки цифр. ПОЧЕМУ: в v5 текст пишет модель, читающая обращения пользователей
+    return re.sub(r"\{(\w+)\}", rep, E(s))
 
 
 # проверка номеров обращений в разборах ИИ: всё, чего нет в выгрузке, — ошибка сборки
@@ -333,6 +351,8 @@ DD = lambda d: f"{d:%d.%m}" if d else "—"
 STAMP = {
     "in": ("▲", f"Пришло {PER_S}"), "sol": ("▼", f"Решено {PER_S}"), "rej": ("✕", f"Отклонено {PER_S}"),
     "open": ("●", f"Открыто на {NOW:%d.%m}"), "w4": ("◇", f"4 недели {WEEKS4[0][0]:%d.%m}–{PER_S[-5:]}"),
+    "sol4": ("▼", f"Решено · 4 недели {WEEKS4[0][0]:%d.%m}–{PER_S[-5:]}"), "in4": ("▲", f"Пришло · 4 недели {WEEKS4[0][0]:%d.%m}–{PER_S[-5:]}"),
+    "sol6": ("▼", "Решено · апр–сен 2026"), "in6": ("▲", "Пришло · апр–сен 2026"),
     "ai": ("✦", "Разбор ИИ"), "all": ("◆", "Вся выгрузка"), "demo": ("⚠", "Демо-данные: табличные части выдуманы"),
 }
 
@@ -357,6 +377,12 @@ def tk(i, full=False):
     d = f"рег {DD(reg)}" + (f" · реш {DD(res)}" if res else "")
     if not res and r.get("st") not in SOLVED + [REJECTED]:
         d += f" · {(NOW - reg).days} дн."
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО: открытое обращение с датой решения показывается как возврат, с возрастом
+    # ПОЧЕМУ: 00-00034389 в «Анализе» выглядело решённым («реш 04.09», без возраста)
+    # ----------------------------------------------------------------------
+    if res and r.get("st") not in SOLVED + [REJECTED]:
+        d = f"рег {DD(reg)} · возврат: решение {DD(res)} · {(NOW - reg).days} дн."
     # ----------------------------------------------------------------------
     # ЧТО ИЗМЕНЕНО: если у обращения есть поле url — номер становится ссылкой, как пришла из выгрузки
     # ПОЧЕМУ: Т-57 (В-13: тонкий клиент, ссылка приходит готовой и просто открывается; нет поля — номер остаётся текстом)
@@ -508,7 +534,7 @@ def slide1():
     ii = [r for r in inc if r["type"] == "Инцидент"]
     k = [kpi("Время до решения, медиана", stamps("sol"), str(M["med_all"]).replace(".", ","), "раб. ч",
              f'{M["med_l1"]:.1f} ч'.replace(".", ","), f'{M["med_l2"]:.1f} ч'.replace(".", ","),
-             f'неделей ранее {med([r["h"] for r in wk[-2]["s"]]):.1f} ч'.replace(".", ",") + "; раб. ч = календарные / 3"),
+             f'неделей ранее {med([r["h"] for r in wk[-2]["s"]]):.1f} ч'.replace(".", ",") + "; раб. ч: 8 ч в рабочем дне, выходные не считаются"),
          kpi("Решено в пределах рабочего дня", stamps("sol"), le8(real)[:-1], "%", le8(L1), le8(L2), f"≤ {FAST_H} раб. ч от регистрации до решения"),
          kpi("Долгострой", stamps("sol"), str(M["long_all"]), "обращ.", str(M["long_l1"]), str(M["long_l2"]), f'решены, но шли дольше {LONG_H} раб. ч · <a href="#s11">подробно →</a>'),
          kpi("Инциденты", stamps("open", "in"), str(len(oi)), "открыто", f'{sum(r["line"]=="L1" for r in oi)} откр.', f'{sum(r["line"]=="L2" for r in oi)} откр.',
@@ -552,7 +578,7 @@ def slide1():
                     (lab.replace("|", " решено|"), Counter(r["cat"] for r in w["s"]), False)]
     tbl = "".join(f'<tr><td>W{w["a"].isocalendar()[1]} · {w["a"]:%d.%m}–{(w["b"]-timedelta(days=1)):%d.%m}</td><td>{len(w["i"])}</td><td>{len(w["s"])}</td>'
                   f'<td>{len(w["j"])}</td><td class="{"bad" if w["dq"] > 0 else "ok"}">{w["dq"]:+d}</td><td>{str(med([r["h"] for r in w["s"]])).replace(".", ",")}</td><td>{hsum(w["s"]):.0f}</td></tr>' for w in wk)
-    row4 = panel("Динамика по неделям", stamps("w4", "in", "sol"),
+    row4 = panel("Динамика по неделям", stamps("in4", "sol4"),
                  f'{stack_svg([(g[0].replace(" пришло", " ▲").replace(" решено", " ▼"), g[1], g[2]) for g in wgroups], cats7, w=1100, h=240)}{legend(cats7)}'
                  f'<div class="tw"><table class="num"><thead><tr><th>Неделя</th><th>▲ Пришло</th><th>▼ Решено</th><th>✕ Отклонено</th><th>Очередь</th><th>Медиана, ч</th><th>Трудозатраты, ч</th></tr></thead><tbody>{tbl}</tbody></table></div>',
                  f"Пары столбцов: ▲ пришло и ▼ решено за неделю по типам. Последняя неделя — отчётный период {PER_S} (без выходных). Источник — та же выгрузка за 4 недели.",
@@ -573,7 +599,7 @@ def slide1():
         ci = Counter(r["cat"] for r in rows if r["reg_dt"].year == y and r["reg_dt"].month == m)
         mg_in.append((lab + ("|неполный" if part else ""), ci if (full or part) else {}, not (full or part)))
         mg_sol.append((lab + ("|с 25.08" if part else ""), si if (full or part) else {}, not (full or part)))
-    row5 = panel("Динамика по месяцам — последние 6 месяцев", stamps("in", "sol"),
+    row5 = panel("Динамика по месяцам — последние 6 месяцев", stamps("in6", "sol6"),
                  f'<div class="grid g2"><div><div class="ch">▲ Пришло по месяцу регистрации</div>{stack_svg(mg_in, cats7)}</div>'
                  f'<div><div class="ch">▼ Решено по месяцу решения</div>{stack_svg(mg_sol, cats7)}</div></div>{legend(cats7)}'
                  f'<p class="na-note">Апрель–июль — нет данных: выгрузка начинается с решений 25.08. Полная картина — после разовой выгрузки за 6 месяцев; дальше месяцы копятся из истории недель.</p>',
@@ -625,7 +651,7 @@ def slide11():
           f'<div class="kpi-lines"><span><b>{M["lng_top_pct"]}%</b> всех часов долгостроя</span></div>'
           f'<div class="kpi-s">{tk(lng[0]["id"])} {E(lng[0]["ai"].get("s", ""))}</div></div>')]
     p1 = ('<div class="grid g4">' + "".join(k) + "</div>"
-          f'<p class="why rowwhy"><b>Что это.</b> Решённые за {PER_S} обращения, шедшие дольше {LONG_H} раб. ч (календарные часы / {SLA_DIVIDER}); служебные карточки исключены. Мелко — первая и вторая линия.</p>'
+          f'<p class="why rowwhy"><b>Что это.</b> Решённые за {PER_S} обращения, шедшие дольше {LONG_H} раб. ч (8 ч в рабочем дне, выходные и праздники не считаются); служебные карточки исключены. Мелко — первая и вторая линия.</p>'
           '<p class="use rowwhy"><b>Польза / проблема.</b> Сколько обращений «зависает» и как мало в этом времени работы: если работы единицы процентов — проблема в ожидании, а не в сложности.</p>')
     body = "".join(f'<tr><td>{tk(r["id"])}</td><td class="c"><b>{r["h"]:g}</b></td><td class="c">{r["trud"]:g}</td><td>{E(r["cat"])}</td><td>{E(r["sec"])}</td>'
                    f'<td>{"1-я" if r["line"] == "L1" else "2-я"}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in lng)
@@ -640,9 +666,20 @@ def slide11():
                f'<div class="ch" style="margin-top:12px">По разделу (первые 6)</div>{hbars([(c, v, "#5D6B7A") for c, v in bs])}',
                f"Те же {n} обращений в трёх разрезах: тип при регистрации, ответственный аналитик, раздел.",
                "Концентрация — признак системной причины: один аналитик, один раздел или один тип (консультации не должны идти неделями).")
-    return (f'<article class="slide" id="s11"><div class="sh"><h2>Долгострой: что решали дольше {LONG_H} рабочих часов</h2>'
-            f'<p class="lead">Решено за {PER_S}: {n} из {len(real)} обращений</p></div>'
-            + p1 + p2 + p3 + ai_block("s11") + "</article>")
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО: слайд расширен до «Сроки решения и долгострой»: распределение сроков всех решённых
+    # ПОЧЕМУ: медиана прячет «два горба» — часть решается за час, часть идёт неделями (аудит 8а.4); слайд раскрывает плитки «Медиана», «За рабочий день», «Долгострой»
+    # ----------------------------------------------------------------------
+    B = [(0, 1, "≤ 1 ч", "#0F6E3A"), (1, 4, "1–4 ч", "#4E9A6B"), (4, FAST_H, f"4–{FAST_H} ч", "#8DBA9C"),
+         (FAST_H, 24, f"{FAST_H}–24 ч", "#C9A227"), (24, LONG_H, f"24–{LONG_H} ч", "#D08700"), (LONG_H, 10**9, f"> {LONG_H} ч", "#B3261E")]
+    cnt = [(lab, sum(a < r["h"] <= b or (a == 0 and r["h"] == 0) for r in real), col) for a, b, lab, col in B]
+    p0 = panel("Распределение сроков решения", stamps("sol"),
+               hbars(cnt, unit=" обр.") + f'<p class="cmp">Медиана {str(M["med_all"]).replace(".", ",")} раб. ч; за рабочий день (≤ {FAST_H} ч) — {sum(c for _, c, _ in cnt[:3])}, долгострой (> {LONG_H} ч) — {cnt[-1][1]} из {len(real)}.</p>',
+               f"Все решённые за {PER_S} без служебных карточек, по сроку от регистрации до решения в рабочих часах (8 ч в рабочем дне, выходные не считаются).",
+               "Одна медиана прячет «два горба»: быстрые решения и хвост, который идёт неделями. Улучшать надо хвост — он и даёт недовольство.")
+    return (f'<article class="slide" id="s11"><div class="sh"><h2>Сроки решения и долгострой</h2>'
+            f'<p class="lead">Решено за {PER_S}: {len(real)} обращений без служебных; дольше {LONG_H} раб. ч — {n}</p></div>'
+            + p0 + p1 + p2 + p3 + ai_block("s11") + "</article>")
 
 
 # ================================================================ СЛАЙД 2 — очередь
@@ -811,14 +848,21 @@ def slide3():
     for d in DAYS:
         x = x0 + (x1 - x0) * (d - WS).total_seconds() / span
         svg.append(f'<line x1="{x:.0f}" x2="{x:.0f}" y1="85" y2="105" stroke="#9AA6B2"/><text class="ax day" x="{x+6:.0f}" y="122">{WD[d.weekday()]} {d:%d.%m}</text>')
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО: уровень подписи — первый свободный (не ближе 40 px к предыдущей на том же уровне); точка — ссылка, если есть url
+    # ПОЧЕМУ: подписи 34989 и 34998 налезали друг на друга; Т-57 — номер открывает карточку
+    # ----------------------------------------------------------------------
+    levels, last = [(58, True), (140, False), (32, True), (166, False)], {}
     for k, r in enumerate(ii):
         x = x0 + (x1 - x0) * (r["reg_dt"] - WS).total_seconds() / span
-        up = k % 2 == 0; y = (58 if k % 4 == 0 else 32) if up else (140 if k % 4 == 1 else 166)
+        lv = next((L for L in levels if x - last.get(L, -1e9) >= 40), min(levels, key=lambda L: last.get(L, -1e9)))
+        last[lv] = x; y, up = lv
         hidden = r["type"] != "Инцидент"
         crit = r.get("ai", {}).get("crit") or r["id"] in OPEN_CRIT
         fill = "#fff" if r["is_open"] else ("#B7800F" if hidden else "#D93025")
+        a0, a1 = (f'<a href="{E(r["url"])}">', "</a>") if r.get("url") else ("", "")
         svg.append(f'<line x1="{x:.0f}" x2="{x:.0f}" y1="95" y2="{y:.0f}" stroke="#C3CCD5"/>'
-                   f'<circle cx="{x:.0f}" cy="95" r="{9 if crit else 6}" fill="{fill}" stroke="{"#7A0F0A" if crit else "#D93025"}" stroke-width="{3 if crit else 2}"><title>{r["id"]} · {r["reg_dt"]:%d.%m %H:%M} · {E(r["st"])} · {E(short(r["anl"]))}</title></circle>'
+                   f'{a0}<circle cx="{x:.0f}" cy="95" r="{9 if crit else 6}" fill="{fill}" stroke="{"#7A0F0A" if crit else "#D93025"}" stroke-width="{3 if crit else 2}"><title>{r["id"]} · {r["reg_dt"]:%d.%m %H:%M} · {E(r["st"])} · {E(short(r["anl"]))}</title></circle>{a1}'
                    f'<text class="lbl" x="{x+3:.0f}" y="{y - 4 if up else y + 12:.0f}">{r["id"][-5:]}</text>')
     svg.append("</svg>")
     lg = ('<div class="legend"><span><i style="background:#D93025"></i>инцидент решён</span><span><i style="background:#fff;border:2px solid #D93025"></i>открыт</span>'
@@ -927,7 +971,7 @@ def slide4():
     nsi_obj = Counter((r["ai"].get("obj") or r["ai"].get("s")).split(":")[0] for r in nsi).most_common()
     S = AI["slides"]["s4"]
     ne = "".join(f'<tr><td>{tk(x["id"])}</td><td>{E(BYID[x["id"]]["type"])}</td><td><b>{E(x["cls"])}</b></td><td>{E(x["note"])}</td></tr>' for x in S["nsi_nonedit"])
-    p7 = panel(f"НСИ отдельно — {M['nsi_n']} решено за период", stamps("sol", "w4", "ai"),
+    p7 = panel(f"НСИ отдельно — {M['nsi_n']} решено за период", stamps("sol", "sol4", "ai"),
                f'<div><div><div class="ch">Что правят в НСИ</div>{hbars([(k, n, CAT_COLOR["НСИ"]) for k, n in nsi_obj])}'
                f'<p class="cmp">Медиана {str(M["nsi_med"]).replace(".", ",")} раб. ч, {hsum(nsi):.1f} ч за период; ведёт первая линия — {sum(r["line"] == "L1" for r in nsi)} из {len(nsi)}.</p></div>'
                f'<div><div class="ch" style="margin-top:14px">Не-правки в НСИ за 4 недели — классификация ИИ</div><div class="tw"><table><thead><tr><th>Обращение</th><th>Тип при регистрации</th><th>Что это по сути</th><th>Комментарий</th></tr></thead><tbody>{ne}</tbody></table></div></div></div>',
@@ -987,7 +1031,7 @@ def slide5():
         body += f'<tr><th>{E(s)}</th>' + "".join(
             f'<td style="background:rgba(29,51,80,{0.08 + 0.8 * v / mx:.2f});color:{"#fff" if v / mx > 0.5 else "var(--ink)"}">{v}</td>' for v in vals) + \
             f'<td class="{"bad" if vals[-1] > vals[0] else "ok"}">{vals[-1] - vals[0]:+d}</td></tr>'
-    p4 = panel("Где растёт поток: раздел × неделя", stamps("w4", "in"),
+    p4 = panel("Где растёт поток: раздел × неделя", stamps("in4"),
                f'<div class="tw"><table class="num heat"><thead><tr><th>Раздел</th>' + "".join(f'<th>W{w["a"].isocalendar()[1]}</th>' for w in wk) +
                f'<th>Изменение</th></tr></thead><tbody>{body}</tbody></table></div>',
                f"Пришедшие по разделу за 4 недели (W{wk[-1]['a'].isocalendar()[1]} — отчётный период без выходных). Темнее — больше.",
@@ -1133,7 +1177,7 @@ def slide8():
     t2 = "".join(f'<div class="pp"><span style="--c:{CAT_COLOR[c]}">{c}</span><div class="pp-b"><i style="width:{100*len(l)/tot_n:.0f}%;background:{CAT_COLOR[c]}66"></i><em>{pct(len(l), tot_n)}% обращений</em></div>'
                  f'<div class="pp-b"><i style="width:{100*hsum(l)/tot_h:.0f}%;background:{CAT_COLOR[c]}"></i><em>{pct(hsum(l), tot_h)}% часов</em></div></div>'
                  for c, l in sorted(cats.items(), key=lambda kv: -hsum(kv[1])))
-    p1 = panel("Цена по разделам и типам — 4 недели", stamps("w4", "sol"),
+    p1 = panel("Цена по разделам и типам — 4 недели", stamps("sol4"),
                f'<div class="grid g2"><div class="tw"><table class="num"><thead><tr><th>Раздел</th><th>Часов</th><th>Обращ.</th><th>Ч на обращ.</th></tr></thead><tbody>{t1}</tbody></table></div>'
                f'<div><div class="ch">Доля в обращениях и в часах</div>{t2}</div></div>',
                f"Трудозатраты (AmountTrud) по решённым за 4 недели, {tot_h:.0f} ч на {tot_n} обращений; служебные карточки исключены.",
@@ -1141,7 +1185,7 @@ def slide8():
     top = sorted(s4, key=lambda r: -r["trud"])[:10]
     t3 = "".join(f'<tr><td>{tk(r["id"])}</td><td>{E(r["sec"])}</td><td>{E(r["cat"])}</td><td class="c"><b>{r["trud"]:g}</b></td><td class="c">{r["h"]:g}</td>'
                  f'<td>{E((r["desc"].split(chr(10))[0] if len(r["desc"]) > 5 else r["desc"])[:110])}</td></tr>' for r in top)
-    p2 = panel("Самые дорогие решённые — 4 недели", stamps("w4", "sol"),
+    p2 = panel("Самые дорогие решённые — 4 недели", stamps("sol4"),
                f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Раздел</th><th>Тип</th><th>Трудозатраты, ч</th><th>Срок, раб. ч</th><th>Описание</th></tr></thead><tbody>{t3}</tbody></table></div>',
                "Десять решённых обращений с наибольшими трудозатратами.",
                "Дорогие обращения — кандидаты на доработку или на отдельный проект: если такое повторяется, дешевле исправить причину.")
@@ -1152,7 +1196,7 @@ def slide8():
     anl4 = by(s4, lambda r: r["anl"])
     t5 = "".join(f'<tr><th>{E(short(a))}</th><td>{len(l)}</td><td class="{"bad" if pct(sum(r["trud"] == 0 for r in l), len(l)) >= 30 else ""}">{pct(sum(r["trud"] == 0 for r in l), len(l))}%</td></tr>'
                  for a, l in sorted(anl4.items(), key=lambda kv: -pct(sum(r["trud"] == 0 for r in kv[1]), len(kv[1]))) if len(l) >= 2)
-    p3 = panel("Работали против ждали", stamps("w4", "sol"),
+    p3 = panel("Работали против ждали", stamps("sol4"),
                f'<div class="grid g2"><div class="tw"><table class="num"><thead><tr><th>Тип</th><th>Работа, ч (медиана)</th><th>Календарно, ч (медиана)</th><th>Часов ожидания на час работы</th></tr></thead><tbody>{t4}</tbody></table></div>'
                f'<div class="tw"><div class="ch">Дисциплина учёта: доля решённых без часов</div><table class="num"><thead><tr><th>Аналитик</th><th>Решено</th><th>Без часов</th></tr></thead><tbody>{t5}</tbody></table></div></div>',
                "Слева — сколько обращение реально делали (трудозатраты) и сколько оно шло по календарю. Справа — у кого часы не списаны (от 2 решённых).",
@@ -1210,11 +1254,11 @@ def slide9():
                  f'<td class="c">{hsum(l4):.0f}</td><td class="c">{pct(sum(r["cat"] == "Правка данных" for r in l4), len(l4))}%</td>'
                  f'<td class="c {"bad" if pct(z, len(l4)) >= 30 else ""}">{pct(z, len(l4))}%</td>'
                  f'<td class="c">{c1(round(statistics.mean(cxs), 1)) if cxs else "·"}</td>'
-                 f'<td class="c {"bad" if bd else ""}">{bd or "·"}</td><td class="c">{ex or "·"}</td><td class="c {"bad" if mi and pct(mi, len(l)) >= 25 else ""}">{mi or "·"}</td>'
+                 f'<td class="c {"bad" if bd else ""}">{f"{bd} · {pct(bd, len(l))}%" if bd else "·"}</td><td class="c">{f"{ex} · {pct(ex, len(l))}%" if ex else "·"}</td><td class="c {"bad" if mi and pct(mi, len(l)) >= 25 else ""}">{mi or "·"}</td>'
                  f'<td style="text-align:left">{E(S["fix"].get(a, ""))}</td></tr>')
-    p1 = panel("Сводная таблица и что поправить", stamps("w4", "sol", "ai"),
+    p1 = panel("Сводная таблица и что поправить", stamps("sol4", "sol", "ai"),
                f'<div class="tw"><table class="num"><thead><tr><th rowspan="2">Аналитик</th><th rowspan="2">Доля 1-й линии</th><th colspan="7">4 недели — скорость и объём</th><th colspan="4">Период {PER_S} — разбор ИИ</th><th rowspan="2" style="text-align:left">Что поправить (ИИ)</th></tr>'
-               f'<tr><th>Решено</th><th>за период</th><th>Медиана, раб. ч</th><th>К медиане типа</th><th>Часы</th><th>Доля правок</th><th>Без часов</th><th>Сложн. 1–5</th><th>Плохо</th><th>Отлично</th><th>Неверный тип</th></tr></thead><tbody>{body}</tbody></table></div>',
+               f'<tr><th>Решено</th><th>за период</th><th>Медиана, раб. ч</th><th>К медиане типа</th><th>Часы</th><th>Доля правок</th><th>Без часов</th><th>Сложн. 1–5</th><th>Плохо · доля</th><th>Отлично · доля</th><th>Неверный тип</th></tr></thead><tbody>{body}</tbody></table></div>',
                f"Скорость, объём и часы — за 4 недели ({W4S:%d.%m}–{PER_S[-5:]}), чтобы доли не прыгали от одного обращения; качество, сложность и тип — разбор ИИ решённых за период. «Доля 1-й линии» — сколько его решений по правилу Т-10 относятся к первой линии. «К медиане типа» — правка сравнивается с правкой, инцидент — с инцидентом. Меньше 5 решённых за 4 недели — серым.",
                "Один балл не строится: скорость, качество и классификация смотрятся рядом. Последняя колонка — конкретная ошибка человека с номером обращения.")
     cx_l = [r for r in real if r["ai"].get("cx")]
@@ -1236,7 +1280,7 @@ def slide9():
         body += (f'<tr><th>{E(short(a))}</th><td class="c"><b>{len(l)}</b></td><td class="c">{sum(in_per(r["done_dt"]) for r in l)}</td>'
                  f'<td class="c">{pct(len(l), len(own))}%</td><td class="c">{str(hsum(l)).replace(".", ",")}</td>'
                  f'<td style="text-align:left">{tks([r["id"] for r in sorted(l, key=lambda r: r["done_dt"], reverse=True)])}</td></tr>')
-    p_grab = panel("Вторая линия решает обращения первой — по ФИО", stamps("w4", "sol"),
+    p_grab = panel("Вторая линия решает обращения первой — по ФИО", stamps("sol4"),
                    f'<div class="tw"><table class="num"><thead><tr><th>Аналитик</th><th>Обращ. за 4 нед.</th><th>из них за период</th>'
                    f'<th>Доля его решённых</th><th>Часов</th><th style="text-align:left">Обращения</th></tr></thead><tbody>{body}</tbody></table></div>'
                    f'<p class="cmp">Всего за 4 недели: <b>{len(grab)}</b> обращений, <b>{str(hsum(grab)).replace(".", ",")} ч</b> второй линии — это работа, которую могла сделать первая линия.</p>',
@@ -1268,7 +1312,7 @@ def slide10():
     rules = [("Отчётный период", f"С понедельника недели максимальной даты решения по эту дату ({rule}). Параметр REPORT_WEEK задаёт неделю явно."),
              ("Первая линия", f"Ответственный — {L1_ANALYST} или в решении есть «{L1_WORD}»; остальное — вторая."),
              ("НСИ", f"Раздел «{NSI_SECTION}» целиком; «Правка данных» — тип «Изменение данных в системе» вне НСИ."),
-             ("Срок решения", f"(дата решения − дата регистрации) / {SLA_DIVIDER}, раб. ч. Дата решения — «Отработано»; «Закрыто» — формальная."),
+             ("Срок решения", f"Календарные часы рабочих дней от регистрации до решения / {SLA_DIVIDER}: 8 ч в рабочем дне, выходные и праздники РФ не считаются (Т-67, Т-68); позже — настоящий SLA из 1С. Дата решения — «Отработано»; «Закрыто» — формальная."),
              ("Трудозатраты", "AmountTrud, часы по обращению на момент выгрузки; 0 — не списано."),
              ("Сложность и расход ИИ", "Сложность 1–5 — поле разметки ИИ. Расход токенов в макете не считается (разметку делал Claude вручную); в отчёте — токены разметки, группировки и разборов из лога прогона."),
              ("Служебные карточки", f"ИИ помечает карточки учёта времени и поручения, плюс явные признаки в тексте ({SVC_RX}) — из скорости и цены исключаются.")]
@@ -1292,10 +1336,31 @@ def slide10():
                f'<div class="tw"><table class="num"><thead><tr><th>Часть</th><th>Обращений с частью</th><th>Строк</th><th>Отброшено строк</th></tr></thead><tbody>{tb}</tbody></table></div>{tchk}',
                "Необязательные поля-массивы внутри обращения (data.md, разд. 10). Нет части — нет данных, блоки на ней не показываются.",
                "Контроль, что доп. данные пришли и сходятся с основными полями.", "demo" if DEMO_TAB else "")
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО: в паспорт добавлена панель «Доверие к данным»
+    # ПОЧЕМУ: аудит 8а.8: читатель должен видеть, на сколько можно верить цифрам — автозакрытие, нулевые часы, сбои разметки, раздвоенные ФИО
+    # ----------------------------------------------------------------------
+    cl = [r for r in rows if r["st"] == "Закрыто" and r["cls_dt"]]
+    auto = sum(r["cls_dt"].hour == 19 and r["cls_dt"].minute == 30 for r in cl)
+    tr_ = dict(zip("абвгдеёжзийклмнопрстуфхцчшщъыьэюя", ["a", "b", "v", "g", "d", "e", "e", "zh", "z", "i", "y", "k", "l", "m", "n", "o", "p", "r", "s", "t", "u", "f", "kh", "ts", "ch", "sh", "shch", "", "y", "", "e", "yu", "ya"]))
+    nz = lambda x: re.sub(r"[^a-z]", "", x.lower()).replace("kh", "h")
+    clis = sorted({r["cli"] for r in rows})
+    cyr = {(nz("".join(tr_.get(c, c) for c in n.split()[0].lower())), nz("".join(tr_.get(c, c) for c in n.split()[1].lower()))[:3]): n
+           for n in clis if re.match("[А-ЯЁ]", n) and len(n.split()) >= 2}
+    dup = sorted(f"{n} = {cyr[(nz(n.split()[-1]), nz(n.split()[0])[:3])]}" for n in clis
+                 if re.match("[A-Za-z]", n) and len(n.split()) >= 2 and (nz(n.split()[-1]), nz(n.split()[0])[:3]) in cyr)
+    trust = [("Файл выгрузки", os.path.basename(DUMP_FILE), "Из него посчитан весь отчёт"),
+             ("«Закрыто» поставлено в 19:30", f"{auto} из {len(cl)} ({pct(auto, len(cl))}%)", "Дата закрытия — автоматическая, поэтому везде берётся дата решения"),
+             ("Решённые за период без трудозатрат", f"{sum(r['trud'] == 0 for r in real)} из {len(real)} ({pct(sum(r['trud'] == 0 for r in real), len(real))}%)", "Цена в часах занижена на эти обращения"),
+             ("Решённые без оценки ИИ (Н/Д)", f"{len([r for r in sol if not r['ai']])} из {len(sol)}", "Сбой разметки: не входят в рейтинг и списки «Плохо» / «Лучшие»"),
+             ("Один человек — два написания ФИО", f"{len(dup)}: " + "; ".join(dup) if dup else "нет", "Топы инициаторов делятся; лечится кодом сотрудника в выгрузке")]
+    p6 = panel("Доверие к данным", "", '<div class="tw"><table><thead><tr><th>Показатель</th><th>Значение</th><th>Что значит</th></tr></thead><tbody>'
+               + "".join(f"<tr><td><b>{E(a)}</b></td><td>{E(b)}</td><td>{E(c)}</td></tr>" for a, b, c in trust) + "</tbody></table></div>",
+               "Свойства самой выгрузки, которые влияют на точность цифр отчёта.", "Если доля здесь растёт — цифры отчёта хуже отражают реальность, сначала чинить учёт.")
     p4 = panel("Чего нет в выгрузке", "", f'<div class="tw"><table><thead><tr><th>Поле</th><th>Что даст отчёту</th></tr></thead><tbody>{m_}</tbody></table></div>',
                "Список для доработки выгрузки 1С и истории.", "Каждая строка открывает новый блок аналитики.")
     return (f'<article class="slide" id="s10"><div class="sh"><h2>Паспорт данных и проверки</h2><p class="lead">Какие выборки в отчёте и можно ли верить цифрам · генератор v{VERSION}</p></div>'
-            + '<div class="grid g2">' + p1 + p2 + "</div>" + '<div class="grid g2">' + p3 + p4 + "</div>" + p5 + "</article>")
+            + '<div class="grid g2">' + p1 + p2 + "</div>" + '<div class="grid g2">' + p3 + p4 + "</div>" + p6 + p5 + "</article>")
 
 
 # ================================================================ СБОРКА HTML
@@ -1412,7 +1477,7 @@ b.onclick=()=>{const open=b.dataset.o!=='1';rs.slice(10).forEach(r=>r.classList.
 (tb.closest('.tw')||tb.parentNode).after(b)});
 const go=()=>{const h=slides.findIndex(x=>'#'+x.id===location.hash);show(h>0?h:0)};window.addEventListener('hashchange',go);go();
 """
-NAV = [("Состояние недели", [("s1", f"Неделя {WEEK}"), ("s11", "Долгострой"), ("s2", f"Очередь на {NOW:%d.%m}")]),
+NAV = [("Состояние недели", [("s1", f"Неделя {WEEK}"), ("s11", "Сроки и долгострой"), ("s2", f"Очередь на {NOW:%d.%m}")]),
        ("Где болит", [("s3", "Инциденты"), ("s4", "Ручные правки и НСИ"), ("s5", "Повторы"), ("s7", "Планшеты")]),
        ("Качество, люди, цена", [("s6", "Качество и классификация"), ("s9", "Аналитики"), ("s8", "Цена в часах")]),
        ("Приложение", [("s10", "Паспорт данных")])]

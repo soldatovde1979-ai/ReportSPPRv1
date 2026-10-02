@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Аудит ReportSPPR — 02.10.2026</title>
+<style>
+:root{
+  --bg:#f5f6f8; --panel:#ffffff; --ink:#1a212b; --ink2:#3b4754; --muted:#6a7684;
+  --rule:#e2e6eb; --wash:#f0f3f6; --accent:#1a56db; --accent2:#5b3c99;
+  --ok:#0f6e3a; --warn:#a36300; --bad:#b3261e;
+  --hi:#b3261e; --md:#a36300; --lo:#0f6e3a;
+  --code:#f4f6f8; --code-ink:#2b3a4a;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#14181d; --panel:#1c2127; --ink:#e8edf2; --ink2:#c3ccd6; --muted:#8b97a5;
+    --rule:#2b323a; --wash:#252b33; --accent:#6f9aff; --accent2:#b39ce0;
+    --ok:#5ec17e; --warn:#e0a74a; --bad:#ef7a6e;
+    --code:#20262d; --code-ink:#d5dde5;
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:15px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg);font-variant-numeric:tabular-nums}
+.wrap{max-width:1080px;margin:0 auto;padding:24px 20px 80px}
+header.pass{background:var(--panel);border:1px solid var(--rule);border-radius:14px;padding:26px 28px;margin-bottom:20px}
+header.pass h1{font-size:26px;font-weight:700;letter-spacing:.01em}
+header.pass .sub{color:var(--muted);margin-top:6px;font-size:14px}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600;line-height:1.5;vertical-align:middle}
+.b-hi{background:#fbe3e1;color:#9b1c12}.b-md{background:#fff1cc;color:#7a5a00}.b-lo{background:#e3f4e8;color:#0f6e3a}.b-x{background:#efe9f8;color:#5b3c99}
+h2{font-size:20px;margin:34px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--rule)}
+h2 .n{color:var(--muted);font-weight:400;margin-right:8px}
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:12px;padding:18px 22px;margin-bottom:16px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.kpi{background:var(--panel);border:1px solid var(--rule);border-radius:12px;padding:16px 18px}
+.kpi .v{font-size:34px;font-weight:700;line-height:1.1}
+.kpi .l{font-size:13px;color:var(--muted);margin-top:4px}
+.kpi.hi{border-top:4px solid var(--hi)}.kpi.md{border-top:4px solid var(--md)}.kpi.lo{border-top:4px solid var(--lo)}.kpi.x{border-top:4px solid var(--accent2)}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin:8px 0}
+th{text-align:left;font-weight:600;color:var(--ink2);border-bottom:2px solid var(--rule);padding:7px 10px 7px 0;vertical-align:bottom}
+td{border-bottom:1px solid var(--rule);padding:7px 10px 7px 0;vertical-align:top}
+code,.ref{font-family:"Cascadia Code","Consolas",monospace;font-size:12.5px;background:var(--code);color:var(--code-ink);border:1px solid var(--rule);border-radius:4px;padding:1px 5px;white-space:nowrap}
+.f{color:var(--accent);font-weight:600}
+details{border:1px solid var(--rule);border-radius:10px;background:var(--panel);margin-bottom:10px;overflow:hidden}
+details summary{cursor:pointer;padding:12px 16px;font-weight:600;font-size:14.5px;background:var(--wash)}
+details summary:hover{background:var(--rule)}
+details .bd{padding:4px 18px 14px}
+.finding{border-left:4px solid var(--rule);padding:8px 0 8px 14px;margin:10px 0}
+.finding.c{border-color:var(--bad)}.finding.e{border-color:var(--warn)}.finding.m{border-color:var(--lo)}.finding.p{border-color:var(--accent2)}
+.finding .h{font-weight:600}
+.finding .where{color:var(--muted);font-size:13px}
+.finding .vec{margin-top:4px;color:var(--ink2);font-size:14px}
+.vec b{color:var(--accent)}
+ul{margin:6px 0 6px 22px}li{margin:4px 0}
+.tag{font-size:11.5px;padding:1px 7px;border-radius:3px;font-weight:600;white-space:nowrap}
+.t-hi{background:#fbe3e1;color:#9b1c12}.t-md{background:#fff1cc;color:#7a5a00}.t-lo{background:#e3f4e8;color:#0f6e3a}.t-na{background:var(--wash);color:var(--muted)}
+.small{font-size:12.5px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:820px){.grid2{grid-template-columns:1fr}}
+.rule-note{border:1px dashed var(--rule);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--muted);margin-top:10px}
+h3{font-size:16px;margin:18px 0 8px}
+a{color:var(--accent)}
+.verdict{display:inline-block;padding:4px 12px;border-radius:8px;font-weight:700;font-size:14px}
+.v-ok{background:#e3f4e8;color:#0f6e3a}.v-warn{background:#fff1cc;color:#7a5a00}
+@media print{details .bd{display:block}details summary{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="pass">
+  <h1>Независимый технический аудит проекта ReportSPPR</h1>
+  <div class="sub">Дата аудита: 02.10.2026 · Версия аудита: v1 · Режим: только чтение и анализ, без изменения кода</div>
+</header>
+
+<!-- ======================= 1. ПАСПОРТ ======================= -->
+<h2><span class="n">01</span>Паспорт решения</h2>
+<div class="panel">
+  <table>
+    <tr><th style="width:210px">Название</th><td><b>ReportSPPR</b> — еженедельный HTML-отчёт о качестве 1С-поддержки (11 слайдов в формате макета v2)</td></tr>
+    <tr><th>Назначение</th><td>Превращает JSON-выгрузку обращений из 1С в презентацию: разметка обращений LLM (DeepSeek/Gemini), метрики очереди, сроков, инцидентов, правок, повторов, планшетов, цены в часах</td></tr>
+    <tr><th>Ключевой стек</th><td>Google Colab (Python 3.10+) · DeepSeek / Gemini API · Jinja2 · Google Drive (история, кэш) · Google Sheets (лог) · 1С BSL (функция выгрузки)</td></tr>
+    <tr><th>Точки входа</th><td><code class="ref">RepSSPR_v5.1.ipynb</code> (боевой прогон) · <code class="ref">examples/build_mockup_v2.py</code> (сборка макета) · <code class="ref">src/report_v5.py</code> (общий модуль расчёта и вёрстки)</td></tr>
+    <tr><th>Входные данные</th><td><code class="ref">data/sppr_dump_20260929_180748_842rec.json</code> — 842 обращения, недели W36–W39 + все открытые на 29.09.2026 18:07</td></tr>
+    <tr><th>Выход</th><td><code class="ref">Отчет по качеству W{N} ({дата}).html</code> + <code class="ref">history.json</code> + кэш ИИ <code class="ref">markup_cache_v5.json</code></td></tr>
+    <tr><th>Состояние на дату аудита</th><td>v5.1 собран (ноутбук + модуль 5.1 + шаблон 5.0), проверен на подставной модели; <b>боевой прогон на реальной модели не выполнялся</b>. Опубликованный отчёт W39 — ещё старый формат v4 (20 слайдов).</td></tr>
+  </table>
+</div>
+
+<div class="panel small">
+  <b>Охват проверки.</b> Прочитаны целиком: <code class="ref">src/report_v5.py</code> (2038 строк), <code class="ref">template_v5.html</code>, <code class="ref">src/vygruzka-1c.md</code>, <code class="ref">docs/spec.md</code>, <code class="ref">docs/data.md</code>, <code class="ref">docs/my-FT.md</code>, <code class="ref">CLAUDE.md</code>, <code class="ref">HANDOFF.md</code>, <code class="ref">examples/build_mockup_v2.py</code>, <code class="ref">examples/make_demo_tab.py</code>. Ноутбук <code class="ref">RepSSPR_v5.1.ipynb</code> — структура (17 ячеек) + выборочно ячейки конфигурации, вызова ИИ, истории/вёрстки и лога. Данные — только агрегаты и счётчики (без чтения персональных данных). Не читались целиком: <code class="ref">RepSSPR_v4.x</code>, <code class="ref">template_v4.html</code>, содержимое готовых HTML-отчётов.
+</div>
+
+<!-- ======================= 2. EXECUTIVE SUMMARY ======================= -->
+<h2><span class="n">02</span>Executive Summary</h2>
+<div class="kpis">
+  <div class="kpi hi"><div class="v">2</div><div class="l">критичных риска (High×High)</div></div>
+  <div class="kpi md"><div class="v">3</div><div class="l">средних риска</div></div>
+  <div class="kpi x"><div class="v">7</div><div class="l">quick wins (польза/трудозатраты)</div></div>
+  <div class="kpi md"><div class="v">Условно</div><div class="l">готовность к эксплуатации</div></div>
+</div>
+<div class="panel">
+  <p><span class="verdict v-warn">Готовность: условная</span> &nbsp;Архитектура v5 зрелая и продуманная (общий модуль, проверка ответов ИИ кодом, кэш, контроль версий). Главный барьер — не информационный: <b>боевой прогон v5 на реальной модели не делался</b>, а опубликованный отчёт W39 собран старым кодом v4.0.</p>
+  <h3>Три главных риска</h3>
+  <ul>
+    <li><b>Персональные данные в публичном репозитории и во внешнем ИИ</b> — реальные ФИО (253 инициатора, 20 аналитиков) и тексты обращений лежат в <code class="ref">data/</code>, <code class="ref">examples/</code> и готовых HTML; ФИО отправляется в DeepSeek/Gemini без замены на код (Т-69 отложен).</li>
+    <li><b>Несанкционированная запись в ветку <code>main</code></b> — коммит <code>1eba79a</code> сделан с учётной записи пользователя не им (автоматизация Zoo Code в VS Code).</li>
+    <li><b>Искажение сроков с 2027 года</b> — константа праздников <code class="ref">HOLIDAYS</code> покрывает только 2026 год; SLA приближённый (календарные часы рабочих дней / 3, фиксированные 8 ч).</li>
+  </ul>
+  <h3>Три главных улучшения (уже сделанных, зафиксированы как плюсы)</h3>
+  <ul>
+    <li>Единый модуль <code class="ref">src/report_v5.py</code> для боевого отчёта и макета — макет и отчёт не расходятся (Р-6).</li>
+    <li>Проверка ответов ИИ кодом: ключи метрик только из каталога, номера обращений только из выгрузки, повтор с перечнем ошибок (<code class="ref">src/report_v5.py:657-762</code>).</li>
+    <li>«Паспорт данных» с проверками сходимости и блоком «Доверие к данным» — читатель видит, насколько можно верить цифрам.</li>
+  </ul>
+</div>
+
+<!-- ======================= 3. СИЛЬНЫЕ СТОРОНЫ ======================= -->
+<h2><span class="n">03</span>Сильные стороны</h2>
+<div class="panel">
+  <ul>
+    <li><b>Общий модуль расчёта и вёрстки.</b> <code class="ref">src/report_v5.py</code> вызывают и ноутбук, и <code class="ref">examples/build_mockup_v2.py</code> (тонкая обёртка на 47 строк). Макет и боевой отчёт физически не могут разойтись (my-FT Р-6, В-18 = а).</li>
+    <li><b>Контроль версий до платных вызовов.</b> Мажор модуля, шаблона и ноутбука сверяется в ячейке 1 <code class="ref">RepSSPR_v5.1.ipynb</code>; <code class="ref">src/report_v5.py:182-190</code> (<code class="f">check_template</code>) не даст собрать несовместимую пару. В v4 шаблон искался в самом конце прогона.</li>
+    <li><b>Проверка ответов ИИ кодом.</b> <code class="f">validate</code>/<code class="f">sanitize</code> (<code class="ref">src/report_v5.py:680-792</code>): неизвестный ключ метрики или номер не из выгрузки → переспрос с перечнем ошибок, после последней попытки остаются только годные строки. Текст ИИ экранируется, цифры подставляет код.</li>
+    <li><b>Кэш всех ответов ИИ.</b> По <code>id</code> для разметки и по хэшу промпта для целых вызовов (<code class="ref">RepSSPR_v5.1.ipynb</code>, ячейка 2) — повторный прогон той же выгрузки бесплатен (Т-63, <code>REUSE_AI</code>).</li>
+    <li><b>Секреты только из <code>userdata.get()</code>.</b> Проверено поиском: 0 литералов вида <code>sk-…</code>, ключи только <code>userdata.get('DEEPSEEK_API_KEY'/'GEMINI_API_KEY')</code>, DeepSeek требуется лишь при провайдере deepseek (Т-66).</li>
+    <li><b>Защита от деления на ноль и пустых выборок.</b> <code class="f">pct</code> (<code class="ref">src/report_v5.py:146-147</code>), <code class="f">med</code> (141–143), страховки <code>tot or 1</code>/<code>th_ or 1</code>/<code>max(1, …)</code> в слайдах 6 и 8.</li>
+    <li><b>Экранирование HTML.</b> Jinja2 <code>autoescape=True</code> в <code class="f">render</code> (<code class="ref">src/report_v5.py:1969</code>) + экранирование текста ИИ до подстановки (<code class="f">fmt</code>, строка 894) — текст обращения с HTML не ломает вёрстку и не исполняется у читателя.</li>
+    <li><b>Честность о качестве данных.</b> Паспорт данных (<code class="ref">src/report_v5.py:1853-1947</code>): проверки сходимости, доля автозакрытия 19:30, доля без трудозатрат, число «Н/Д», раздвоенные ФИО, покрытие 4 недель.</li>
+    <li><b>Метки выборки и периода у каждого блока</b> («Что это / Польза / проблема») — Т-1, Т-59 выполнены системно.</li>
+    <li><b>Документация актуальна и непротиворечива.</b> <code class="ref">docs/data.md</code> 3.1 и <code class="ref">docs/spec.md</code> 3.1 точно описывают код; заявленные цифры по выгрузке 29.09 подтверждены прямым счётом (842 строки, статусы, 132 нуля трудозатрат).</li>
+  </ul>
+</div>
+
+<!-- ======================= 4. СЛАБЫЕ МЕСТА ======================= -->
+<h2><span class="n">04</span>Слабые места и узкие горлышки</h2>
+<div class="panel">
+  <ul>
+    <li><b>Дублирование версий.</b> В репозитории 5 версий ноутбука (<code class="ref">RepSSPR_v4.0/v4.1/v4.2/v5.0/v5.1.ipynb</code>) и 2 шаблона (<code class="ref">template_v4.html</code>, <code class="ref">template_v5.html</code>) — легаси «до приёмки v5». Риск дрейфа и правки не той версии.</li>
+    <li><b>Побайтный дубль дампа.</b> <code class="ref">data/sppr_dump_20260929_180748_842rec — копия.json</code> идентичен основному (1 401 707 байт), внесён коммитом <code>1eba79a</code>. Лишние ~1.4 МБ и второй экземпляр ПД.</li>
+    <li><b>Хрупкие эвристики бизнес-правил.</b> Первая линия — <code>anl.startswith("Попова Анна")</code> или слово <code>confluence</code> в решении (<code class="ref">src/report_v5.py:20,250</code>); служебные карточки — regex <code>SVC_RX</code> (<code class="ref">src/report_v5.py:26</code>). Смена имени/продукта молча ломает разбивку.</li>
+    <li><b>Отсутствие автотестов.</b> Ядро <code class="f">_metrics</code> (<code class="ref">src/report_v5.py:377-516</code>) не покрыто тестами; проверка была ручной на подставной модели. Точечная правка <code class="f">work_h</code> или логики <code>mis</code> может молча исказить цифры.</li>
+    <li><b>Зависимость от человека и инфраструктуры.</b> Привязка к Colab (<code>files</code>, <code>userdata</code>, <code>drive</code>, <code>auth</code>) — документация это фиксирует (spec.md 7.5). Без Диска история и кэш живут только в сессии и должны прикладываться вручную.</li>
+    <li><b>Группировка тем недетерминирована.</b> Группы делает модель; топ-7 может «плавать» между прогонами (повтор той же выгрузки берётся из кэша). Жёсткого справочника групп нет (spec.md 7.3 [~]).</li>
+  </ul>
+</div>
+
+<!-- ======================= 5. МАТРИЦА РИСКОВ ======================= -->
+<h2><span class="n">05</span>Матрица рисков</h2>
+<div class="panel">
+  <table>
+    <tr><th>#</th><th>Риск</th><th>Компонент / место</th><th>Критичность</th><th>Вероятность</th><th>Рекомендуемое действие</th></tr>
+    <tr><td>R1</td><td>Утечка персональных данных (публичный репозиторий + отправка ФИО во внешний ИИ)</td><td><code class="ref">data/</code>, <code class="ref">examples/</code>, готовые HTML; промпты разметки (<code class="ref">RepSSPR_v5.1.ipynb</code>, ячейка 3)</td><td><span class="tag t-hi">High</span></td><td><span class="tag t-hi">High</span></td><td>Сделать репозиторий приватным; вынести/обезличить данные из git; ускорить Т-69 (<code>cli_id</code>/<code>anl_id</code>); решить судьбу истории git</td></tr>
+    <tr><td>R2</td><td>Несанкционированная запись в ветку <code>main</code> автоматизацией</td><td>git / расширение Zoo Code в VS Code (коммит <code>1eba79a</code>)</td><td><span class="tag t-hi">High</span></td><td><span class="tag t-md">Med</span></td><td>Проверить и ограничить автокоммиты; зафиксировать правила доступа к <code>main</code></td></tr>
+    <tr><td>R3</td><td>Ложные выводы из-за неверного расчёта сроков с 2027</td><td><code class="ref">src/report_v5.py:24-25</code> (<code>HOLIDAYS</code>), <code class="f">work_h</code> (123–130)</td><td><span class="tag t-md">Med</span></td><td><span class="tag t-hi">High</span></td><td>Ежегодно дополнять <code>HOLIDAYS</code> (или вынести в файл); приоритизировать выгрузку настоящего SLA из 1С (Т-67/Т-68)</td></tr>
+    <tr><td>R4</td><td>Отчётная неделя определяется по <code>max(done_dt)</code> — один выброс даты переключает неделю</td><td><code class="ref">src/report_v5.py:285-303</code></td><td><span class="tag t-md">Med</span></td><td><span class="tag t-lo">Low</span></td><td>Защита: предупреждение/откат, если неделя <code>max(done_dt)</code> почти пуста; явный <code>REPORT_WEEK</code> в регламенте</td></tr>
+    <tr><td>R5</td><td>Качество разметки/групп/разборов реальной модели не проверено</td><td>весь конвейер v5 (боевой прогон не делался)</td><td><span class="tag t-md">Med</span></td><td><span class="tag t-hi">High</span></td><td>Тестовый прогон <code>TEST_SAMPLE_SIZE=10</code>, сверка с макетом v2.6, разбор замечаний до рассылки</td></tr>
+    <tr><td>R6</td><td>Падение на старте при «кривой» строке выгрузки (не-ISO дата, нечисловой <code>AmountTrud</code>)</td><td><code class="ref">src/report_v5.py:115-116</code> (<code>P</code>), <code class="ref">:229</code>, <code class="ref">:234</code></td><td><span class="tag t-lo">Low</span></td><td><span class="tag t-md">Med</span></td><td>Обернуть парсинг дат/чисел в try с счётчиком отброшенных строк (как уже сделано для табличных частей)</td></tr>
+    <tr><td>R7</td><td>Искажение рейтинга аналитиков на малых выборках</td><td><code class="ref">src/report_v5.py:1796-1812</code> (слайд 9)</td><td><span class="tag t-lo">Low</span></td><td><span class="tag t-md">Med</span></td><td>Явный порог (<code><5</code> — серым, уже есть), не выводить доли при n<5; нормировать, а не суммировать</td></tr>
+    <tr><td>R8</td><td>Дрейф версий и лишний вес репозитория</td><td>5 ноутбуков, 2 шаблона, дубль дампа</td><td><span class="tag t-lo">Low</span></td><td><span class="tag t-hi">High</span></td><td>Удалить v4.x, v5.0 и копию дампа после приёмки v5 (решение пользователя)</td></tr>
+    <tr><td>R9</td><td>Опубликованный отчёт W39 — в старом формате v4 (20 слайдов)</td><td><code class="ref">result/Отчет по качеству W39 (21.09.2026).html</code></td><td><span class="tag t-lo">Low</span></td><td><span class="tag t-hi">High</span></td><td>После приёмки v5 пересобрать W39 новым модулем и заменить файл</td></tr>
+  </table>
+</div>
+
+<!-- ======================= 6. ЗАМЕЧАНИЯ ПО КОДУ ======================= -->
+<h2><span class="n">06</span>Замечания по коду и архитектуре</h2>
+
+<details open>
+<summary>6.1 Корректность</summary>
+<div class="bd">
+  <div class="finding c">
+    <div class="h">Праздники только 2026 года</div>
+    <div class="where"><code class="ref">src/report_v5.py:24-25</code> · <code class="f">HOLIDAYS</code></div>
+    <div class="vec">Суть: множество праздников захардкожено на 2026 год; с 01.01.2027 <code class="f">work_h</code> перестанет вычитать нерабочие дни, сроки решения занизятся. <b>Вектор:</b> вынести праздники в отдельный файл/конфиг или добавить проверку года с предупреждением.</div>
+  </div>
+  <div class="finding c">
+    <div class="h">Неделя отчёта зависит от единственной даты</div>
+    <div class="where"><code class="ref">src/report_v5.py:285-303</code> · <code class="f">load</code></div>
+    <div class="vec">Суть: период строится от <code>max(done_dt)</code>; одно решение, датированное следующим понедельником, переключит отчёт на почти пустую неделю (задокументировано spec.md 7.4). <b>Вектор:</b> при <code>REPORT_WEEK=0</code> проверять, что неделя <code>max(done_dt)</code> содержит решения; иначе — предупреждение/откат к предыдущей полной неделе.</div>
+  </div>
+  <div class="finding c">
+    <div class="h">SLA приближённый: /3 и фиксированные 8 ч</div>
+    <div class="where"><code class="ref">src/report_v5.py:22,123-130</code> · <code class="f">work_h</code></div>
+    <div class="vec">Суть: срок = календарные часы рабочих дней / 3; реальный график (начало/конец дня, перерывы, ночные смены) не учитывается. <b>Вектор:</b> это осознанное упрощение (Т-68); зафиксировать в отчёте как оценку до появления настоящего SLA из 1С.</div>
+  </div>
+  <div class="finding m">
+    <div class="h">Первая линия — хрупкий <code>startswith</code></div>
+    <div class="where"><code class="ref">src/report_v5.py:19-20,250</code></div>
+    <div class="vec">Суть: <code>anl.startswith("Попова Анна")</code> ловит и «Попова Анна Валерьевна» (аналитик), и совпадёт с любым «Попова Анна…»; слово <code>confluence</code> жёстко зашито. <b>Вектор:</b> после появления <code>anl_id</code> перейти на код сотрудника (Т-69 уже в постановке <code class="ref">src/vygruzka-1c.md:170-180</code>).</div>
+  </div>
+  <div class="finding m">
+    <div class="h">Нечёткая проверка цитаты скрытого повтора</div>
+    <div class="where"><code class="ref">src/report_v5.py:670-677</code> · <code class="f">quote_ok</code></div>
+    <div class="vec">Суть: достаточно 60% слов цитаты (от 4 букв) в тексте обращения — короткие или перефразированные цитаты могут пройти/не пройти ошибочно (spec.md 7.7 🔎). <b>Вектор:</b> сопоставлять по нормализованным леммам или снизить порог и выводить совпадение в паспорт.</div>
+  </div>
+  <div class="finding m">
+    <div class="h">Автозакрытие детектируется по литералу 19:30</div>
+    <div class="where"><code class="ref">src/report_v5.py:1910-1911</code></div>
+    <div class="vec">Суть: доля автозакрытия считается по <code>cls_dt.hour==19 and minute==30</code> — привязано к конкретному времени регламента. <b>Вектор:</b> вынести в константу; при появлении <code>tab_status</code> определять по автору «Регламентное задание» (постановка уже есть).</div>
+  </div>
+</div>
+</details>
+
+<details>
+<summary>6.2 Обработка ошибок</summary>
+<div class="bd">
+  <div class="finding e">
+    <div class="h">Парсинг дат без перехвата исключений</div>
+    <div class="where"><code class="ref">src/report_v5.py:115-116</code> (<code class="f">P</code>) → <code class="ref">:229</code></div>
+    <div class="vec">Суть: <code>datetime.fromisoformat</code> упадёт на не-ISO строке, хотя в load декларируется «не падать на неполной строке». Падение происходит до платных вызовов (дёшево), но всё же ломает прогон целиком. <b>Вектор:</b> <code>P()</code> вернуть <code>None</code> при ошибке, счётчик «кривых дат» — в консоль и паспорт.</div>
+  </div>
+  <div class="finding e">
+    <div class="h">Нечисловой <code>AmountTrud</code> валит загрузку</div>
+    <div class="where"><code class="ref">src/report_v5.py:234</code></div>
+    <div class="vec">Суть: <code>float(r.get("AmountTrud") or 0)</code> упадёт на строке «1,5» (запятая) или тексте. <b>Вектор:</b> безопасное приведение с fallback 0 и счётчиком.</div>
+  </div>
+  <div class="finding m">
+    <div class="h"><code>IS_DEBUG</code> инвертирован по смыслу</div>
+    <div class="where"><code class="ref">RepSSPR_v5.1.ipynb</code>, ячейка 8 · spec.md 7.5</div>
+    <div class="vec">Суть: <code>IS_DEBUG=1</code> <b>включает</b> запись в Google Sheets, <code>0</code> — выключает. Имя флага противоположно смыслу. <b>Вектор:</b> переименовать в <code>LOG_TO_SHEETS</code> при следующей правке (не критично, задокументировано).</div>
+  </div>
+  <div class="finding m">
+    <div class="h">«Тихие» except в паре мест</div>
+    <div class="where"><code class="ref">RepSSPR_v5.1.ipynb</code> (find_file: <code>except Exception: return src</code>)</div>
+    <div class="vec">Суть: ошибка копирования файла на Диск проглатывается (берётся исходник) — приемлемо, но без сообщения. <b>Вектор:</b> добавить <code>print</code> в исключение для диагностики.</div>
+  </div>
+</div>
+</details>
+
+<details>
+<summary>6.3 Читаемость и сопровождаемость</summary>
+<div class="bd">
+  <div class="finding m">
+    <div class="h">Магические константы внутри функций слайдов</div>
+    <div class="where"><code class="ref">src/report_v5.py:1423</code> (уровни подписей оси), <code class="ref">:1371</code> (размер sparkline)</div>
+    <div class="vec">Суть: геометрические константы вёрстки разбросаны по функциям. <b>Вектор:</b> необязательно, но вынос в именованные константы упростит правку макета.</div>
+  </div>
+  <div class="finding m">
+    <div class="h">5 версий ноутбука и 2 шаблона в одном репозитории</div>
+    <div class="where">корень проекта · <code class="ref">template_v4.html</code> vs <code class="ref">template_v5.html</code></div>
+    <div class="vec">Суть: легаси «до приёмки v5» — риск правки не той версии. <b>Вектор:</b> удалить v4.x и v5.0 сразу после приёмки v5 (решение пользователя зафиксировано в HANDOFF).</div>
+  </div>
+  <div class="finding m">
+    <div class="h">Побайтная копия дампа в репозитории</div>
+    <div class="where"><code class="ref">data/sppr_dump_20260929_180748_842rec — копия.json</code> (1 401 707 байт)</div>
+    <div class="vec">Суть: дубликат основного дампа, внесён коммитом <code>1eba79a</code>. <b>Вектор:</b> удалить.</div>
+  </div>
+  <div class="finding m">
+    <div class="h">Отсутствуют автотесты для метрик</div>
+    <div class="where"><code class="ref">src/report_v5.py:377-516</code> · <code class="f">_metrics</code></div>
+    <div class="vec">Суть: вся числовая логика без регрессионных тестов; проверка — ручная. <b>Вектор:</b> минимальный smoke-тест на демо-выгрузке, сверяющий ключевые метрики с макетом (можно оформить как <code>examples/</code>-скрипт).</div>
+  </div>
+</div>
+</details>
+
+<details>
+<summary>6.4 Производительность</summary>
+<div class="bd">
+  <div class="finding p">
+    <div class="h">Повторные проходы по одним и тем же спискам</div>
+    <div class="where"><code class="ref">src/report_v5.py:377-516</code> · слайд 9 (<code class="ref">:1796-1812</code>)</div>
+    <div class="vec">Суть: медианы и суммы пересчитываются многократно по одним выборкам; на 842 строках незаметно. <b>Вектор:</b> при росте выгрузки (6 месяцев) предвычислить агрегаты по аналитику/типу один раз.</div>
+  </div>
+  <div class="finding p">
+    <div class="h">Построчный цикл <code>work_h</code></div>
+    <div class="where"><code class="ref">src/report_v5.py:123-130</code></div>
+    <div class="vec">Суть: O(дней срока) на обращение; приемлемо сейчас. <b>Вектор:</b> не требуется до перехода на большие объёмы.</div>
+  </div>
+</div>
+</details>
+
+<!-- ======================= 7. UI/UX ======================= -->
+<h2><span class="n">07</span>Интерфейс и пользовательский опыт</h2>
+<div class="panel">
+  <ul>
+    <li><b>Навигация — сильная.</b> Меню-рейл, клавиши ←/→, кнопка «Все слайды», счётчик «N / 11», печать по слайдам (<code class="ref">template_v5.html:107-118</code>).</li>
+    <li><b>Прозрачность — сильная.</b> У каждого блока «Что это» и «Польза / проблема»; метки выборки и периода (▲ Пришло, ▼ Решено, ● Открыто, ◇ 4 недели, ✦ ИИ) — единая система штампов.</li>
+    <li><b>Длинные таблицы сворачиваются</b> до 10 строк с кнопкой «Показать все» (<code class="ref">template_v5.html:114-117</code>); при печати раскрываются.</li>
+    <li><b>Обратная связь о качестве данных</b> — паспорт с проверками сходимости и «Доверием к данным»: читатель видит ограничения (автозакрытие, нулевые часы, Н/Д).</li>
+    <li><span class="tag t-md">Замечание</span> Цвет как единственный канал: статусы «сходится/расхождение», «хорошо/плохо» и доли не дублируются иконкой/текстом — для дальтоников часть сигнала теряется (<code class="ref">template_v5.html:75</code>).</li>
+    <li><span class="tag t-md">Замечание</span> Блоки «4 недели» и «6 месяцев» зависят от полноты выгрузки; предупреждение о неполном покрытии есть только в консоли и паспорте, а не у самих графиков (spec.md 7.7).</li>
+    <li><span class="tag t-lo">Замечание</span> Опубликованный отчёт W39 — старый формат v4 (20 слайдов, навигации-рейла нет): получатель видит устаревшую подачу, пока v5 не прогнан боево.</li>
+  </ul>
+</div>
+
+<!-- ======================= 8. ДАННЫЕ И МЕТРИКИ ======================= -->
+<h2><span class="n">08</span>Анализ данных и метрик</h2>
+<div class="panel">
+  <h3>Профиль входящих данных (проверено прямым счётом)</h3>
+  <table>
+    <tr><th>Характеристика</th><th>Значение</th><th>Комментарий</th></tr>
+    <tr><td>Строк / полей</td><td>842 / 12</td><td><code>st, id, reg, res, cls, sec, desc, sol, anl, cli, type, AmountTrud</code></td></tr>
+    <tr><td>Гранулярность</td><td>1 строка = 1 обращение</td><td>id уникален (00-XXXXXXXX)</td></tr>
+    <tr><td>Статусы</td><td>Закрыто 604 · Отработано 59 · Отклонено 38 · открытые рабочие 138 · старая доска 3</td><td>Сходится с data.md 2.8; старые доски отбрасываются при загрузке</td></tr>
+    <tr><td>Типы</td><td>Изменение данных 381 · Консультация 307 · Инцидент 93 · Права 49 · Дубль 12</td><td>перекос в сторону правок и консультаций</td></tr>
+    <tr><td>Трудозатраты</td><td>медиана 0.5 ч, max 157.5, сумма 1774.9, нулей 132</td><td>15.7% строк без часов — цена в часах занижена</td></tr>
+    <tr><td>Годы регистрации</td><td>2026 — 829, 2025 — 8, 2024 — 1, 2023 — 4</td><td>13 старых записей — хвост прежних досок</td></tr>
+    <tr><td>ФИО</td><td>инициаторов 253, аналитиков 20</td><td>реальные ПД; часть в двух написаниях (лат/кир)</td></tr>
+    <tr><td>Отсутствующие поля</td><td><code>tab_trud</code>, <code>tab_status</code>, <code>url</code>, <code>cli_id</code>, <code>anl_id</code> — 0 заполнений</td><td>блоки скрыты, ссылки и склейка ФИО не работают</td></tr>
+    <tr><td>Максимальная длина текста</td><td><code>desc</code> 17 050, <code>sol</code> 2 790 символов</td><td>в промпты уходит обрезка (1500/800) — хорошо</td></tr>
+  </table>
+  <h3>Риски искажения расчётов</h3>
+  <ul>
+    <li><b>Медианы корректны как метрика распределения</b> (сроки асимметричны) — выбор медианы вместо среднего правильный.</li>
+    <li><b>Сумма медиан не выполняется</b> — в отчёте медианы по типам/линиям не суммируются, что корректно; но <code>lng_h</code> (сумма сроков) аддитивна и используется как сумма.</li>
+    <li><b>Малые выборки в рейтинге:</b> доли (доля 1-й линии, % без часов, доля правок) у аналитиков с 1–2 обращениями шумят; серым выделяется только «<5 решённых», сами доли всё равно печатаются.</li>
+    <li><b>Цена в часах занижена</b> на обращения без трудозатрат — паспорт честно показывает долю, но итоговые «часы» на слайде 8 недосчитывают 15.7% строк.</li>
+    <li><b>«Пришло за неделю» против «решено»</b> — баланс потока считает <code>dq = пришло − решено − отклонено</code> по разным датам (регистрация vs решение vs отклонение); корректно как «изменение очереди», но не равно «разница новых и закрытых в одном окне» — сноска на слайде это поясняет.</li>
+    <li><b>Скрытые инциденты</b> (<code>inc_ai</code> vs <code>inc_sol</code>) зависят от качества ИИ-классификации типа — не проверено на реальной модели.</li>
+  </ul>
+</div>
+
+<!-- ======================= 9. РЕКОМЕНДАЦИИ ПО ОТЧЁТАМ ======================= -->
+<h2><span class="n">09</span>Рекомендации по отчётам и дашбордам</h2>
+<div class="panel">
+  <h3>Доступно на текущих данных</h3>
+  <table>
+    <tr><th>Вопрос пользователя</th><th>Тип графика</th><th>Требуемые поля</th><th>Труд-ть</th></tr>
+    <tr><td>Пиковая нагрузка по часам суток (в какое время приходят обращения)</td><td>гистограмма по часам / тепловая карта день×час</td><td><code>reg</code> (с временем)</td><td><span class="tag t-lo">S</span></td></tr>
+    <tr><td>Парето инициаторов (кто генерирует поток)</td><td>столбцы + накопленная линия</td><td><code>cli</code></td><td><span class="tag t-lo">S</span></td></tr>
+    <tr><td>Стоимость обращения по типу (трудозатраты × тип)</td><td>столбцы/ящик с усами</td><td><code>type</code>, <code>AmountTrud</code></td><td><span class="tag t-lo">S</span></td></tr>
+    <tr><td>Возраст открытых по держателю/статусу</td><td>накопленные полосы (уже есть частично)</td><td><code>st</code>, <code>reg</code></td><td><span class="tag t-md">M</span></td></tr>
+    <tr><td>Динамика потока по разделам</td><td>линии по разделам за 4 недели</td><td><code>sec</code>, <code>reg</code></td><td><span class="tag t-md">M</span></td></tr>
+  </table>
+  <h3>Требует доработки источников</h3>
+  <table>
+    <tr><th>Бизнес-запрос</th><th>Чего не хватает</th></tr>
+    <tr><td>Рейтинг по оценкам пользователей</td><td>источник оценок в 1С не найден (Т-34 — заглушка)</td></tr>
+    <tr><td>Где реально «ждало» обращение (по держателям, по времени)</td><td><code>tab_status</code> — постановка есть, 1С не выгружает</td></tr>
+    <tr><td>Трудозатраты по исполнителям</td><td><code>tab_trud</code> — постановка есть, не выгружается</td></tr>
+    <tr><td>Кликабельные номера обращений</td><td><code>url</code> — постановка есть, не выгружается</td></tr>
+    <tr><td>Склейка написаний ФИО / замена ФИО на код в промптах</td><td><code>cli_id</code>, <code>anl_id</code> — постановка есть, не выгружается</td></tr>
+    <tr><td>Полная динамика по 6 месяцам</td><td>разовая выгрузка за 6 месяцев</td></tr>
+    <tr><td>Точный SLA</td><td>настоящий SLA из 1С (Т-67/Т-68)</td></tr>
+  </table>
+</div>
+
+<!-- ======================= 10. QUICK WINS ======================= -->
+<h2><span class="n">10</span>План первоочередных шагов (Quick Wins)</h2>
+<div class="panel">
+  <table>
+    <tr><th>#</th><th>Действие</th><th>Польза</th><th>Труд-ть</th></tr>
+    <tr><td>1</td><td>Сделать репозиторий приватным (Settings → General → Danger Zone)</td><td>Снимает R1 (утечка ПД наружу)</td><td><span class="tag t-lo">5 мин</span></td></tr>
+    <tr><td>2</td><td>Удалить <code class="ref">data/… — копия.json</code></td><td>−1.4 МБ и второй экземпляр ПД</td><td><span class="tag t-lo">1 мин</span></td></tr>
+    <tr><td>3</td><td>Дополнить <code>HOLIDAYS</code> на 2027 (или вынести в файл + проверка года)</td><td>Снимает R3 с 2027 года</td><td><span class="tag t-lo">5 мин</span></td></tr>
+    <tr><td>4</td><td>Безопасный парсинг дат/чисел в <code class="f">load</code> с счётчиком отброшенных</td><td>Снимает R6 — прогон не падает на «кривой» строке</td><td><span class="tag t-md">10 мин</span></td></tr>
+    <tr><td>5</td><td>Проверить и ограничить автокоммиты Zoo Code в VS Code</td><td>Снимает R2 (несанкционированные коммиты в main)</td><td><span class="tag t-md">15 мин</span></td></tr>
+    <tr><td>6</td><td>Боевой прогон v5 с <code>TEST_SAMPLE_SIZE=10</code>, сверка с макетом v2.6</td><td>Снимает R5 — первая проверка реальной модели</td><td><span class="tag t-hi">~1 ч</span></td></tr>
+    <tr><td>7</td><td>Защита от выброса <code>max(done_dt)</code> (предупреждение при почти пустой неделе)</td><td>Снимает R4 — отчёт не «перепрыгивает» неделю</td><td><span class="tag t-md">15 мин</span></td></tr>
+  </table>
+</div>
+
+<!-- ======================= 11. OUT OF SCOPE ======================= -->
+<h2><span class="n">11</span>Ограничения проверки (Out of Scope)</h2>
+<div class="panel">
+  <ul>
+    <li><b>Полный текст обращений не читался</b> (персональные данные) — анализировались только структура и агрегаты.</li>
+    <li><b>Не читались целиком</b> <code class="ref">RepSSPR_v4.0/v4.1/v4.2.ipynb</code> и <code class="ref">template_v4.html</code> (легаси до приёмки v5).</li>
+    <li>Ноутбук <code class="ref">RepSSPR_v5.1.ipynb</code> прочитан <b>выборочно</b> (конфигурация, вызов ИИ, история/вёрстка, лог, промпт-строки); ячейки разметки, группировки и разборов — по описанию <code class="ref">docs/data.md</code> + точечные проверки.</li>
+    <li>Содержимое готовых HTML-отчётов (<code class="ref">result/</code>, <code class="ref">examples/</code>) — только структура (число слайдов), не содержимое.</li>
+    <li><b>Не запускались:</b> боевой прогон в Colab, вызовы LLM, сборка макета, генерация демо-выгрузки.</li>
+    <li><b>Не инспектировались</b> <code class="ref">.github/</code> и <code class="ref">.vscode/</code>.</li>
+    <li>Безопасность BSL-функции выгрузки в боевой 1С — вне контура (анализировалась только логика, текст функции прочитан).</li>
+    <li>Юридическая оценка передачи ПД во внешний ИИ — вне компетенции технического аудита; зафиксировано как критический риск.</li>
+  </ul>
+</div>
+
+<p class="small" style="margin-top:24px">Отчёт сформирован автоматически по результатам чтения и анализа файлов проекта в режиме «только чтение». Изменения в код не вносились.</p>
+
+</div>
+</body>
+</html>

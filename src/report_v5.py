@@ -12,7 +12,13 @@
 #   R.AI["slides"] = разборы                                # разборы слайдов (s1…s11)
 #   html = render(R, текст_шаблона, title=...)
 # ----------------------------------------------------------------------
-VERSION = "5.2"                 # 5.2 — данные выгрузки 1С v1.7: срок по 1С (tab_sla), оценки (tab_rate), связи (parent)
+VERSION = "5.3"                 # 5.3 — ячейка «Обращение», раскрытие описания, clean_text, срок у держателя (Т-78…Т-81)
+# Изменения 5.3 относительно 5.2 (docs/postanovka_tables_v1.md):
+#   load()    — clean_text для desc/sol (исходник — desc_raw/sol_raw, З-2); читает name (выгрузка v1.8, З-3);
+#               hold_days — срок у держателя по tab_status (З-5);
+#   tk()/tks()— ячейка «Обращение»: номер, рег. дата и дни, инициатор, аналитик, краткое описание;
+#               клик раскрывает описание и решение (З-3, З-4);
+#   _build    — убраны колонки «Описание»/«Решение» (З-4.4); holder_rows — срок у держателя (З-5).
 # Изменения 5.2 относительно 5.1 (my-FT Т-74, Т-76, Т-77; выгрузка — src/vygruzka-1c.md, п. 2.4):
 #   load()    — читает tab_sla, tab_rate, parent; на строке: h1c (срок по 1С без пауз), rate (последняя оценка);
 #   _metrics  — метрики sla1c_*, rate_*, par_* и a_<код>_rate для каталога ИИ (только если данные есть);
@@ -177,6 +183,59 @@ def short(name):
     return f"{p[0]} {p[1][0]}. {p[2][0]}." if len(p) >= 3 and re.match("[А-ЯЁ]", p[0]) else name
 
 
+def short_name(r, n=100):
+    """Краткое описание в ячейке «Обращение» (З-3.1): name из выгрузки → суть ИИ → первые n
+    символов причёсанного описания. Длиннее n символов — обрезка с «…»."""
+    s = (r.get("name") or (r.get("ai") or {}).get("s") or r.get("desc", ""))
+    s = str(s)
+    return (s[:n - 1] + "…") if len(s) > n else s
+
+
+def _clip(t, n=3000):
+    """Текст для раскрытия: не длиннее n символов (З-4.2)."""
+    return (t[:n - 1] + "…") if len(t) > n else t
+
+
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО (5.3): функция причёсывания текста clean_text(t)
+# ПОЧЕМУ: Т-79, Т-80 — в таблицах описание обрезалось до «Добрый день!», а в промпты ИИ
+#         уходили приветствия и подписи; чистим и отчёт, и тексты для ИИ одной функцией (З-2)
+# ----------------------------------------------------------------------
+_GREET = r"(?:коллеги|добрый\s(?:день|вечер|утро)|доброе\sутро|здравствуйте|приветствую|привет|уважаем[а-яё]*(?:\s[а-яё]+){0,3})"
+# приветствие в начале строки; перед ним — имя (1–2 слова с заглавной) через запятую: «Ольга, добрый день»;
+# запятая обязательна, чтобы обычные слова («снова добрый день») не принимались за имя перед приветствием
+_GREET_RX = re.compile(rf"^(?:[А-ЯЁ][а-яё]*(?:\s[А-ЯЁ][а-яё]*)*,\s+)?(?i:{_GREET})\b[!.,\s]*")
+
+
+def clean_text(t):
+    """Причёсанный текст: без приветствий в начале строк, подписей после решения,
+    лишних пробелов и пустых строк; первая буква — заглавная (З-2, Т-79/Т-80)."""
+    if not t:
+        return t
+    lines = []
+    for ln in str(t).splitlines():
+        s = re.sub(r"[ \t]+", " ", ln).strip()
+        while s:                        # приветствия могут повторяться подряд: «Коллеги, добрый день!»
+            s2 = _GREET_RX.sub("", s)   # чистка знаков — только в строках, где приветствие было снято
+            if s2 == s:
+                break
+            s = s2.strip(" \t!.,-–—«")
+        if s:
+            lines.append(s)
+    # подпись и до 4 непустых строк после неё («С уважением, …», «Спасибо, …»)
+    out, skip = [], 0
+    for s in lines:
+        if skip:
+            skip -= 1
+            continue
+        if re.match(r"^(с уважением|спасибо|заранее спасибо|благодарю)\b", s, re.I):
+            skip = 4
+            continue
+        out.append(s)
+    res = "\n".join(out).strip()
+    return (res[0].upper() + res[1:]) if res else ""
+
+
 def slug(text):
     """Латинский ключ из русского текста: «Заказ-наряд: даты» → zakaz_naryad_daty."""
     t = "".join(TRANSLIT.get(c, c) for c in str(text).lower())
@@ -235,6 +294,16 @@ def load(raw, dump_name="", report_week=None, history=None, demo=False, say=prin
             if r.get(k) is None: r[k] = ""
         if r["st"].startswith(OLD_BOARD_PREFIX):
             dropped.append(r["id"]); continue
+        # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО (5.3): desc/sol — причёсанные (clean_text), исходник — в desc_raw/sol_raw; читается поле name
+        # ПОЧЕМУ: З-2, Т-79/Т-80 — приветствия и подписи убираются везде, в том числе в промптах ИИ
+        #         (ноутбук читает r["desc"]/r["sol"] и не меняется); пустое после причёсывания — исходный текст.
+        #         З-3 — name (краткое описание из 1С, выгрузка v1.8); нет поля — нет данных
+        # ----------------------------------------------------------------------
+        r["desc_raw"], r["sol_raw"] = r["desc"], r["sol"]
+        r["desc"] = clean_text(r["desc"]) or r["desc"]
+        r["sol"] = clean_text(r["sol"]) or r["sol"]
+        r["name"] = str(r.get("name") or "").strip()
         r["reg_dt"], r["res_dt"], r["cls_dt"] = P(r["reg"]), P(r["res"]), P(r["cls"])
         if r["reg_dt"] is None:
             noreg.append(r["id"]); continue
@@ -284,6 +353,23 @@ def load(raw, dump_name="", report_week=None, history=None, demo=False, say=prin
         r["is_open"] = not r["is_sol"] and not r["is_rej"]
         r["age"] = (R.NOW - r["reg_dt"]).days
         r["holder"] = HOLDER_OF.get(r["st"], "Разработка") if r["is_open"] else ""
+        # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО (5.3): срок у держателя по истории статусов (З-5, Т-81)
+        # ПОЧЕМУ: возраст от регистрации не показывает, сколько обращение висит у текущего держателя.
+        #         События — только регистра «карточка» (события требования «Отработано»/«Закрыто»
+        #         обрывали расчёт), сортировка по дате — по возрастанию; идём с конца, пока держатель
+        #         статуса равен текущему; дата самого раннего такого события — начало. Нет истории — None
+        # ----------------------------------------------------------------------
+        r["hold_days"] = None
+        if r["is_open"] and r["tab_status"]:
+            ev = sorted((e for e in r["tab_status"] if e[2] == "карточка"), key=lambda e: e[0])
+            start = None
+            for e in reversed(ev):
+                if status_holder(e[3]) != r["holder"]:
+                    break
+                start = e[0]
+            if start is not None:
+                r["hold_days"] = max(0, (R.NOW - start).days)
         # служебные карточки учёта времени: явные признаки в тексте (разметка ИИ SVC — в attach_ai)
         if re.search(SVC_RX, r["desc"] + " " + r["sol"], re.I):
             r["cat"] = "Служебное"
@@ -738,7 +824,9 @@ def _check_text(R, o):
 
 def quote_ok(R, rid, q):
     """Цитата есть в тексте обращения: не меньше 60% слов (от 4 букв) встречаются в описании и решении."""
-    r = R.RAWID.get(rid)
+    # ЧТО ИЗМЕНЕНО (5.3): текст для сверки — причёсанный (BYID); в нём модель и видела цитату
+    # ПОЧЕМУ: З-2.3 — промпты получают r["desc"]/r["sol"] после clean_text, исходник мог расходиться с цитатой
+    r = R.BYID.get(rid) or R.RAWID.get(rid)
     if not r or not q: return False
     norm = lambda s: [w for w in WORD_RX.findall(str(s).lower().replace("ё", "е")) if len(w) >= 4]
     tw = set(norm(f"{r.get('desc', '')} {r.get('sol', '')}"))
@@ -974,29 +1062,69 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         return '<div class="stamps">' + "".join(
             f'<span class="stamp s-{k}"><i>{STAMP[k][0]}</i>{E(STAMP[k][1])}</span>' for k in keys) + "</div>"
 
+    # полный текст для раскрытия — один раз на обращение на весь отчёт (З-6: без дублей в разметке)
+    XTEXT = {}
+
     def tk(i, full=False):
-        """Номер обращения + дата регистрации (+ решения) + аналитик — Т-2, Т-3."""
+        """Ячейка «Обращение» (З-3, Т-78): номер-ссылка (url из выгрузки); мелко — регистрация,
+        дней (у решённых — «реш»), инициатор; ниже — аналитик; затем краткое описание, клик
+        раскрывает описание и решение (З-4). Компактный вид (full=False, списки tks) — как раньше:
+        номер, дата, аналитик + «▸» с раскрытием (З-3.3)."""
         r = BYID.get(i) or RAWID.get(i)
         if r is None:
             return f'<span class="tid">{E(i)}</span>'
         reg = P(r["reg"]) if isinstance(r.get("reg"), str) else r["reg_dt"]
         res = P(r["res"]) if r.get("res") else None
-        d = f"рег {DD(reg)}" + (f" · реш {DD(res)}" if res else "")
-        if not res and r.get("st") not in SOLVED + [REJECTED]:
-            d += f" · {(NOW - reg).days} дн."
         # ----------------------------------------------------------------------
         # ЧТО ИЗМЕНЕНО: открытое обращение с датой решения показывается как возврат, с возрастом
         # ПОЧЕМУ: 00-00034389 в «Анализе» выглядело решённым («реш 04.09», без возраста)
         # ----------------------------------------------------------------------
         if res and r.get("st") not in SOLVED + [REJECTED]:
             d = f"рег {DD(reg)} · возврат: решение {DD(res)} · {(NOW - reg).days} дн."
+        elif res:
+            d = f"рег {DD(reg)} · реш {DD(res)}"                    # решённые — дата решения (З-3)
+        elif r.get("st") in SOLVED + [REJECTED]:
+            d = f"рег {DD(reg)}"
+        else:
+            d = f"рег {DD(reg)} · {(NOW - reg).days} дн."
         # ----------------------------------------------------------------------
         # ЧТО ИЗМЕНЕНО: если у обращения есть поле url — номер становится ссылкой, как пришла из выгрузки
         # ПОЧЕМУ: Т-57 (В-13: тонкий клиент, ссылка приходит готовой и просто открывается; нет поля — номер остаётся текстом)
         # ----------------------------------------------------------------------
         url = r.get("url")
         tid = f'<a class="tid" href="{E(url)}">{E(i)}</a>' if url else f'<span class="tid">{E(i)}</span>'
-        return (f'<span class="tk">{tid}<small>{d} · {E(short(r.get("anl", "")))}</small></span>')
+        cli = short(r.get("cli", "")) if isinstance(r.get("cli"), str) else ""
+        anl = short(r.get("anl", "")) if isinstance(r.get("anl"), str) else ""
+        # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО (5.3): описание и решение — по клику; полный текст живёт один раз в реестре
+        # XTEXT внизу отчёта, в ячейке — только кнопка (З-4, З-6)
+        # ПОЧЕМУ: без реестра полный текст повторялся в разметке при каждом упоминании обращения
+        #         (отчёт ×3–3,6 раза); клик вставляет строку <tr><td> с копией из реестра и
+        #         сворачивается без потери текста — раскрыть можно снова
+        # ----------------------------------------------------------------------
+        more = ""
+        if r.get("desc") or r.get("sol"):
+            XTEXT.setdefault(i, (r.get("desc") or "", r.get("sol") or ""))
+            more = (f'<button class="tname" title="Нажмите, чтобы раскрыть описание и решение">{E(short_name(r))}</button>'
+                    if full else '<button class="tmore" title="Описание и решение — по клику">▸</button>')
+        if full:
+            # инициатор и аналитик всегда: нет текста — ячейка не теряет их (З-3.2)
+            return f'<span class="tk" data-tid="{E(i)}">{tid}<small>{E(d)} · {E(cli)}</small><small>{E(anl)}</small>{more}</span>'
+        # компактный вид — как раньше, плюс «▸» с раскрытием (З-3.3)
+        return f'<span class="tk" data-tid="{E(i)}">{tid}{more}<small>{E(d)} · {E(anl)}</small></span>'
+
+    def xtext_registry():
+        """Скрытый реестр полных текстов (id → описание и решение ≤ 3000 симв.) —
+        заполняется вызовами tk(); в отчёте один экземпляр, читается скриптом раскрытия."""
+        if not XTEXT:
+            return ""
+        parts = "".join(
+            f'<div class="xtf" id="xtf-{E(k)}">'
+            + (f'<b>Описание</b><div class="xt">{E(_clip(v[0]))}</div>' if v[0] else "")
+            + (f'<b>Решение</b><div class="xt">{E(_clip(v[1]))}</div>' if v[1] else "")
+            + "</div>"
+            for k, v in XTEXT.items())
+        return f'<div id="xtreg" hidden>{parts}</div>'
 
     def tks(ids):
         return "".join(tk(i) for i in ids)
@@ -1087,22 +1215,41 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                 f'<div class="kpi-s">{note}</div></div>')
 
     def holder_rows(lst, show_anl=False):
-        """Кто держит: полоса по возрасту + число + медиана возраста + часы."""
+        """Кто держит (З-5, Т-81): полоса по сроку у держателя (hold_days из истории статусов; нет истории —
+        возраст от регистрации) + число + строка «у держателя: медиана N дн · всего M дн · K ч»."""
         buckets = [("≤ 7 дн", 0, 7, "#9DB6CF"), ("8–30 дн", 8, 30, "#5D86B0"), ("31–90 дн", 31, 90, "#B7800F"), ("> 90 дн", 91, 10**6, "#B3261E")]
+        with_hist = sum(r["hold_days"] is not None for r in lst)
+        # возраст для корзин и «всего»: у кого есть история — hold_days, у остальных — возраст от регистрации
+        dkey = lambda r: r["hold_days"] if r["hold_days"] is not None else r["age"]
         mx = max([len([r for r in lst if r["holder"] == h]) for h in HOLDERS] + [1])
         out = []
         for h in HOLDERS:
             o = [r for r in lst if r["holder"] == h]
             segs = ""
             for lab, a, b, col in buckets:
-                n = sum(a <= r["age"] <= b for r in o)
+                n = sum(a <= dkey(r) <= b for r in o)
                 if n:
                     segs += f'<i style="width:{100*n/mx:.1f}%;background:{col}" title="{lab}: {n}">{n if n>1 else ""}</i>'
             sts = Counter(r["st"] for r in o).most_common(3)
+            hm = med([dkey(r) for r in o if r["hold_days"] is not None]) if with_hist else None
+            sub = f'у держателя: медиана {hm or 0:.0f} дн · всего {med([r["age"] for r in o]) or 0:.0f} дн · {hsum(o):.0f} ч' if hm is not None \
+                else f'медиана {med([r["age"] for r in o]) or 0:.0f} дн · {hsum(o):.0f} ч'
             out.append(f'<div class="own"><div class="own-l"><b>{h}</b><small>{E(", ".join(f"{s} {n}" for s, n in sts))}</small></div>'
-                       f'<div class="own-b">{segs}</div><div class="own-n">{len(o)}<small>медиана {med([r["age"] for r in o]) or 0:.0f} дн · {hsum(o):.0f} ч</small></div></div>')
+                       f'<div class="own-b">{segs}</div><div class="own-n">{len(o)}<small>{E(sub)}</small></div></div>')
         leg = '<div class="legend">' + "".join(f'<span><i style="background:{c}"></i>{l}</span>' for l, _, _, c in buckets) + "</div>"
-        return "".join(out) + leg
+        # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО (5.3): сноска — откуда сроки и что без истории берётся возраст от регистрации (З-5.2, З-5.3)
+        # ПОЧЕМУ: в выгрузке нет tab_status ни у одного обращения — панель остаётся как раньше, без сноски (З-5, «без истории — как сейчас»)
+        # ----------------------------------------------------------------------
+        if not TAB_ON["tab_status"]:
+            return "".join(out) + leg
+        if with_hist < len(lst):
+            note = (f'<p class="cmp mut">Срок у держателя — по истории статусов (tab_status), цветные корзины — по нему. '
+                    f'По истории — {with_hist} из {len(lst)}; у остальных — возраст от регистрации.</p>')
+        else:
+            note = ('<p class="cmp mut">Срок у держателя — по истории статусов (tab_status): от последнего перехода '
+                    f'к текущему держателю; корзины — по нему.</p>')
+        return "".join(out) + leg + note
 
     h1 = lambda x: "—" if x is None else f"{x:.1f} ч".replace(".", ",")
 
@@ -1282,7 +1429,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         tl = lambda l: f'{sum(r["trud"] for r in l):.0f} ч'
         top = (f'<div class="kpi">{stamps("sol")}<h4>Самый долгий</h4><div class="kpi-v">{M["lng_top_h"]}<span>раб. ч</span></div>'
                f'<div class="kpi-lines"><span><b>{M["lng_top_pct"]}%</b> всех часов долгостроя</span></div>'
-               f'<div class="kpi-s">{tk(lng[0]["id"])} {E(lng[0]["ai"].get("s", ""))}</div></div>') if lng else \
+               f'<div class="kpi-s">{tk(lng[0]["id"], full=True)} {E(lng[0]["ai"].get("s", ""))}</div></div>') if lng else \
               (f'<div class="kpi">{stamps("sol")}<h4>Самый долгий</h4><div class="kpi-v">—</div><div class="kpi-s">долгостроя за период нет</div></div>')
         k = [kpi("Долгострой, обращений", stamps("sol"), str(n), "из " + str(len(real)), str(sum(r["line"] == "L1" for r in lng)), str(sum(r["line"] == "L2" for r in lng)),
                  f"{M['lng_share']}% решённых; порог — {LONG_H} раб. ч от регистрации до решения"),
@@ -1295,7 +1442,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         p1 = ('<div class="grid g4">' + "".join(k) + "</div>"
               f'<p class="why rowwhy"><b>Что это.</b> Решённые за {PER_S} обращения, шедшие дольше {LONG_H} раб. ч (8 ч в рабочем дне, выходные и праздники не считаются); служебные карточки исключены. Мелко — первая и вторая линия.</p>'
               '<p class="use rowwhy"><b>Польза / проблема.</b> Сколько обращений «зависает» и как мало в этом времени работы: если работы единицы процентов — проблема в ожидании, а не в сложности.</p>')
-        body = "".join(f'<tr><td>{tk(r["id"])}</td><td class="c"><b>{r["h"]:g}</b></td><td class="c">{r["trud"]:g}</td><td>{E(r["cat"])}</td><td>{E(r["sec"])}</td>'
+        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td class="c"><b>{r["h"]:g}</b></td><td class="c">{r["trud"]:g}</td><td>{E(r["cat"])}</td><td>{E(r["sec"])}</td>'
                        f'<td>{"1-я" if r["line"] == "L1" else "2-я"}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in lng)
         p2 = panel(f"Все долгострои периода — {n}", stamps("sol", "ai"),
                    f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Срок, раб. ч</th><th>Работа, ч</th><th>Тип</th><th>Раздел</th><th>Линия</th><th>Суть (ИИ)</th></tr></thead><tbody>{body}</tbody></table></div>',
@@ -1326,7 +1473,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         p_sla = ""
         if R.sla1c:
             dv = R.sla_div
-            body = "".join(f'<tr><td>{tk(r["id"])}</td><td class="c"><b>{c1(r["h"])}</b></td><td class="c"><b>{c1(r["h1c"])}</b></td><td class="c">{c1(r["p1c"])}</td>'
+            body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td class="c"><b>{c1(r["h"])}</b></td><td class="c"><b>{c1(r["h1c"])}</b></td><td class="c">{c1(r["p1c"])}</td>'
                            f'<td class="c {"bad" if r["h1c"] > r["h"] else "ok"}">{"по 1С дольше" if r["h1c"] > r["h"] else "по 1С короче"}</td><td>{E(r["cat"])}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in dv[:10])
             p_sla = panel("Наш срок и срок по 1С", stamps("sol"),
                           f'<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))"><div class="kpi"><h4>Наш срок, медиана</h4><div class="kpi-v">{c1(M["sla1c_our_med"])}<span>раб. ч</span></div><div class="kpi-s">8 ч в рабочем дне, паузы считаются</div></div>'
@@ -1359,7 +1506,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
             auto = [r for r in ws if any(e[3] == "Закрыто" and e[1] == "Регламентное задание" for e in r["tab_status"])]
             closed = [r for r in ws if any(e[3] == "Закрыто" for e in r["tab_status"])]
             top = sorted(ws, key=lambda r: -hh[r["id"]]["Пользователь"])[:5]
-            tt = "".join(f'<tr><td>{tk(r["id"])}</td><td class="c">{hh[r["id"]]["Пользователь"]:.0f}</td><td class="c">{hh[r["id"]]["Поддержка"]:.0f}</td><td class="c">{hh[r["id"]]["Разработка"]:.0f}</td></tr>' for r in top if hh[r["id"]]["Пользователь"] > 0)
+            tt = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td class="c">{hh[r["id"]]["Пользователь"]:.0f}</td><td class="c">{hh[r["id"]]["Поддержка"]:.0f}</td><td class="c">{hh[r["id"]]["Разработка"]:.0f}</td></tr>' for r in top if hh[r["id"]]["Пользователь"] > 0)
             p_wait = panel("Где ждали решённые за период — по истории статусов", stamps("sol", "demo" if DEMO_TAB else "sol"),
                            f'<div class="grid g2"><div class="tw"><table class="num"><thead><tr><th>Держатель</th><th>Обращ.</th><th>Медиана, ч</th><th>Доля времени</th><th></th></tr></thead><tbody>{body}</tbody></table>'
                            f'<p class="cmp">Возвращали пользователю на уточнение дважды и больше: <b>{len(pingpong)}</b>. Закрыто автоматически: <b>{len(auto)}</b> из {len(closed)} закрытых.</p></div>'
@@ -1443,7 +1590,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
             body += f'<tr class="grp"><th colspan="6">{h} — {len(lst)}</th></tr>'
             for r in lst:
                 a = AIO.get(r["id"], {})
-                body += (f'<tr><td>{tk(r["id"])}</td><td>{E(r["st"])}</td><td><span class="tt" style="--c:{CAT_COLOR.get(r["cat"], "#999")}">{E(r["cat"])}</span><br><small>{E(r["sec"])}</small></td>'
+                body += (f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["st"])}</td><td><span class="tt" style="--c:{CAT_COLOR.get(r["cat"], "#999")}">{E(r["cat"])}</span><br><small>{E(r["sec"])}</small></td>'
                          f'<td>{E(a.get("s", ""))}</td><td class="c">{r["trud"]:g}</td><td>{E(a.get("a", ""))}</td></tr>')
         p5 = panel(f"Все открытые старше {OLD_DAYS} дней — по держателю", stamps("open", "ai"),
                    f'<div class="tw"><table class="long"><thead><tr><th>Обращение</th><th>Статус</th><th>Тип · раздел</th><th>Суть (ИИ)</th><th>Часы</th><th>Предлагаемое действие (ИИ)</th></tr></thead><tbody>{body}</tbody></table></div>',
@@ -1528,9 +1675,9 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         crit = [r for r in sol if r["ai"].get("crit")]
         oc = sorted([BYID[i] for i in OPEN_CRIT], key=lambda r: r["reg_dt"])
         body = (f'<tr class="grp"><th colspan="4">Открытые — {len(oc)}</th></tr>' +
-                "".join(f'<tr><td>{tk(r["id"])}</td><td>{E(r["st"])}<br><small>{E(r["sec"])}</small></td><td>{E(OPEN_CRIT[r["id"]])}</td><td>{E(AIO.get(r["id"], {}).get("a", "Срок решения — на ближайший разбор"))}</td></tr>' for r in oc) +
+                "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["st"])}<br><small>{E(r["sec"])}</small></td><td>{E(OPEN_CRIT[r["id"]])}</td><td>{E(AIO.get(r["id"], {}).get("a", "Срок решения — на ближайший разбор"))}</td></tr>' for r in oc) +
                 f'<tr class="grp"><th colspan="4">Решённые за период — {len(crit)}</th></tr>' +
-                "".join(f'<tr><td>{tk(r["id"])}</td><td>{E(r["st"])}<br><small>{E(r["sec"])}</small></td><td>{E(r["ai"].get("s", ""))}</td><td>{E(r["ai"].get("rec", ""))}</td></tr>' for r in crit))
+                "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["st"])}<br><small>{E(r["sec"])}</small></td><td>{E(r["ai"].get("s", ""))}</td><td>{E(r["ai"].get("rec", ""))}</td></tr>' for r in crit))
         p4 = panel(f"Критичные — {len(oc) + len(crit)}", stamps("open", "sol", "ai"),
                    f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Статус · раздел</th><th>Почему критично / что случилось</th><th>Что сделать</th></tr></thead><tbody>{body}</tbody></table></div>',
                    "Инциденты, которые ИИ отметил как критичные: остановка оплаты или процесса, налоговый и юридический риск, массовый пользователь. Открытые — без ограничения неделей, решённые — за период.",
@@ -1589,7 +1736,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                    "Каждая строка — отдельное управленческое действие: права — владельцу процесса, дефект — разработке, ошибки — руководителю подразделения.")
         # правки, которые на самом деле дефекты
         dfc = [r for r in prs if r["type_ai"] == "Инцидент" or r["ai"].get("why") == "дефект системы"]
-        body = "".join(f'<tr><td>{tk(r["id"])}</td><td>{E(r["sec"])}</td><td>{E(r["ai"].get("s", ""))}</td><td>{E(r["ai"].get("wa") or r["ai"].get("ta", ""))}</td><td>{E(r["ai"].get("rec", ""))}</td></tr>' for r in dfc)
+        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["sec"])}</td><td>{E(r["ai"].get("s", ""))}</td><td>{E(r["ai"].get("wa") or r["ai"].get("ta", ""))}</td><td>{E(r["ai"].get("rec", ""))}</td></tr>' for r in dfc)
         p3 = panel(f"Правки, которые на самом деле дефекты — {len(dfc)}", stamps("ai", "sol"),
                    f'<div class="tw"><table class="ai"><thead><tr><th>Обращение</th><th>Раздел</th><th>Что поправили</th><th>Почему это дефект</th><th>Что сделать</th></tr></thead><tbody>{body}</tbody></table></div>',
                    "Правки, где по решению видно дефект системы: данные исправили руками, а механизм, который их испортил, остался.",
@@ -1598,7 +1745,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         cli = Counter(r["cli"] for r in prs).most_common(8)
         anl = Counter(r["anl"] for r in prs).most_common(8)
         ssl = [r for r in sol if r["ai"].get("ss")]
-        body = "".join(f'<tr><td>{tk(r["id"])}</td><td>{E(r["cli"])}</td><td>{E(r["ai"].get("s", ""))}</td><td>{E(r["ai"].get("rec") or "Право или инструкция")}</td></tr>' for r in ssl)
+        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["cli"])}</td><td>{E(r["ai"].get("s", ""))}</td><td>{E(r["ai"].get("rec") or "Право или инструкция")}</td></tr>' for r in ssl)
         p4 = panel("Кто просит · кто делает", stamps("sol"),
                    f'<div class="grid g2"><div><div class="ch">Инициаторы</div>{hbars([(c, n, "#5D6B7A") for c, n in cli])}</div>'
                    f'<div><div class="ch">Исполнители</div>{hbars([(short(a) + (" · 1-я линия" if a.startswith(L1_ANALYST) else ""), n, "#3B4754") for a, n in anl])}</div></div>',
@@ -1614,7 +1761,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         # НСИ отдельно
         nsi_obj = Counter(str(r["ai"].get("obj") or r["ai"].get("s") or "без разметки ИИ").split(":")[0] for r in nsi).most_common()
         S = AI["slides"].get("s4") or {}
-        ne = "".join(f'<tr><td>{tk(x.get("id", ""))}</td><td>{E(BYID.get(x.get("id"), {}).get("type", ""))}</td><td><b>{E(x.get("cls", ""))}</b></td><td>{E(x.get("note", ""))}</td></tr>' for x in S.get("nsi_nonedit", []))
+        ne = "".join(f'<tr><td>{tk(x.get("id", ""), full=True)}</td><td>{E(BYID.get(x.get("id"), {}).get("type", ""))}</td><td><b>{E(x.get("cls", ""))}</b></td><td>{E(x.get("note", ""))}</td></tr>' for x in S.get("nsi_nonedit", []))
         p7 = panel(f"НСИ отдельно — {M['nsi_n']} решено за период", stamps("sol", "sol4", "ai"),
                    f'<div><div><div class="ch">Что правят в НСИ</div>{hbars([(k, n, CAT_COLOR["НСИ"]) for k, n in nsi_obj])}'
                    f'<p class="cmp">Медиана {c1(M["nsi_med"])} раб. ч, {hsum(nsi):.1f} ч за период; ведёт первая линия — {sum(r["line"] == "L1" for r in nsi)} из {len(nsi)}.</p></div>'
@@ -1657,7 +1804,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                    "Инициаторы с тремя и более решёнными обращениями за период; тема — по группе ИИ, а не по точному тексту.",
                    "Повтор от одного человека — это право, инструкция или дефект в его участке. Точечное решение для одного человека снимает весь его поток.")
         # скрытые повторы — эмоции и маркеры (Т-42)
-        body = "".join(f'<tr><td>{tk(x["id"])}</td><td>«{E(x.get("q", ""))}»</td><td><span class="tag">{E(x.get("k", ""))}</span></td><td>{E(x.get("a", ""))}</td></tr>' for x in AI["signals"])
+        body = "".join(f'<tr><td>{tk(x["id"], full=True)}</td><td>«{E(x.get("q", ""))}»</td><td><span class="tag">{E(x.get("k", ""))}</span></td><td>{E(x.get("a", ""))}</td></tr>' for x in AI["signals"])
         p3 = panel("Скрытые повторы: что пишут пользователи", stamps("in", "sol", "ai"),
                    f'<div class="tw"><table class="ai"><thead><tr><th>Обращение</th><th>Цитата</th><th>Сигнал</th><th>Вывод ИИ</th></tr></thead><tbody>{body}</tbody></table></div>',
                    "Эмоциональный фон и маркеры «опять», «снова», «уже писал», «вновь» в обращениях периода. ИИ ищет, к какому прошлому обращению относится повтор.",
@@ -1689,7 +1836,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                 gs = [r["ai"].get("g") for r in ch_]
                 mark = ("—" if not pg or not any(gs) else f'<span class="ok">та же группа</span>' if all(g == pg for g in gs if g)
                         else '<span class="bad">разные группы</span>')
-                body += (f'<tr><td>{tk(pid)}</td><td>{E((BYID.get(pid) or {}).get("ai", {}).get("s", "") or str((BYID.get(pid) or RAWID.get(pid) or {}).get("desc", ""))[:120])}</td><td class="c"><b>{len(ch_)}</b></td>'
+                body += (f'<tr><td>{tk(pid, full=True)}</td><td>{E((BYID.get(pid) or {}).get("ai", {}).get("s", "") or short_name(BYID.get(pid) or RAWID.get(pid) or {}))}</td><td class="c"><b>{len(ch_)}</b></td>'
                          f'<td>{tks([r["id"] for r in ch_][:4])}{"<small class=mut> +" + str(len(ch_) - 4) + "</small>" if len(ch_) > 4 else ""}</td><td>{mark}</td></tr>')
             p_par = panel(f"Связи из 1С: главное — дочернее", stamps("in4"),
                           (f'<div class="tw"><table><thead><tr><th>Главное</th><th>Суть</th><th>Дочерних</th><th>Дочерние</th><th>Группа ИИ</th></tr></thead><tbody>{body}</tbody></table></div>'
@@ -1710,13 +1857,13 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                f'<div class="glab"><span><b>{g["О"]}</b> Отлично — устранена причина или сделан шаг против повтора</span><span><b>{g["Х"]}</b> Хорошо — причина названа, проблема закрыта</span>'
                f'<span><b class="bad">{g["П"]}</b> Плохо — отписка, причина не названа, ответ не на вопрос</span></div>')
         bad = [r for r in sol_ai if r["ai"].get("gr") == "П"]
-        body = "".join(f'<tr><td>{tk(r["id"])}</td><td>{E(r["sec"])}</td><td>{E(r["ai"].get("s", ""))}</td><td>{E(r["ai"].get("ga", ""))}</td><td><b>{E(r["ai"].get("rec") or "Переделать решение")}</b></td></tr>' for r in bad)
+        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["sec"])}</td><td>{E(r["ai"].get("s", ""))}</td><td>{E(r["ai"].get("ga", ""))}</td><td><b>{E(r["ai"].get("rec") or "Переделать решение")}</b></td></tr>' for r in bad)
         p1 = panel(f"Оценка решений и все «Плохо» — на переделку ({len(bad)})", stamps("ai", "sol"),
                    bar + f'<div class="tw"><table class="ai"><thead><tr><th>Обращение</th><th>Раздел</th><th>Суть</th><th>Что не так</th><th>Что переделать</th></tr></thead><tbody>{body}</tbody></table></div>',
                    f"Оценка ИИ по ужесточённым критериям для {tot} решённых (служебные карточки исключены). Показаны все «Плохо», без обрезки.",
                    "Список возврата на переделку: по каждой строке — аналитик и что именно исправить. Доля «Плохо» — главный показатель качества недели.")
         S = AI["slides"].get("s6") or {}
-        body = "".join(f'<tr><td>{tk(x.get("id", ""))}</td><td>{E(BYID.get(x.get("id"), {}).get("ai", {}).get("s", ""))}</td><td>{E(x.get("why", ""))}</td><td><b>{E(x.get("kb", ""))}</b></td></tr>' for x in S.get("best", []))
+        body = "".join(f'<tr><td>{tk(x.get("id", ""), full=True)}</td><td>{E(BYID.get(x.get("id"), {}).get("ai", {}).get("s", ""))}</td><td>{E(x.get("why", ""))}</td><td><b>{E(x.get("kb", ""))}</b></td></tr>' for x in S.get("best", []))
         p2 = panel("Лучшие решения — что тиражировать", stamps("ai", "sol"),
                    f'<div class="tw"><table class="ai"><thead><tr><th>Обращение</th><th>Суть</th><th>Почему эталон</th><th>Что внести в базу знаний</th></tr></thead><tbody>{body}</tbody></table></div>',
                    "Пять решений, где устранена причина или пользователю дан инструмент (Т-47).",
@@ -1760,13 +1907,13 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                    "Конкретно: с кем разобрать типы и на каких примерах. Общая доля ошибок этого не показывает.")
         # эмоциональный фон и служебные
         emo = [r for r in sol if _num(r["ai"].get("tone")) > 0]
-        body = "".join(f'<tr><td>{tk(r["id"])}</td><td class="c">{r["ai"]["tone"]}</td><td>{E(r["ai"].get("ea", ""))}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in emo)
+        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td class="c">{r["ai"]["tone"]}</td><td>{E(r["ai"].get("ea", ""))}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in emo)
         p5 = panel(f"Эмоциональный фон — {len(emo)}", stamps("ai", "sol"),
                    f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Уровень 0–3</th><th>Сигнал</th><th>Суть</th></tr></thead><tbody>{body}</tbody></table></div>',
                    "Отклонение от делового тона в решённых за период: 1 — скрытое недовольство, 2 — давление, 3 — грубость.",
                    "Раздражение — ранний сигнал повтора и эскалации: оценок пользователей в выгрузке нет, и тон письма — единственная обратная связь.")
         svc = [r for r in sol if r["cat"] == "Служебное"]
-        body = "".join(f'<tr><td>{tk(r["id"])}</td><td>{E(r["ai"].get("s", "") or r["desc"][:90])}</td><td class="c">{r["trud"]:g}</td><td>{E(r["ai"].get("rec", ""))}</td></tr>' for r in svc)
+        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["ai"].get("s", "") or short_name(r))}</td><td class="c">{r["trud"]:g}</td><td>{E(r["ai"].get("rec", ""))}</td></tr>' for r in svc)
         p6 = panel(f"Служебные карточки в потоке обращений — {len(svc)}", stamps("ai", "sol"),
                    f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Что это</th><th>Часы</th><th>Что сделать</th></tr></thead><tbody>{body}</tbody></table></div>',
                    "Карточки, которые не являются обращениями пользователей: списание времени на встречи, внутренние поручения.",
@@ -1818,9 +1965,10 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                    "Место и номер планшета — из текста обращения (терминал, ремзона, линейка, ID).",
                    "Устройство с тремя и более обращениями — на замену; место с проблемами связи — на карту покрытия.")
         op_ = sorted([r for r in pl if r["is_open"]], key=lambda r: r["reg_dt"])
-        body = "".join(f'<tr><td>{tk(r["id"])}</td><td>{E(r["st"])}</td><td><span class="tt" style="--c:{KC.get(r["pl_kind"], "#5D6B7A")}">{E(r["pl_kind"])}</span></td><td>{E(re.sub(chr(10), " ", r["desc"])[:140])}</td></tr>' for r in op_)
+        # ЧТО ИЗМЕНЕНО (5.3): колонка «Описание» убрана — описание раскрывается по клику в ячейке «Обращение» (З-4.4, Т-78)
+        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["st"])}</td><td><span class="tt" style="--c:{KC.get(r["pl_kind"], "#5D6B7A")}">{E(r["pl_kind"])}</span></td></tr>' for r in op_)
         p3 = panel(f"Открытые по планшетам — {len(op_)}", stamps("open"),
-                   f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Статус</th><th>Причина</th><th>Описание</th></tr></thead><tbody>{body}</tbody></table></div>',
+                   f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Статус</th><th>Причина</th></tr></thead><tbody>{body}</tbody></table></div>',
                    "Все открытые обращения по планшетам, от самого старого.",
                    "Что висит у полевых сотрудников прямо сейчас: каждое — простой инженера на перроне или в ремзоне.")
         return f'<article class="slide" id="s7">{lead}' + p1 + p2 + p3 + ai_block("s7") + "</article>"
@@ -1843,10 +1991,11 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                    f"Трудозатраты (AmountTrud) по решённым за 4 недели, {tot_h:.0f} ч на {tot_n} обращений; служебные карточки исключены.",
                    "Куда уходит время команды. Тип, у которого доля часов больше доли обращений, — дорогой: его устранение даёт больше всего.")
         top = sorted(s4, key=lambda r: -r["trud"])[:10]
-        t3 = "".join(f'<tr><td>{tk(r["id"])}</td><td>{E(r["sec"])}</td><td>{E(r["cat"])}</td><td class="c"><b>{r["trud"]:g}</b></td><td class="c">{r["h"]:g}</td>'
-                     f'<td>{E((r["desc"].split(chr(10))[0] if len(r["desc"]) > 5 else r["desc"])[:110])}</td></tr>' for r in top)
+        # ЧТО ИЗМЕНЕНО (5.3): колонка «Описание» убрана — описание раскрывается по клику в ячейке «Обращение» (З-4.4, Т-78)
+        t3 = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["sec"])}</td><td>{E(r["cat"])}</td><td class="c"><b>{r["trud"]:g}</b></td><td class="c">{r["h"]:g}</td>'
+                     f'</tr>' for r in top)
         p2 = panel("Самые дорогие решённые — 4 недели", stamps("sol4"),
-                   f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Раздел</th><th>Тип</th><th>Трудозатраты, ч</th><th>Срок, раб. ч</th><th>Описание</th></tr></thead><tbody>{t3}</tbody></table></div>',
+                   f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Раздел</th><th>Тип</th><th>Трудозатраты, ч</th><th>Срок, раб. ч</th></tr></thead><tbody>{t3}</tbody></table></div>',
                    "Десять решённых обращений с наибольшими трудозатратами.",
                    "Дорогие обращения — кандидаты на доработку или на отдельный проект: если такое повторяется, дешевле исправить причину.")
         # трудозатраты против срока
@@ -1866,8 +2015,8 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                    + "Без списанных часов цена по аналитику недостоверна.")
         zomb = sorted([r for r in old if r["trud"] == 0], key=lambda r: -r["age"])
         heavy = sorted(opn, key=lambda r: -r["trud"])[:5]
-        t6 = "".join(f'<tr><td>{tk(r["id"])}</td><td>{E(r["st"])}</td><td class="c"><b>{r["trud"]:g}</b></td></tr>' for r in heavy)
-        t7 = "".join(f'<tr><td>{tk(r["id"])}</td><td>{E(r["st"])}</td><td>{E(r["sec"])}</td></tr>' for r in zomb)
+        t6 = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["st"])}</td><td class="c"><b>{r["trud"]:g}</b></td></tr>' for r in heavy)
+        t7 = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["st"])}</td><td>{E(r["sec"])}</td></tr>' for r in zomb)
         p4 = panel("Вложено в открытые", stamps("open"),
                    f'<div class="grid g2"><div><div class="ch">Больше всего часов — и всё ещё открыто ({hsum(opn):.0f} ч во всей очереди)</div><div class="tw"><table><tbody>{t6}</tbody></table></div></div>'
                    f'<div><div class="ch">«Зомби»: старше 30 дней и ни одного часа — {len(zomb)}</div><div class="tw"><table><tbody>{t7}</tbody></table></div></div></div>',
@@ -1929,7 +2078,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         cx_l = [r for r in real if r["ai"].get("cx")]
         hard = sorted(cx_l, key=lambda r: (-_num(r["ai"]["cx"]), -r["trud"]))[:5]
         easy = sorted(cx_l, key=lambda r: (_num(r["ai"]["cx"]), r["trud"]))[:5]
-        row_ = lambda r: f'<tr><td>{tk(r["id"])}</td><td class="c"><b>{r["ai"]["cx"]}</b></td><td class="c">{str(r["trud"]).replace(".", ",")}</td><td>{E(r["ai"].get("s", ""))}</td></tr>'
+        row_ = lambda r: f'<tr><td>{tk(r["id"], full=True)}</td><td class="c"><b>{r["ai"]["cx"]}</b></td><td class="c">{str(r["trud"]).replace(".", ",")}</td><td>{E(r["ai"].get("s", ""))}</td></tr>'
         p_cx = panel("Самые сложные и самые простые решения", stamps("sol", "ai"),
                      f'<div class="grid g2"><div><div class="ch">Сложные — 5</div><div class="tw"><table><thead><tr><th>Обращение</th><th>Сложн.</th><th>Часы</th><th>Суть</th></tr></thead><tbody>{"".join(map(row_, hard))}</tbody></table></div></div>'
                      f'<div><div class="ch">Простые — 5</div><div class="tw"><table><thead><tr><th>Обращение</th><th>Сложн.</th><th>Часы</th><th>Суть</th></tr></thead><tbody>{"".join(map(row_, easy))}</tbody></table></div></div></div>',
@@ -1966,7 +2115,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
             rt = R.rated4
             dist = Counter(r["rate_v"] for r in rt)
             low = sorted([r for r in rt if r["rate_v"] < 5], key=lambda r: (r["rate_v"], r["rate"][0]))
-            body = "".join(f'<tr><td>{tk(r["id"])}</td><td class="c bad"><b>{r["rate_v"]}</b></td><td>{E(short(r["rate"][2]))}</td><td>{E(r["rate"][4]) or "·"}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in low[:20])
+            body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td class="c bad"><b>{r["rate_v"]}</b></td><td>{E(short(r["rate"][2]))}</td><td>{E(r["rate"][4]) or "·"}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in low[:20])
             if len(low) > 20: body += f'<tr><td colspan="5" class="mut">и ещё {len(low) - 20}</td></tr>'
             p_rate = panel("Оценки пользователей", stamps("sol4"),
                            f'<div class="grid g2"><div><div class="ch">Оценки за 4 недели: {len(rt)} из {len(R.real4)} решённых ({M["rate_share"]}%), средняя {c1(M["rate_avg"])}</div>'
@@ -2093,7 +2242,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
     rail = "".join(f'<div class="act">{g}</div><ol>' + "".join(f'<li><a href="#{k}"><span>{num[k]}</span>{E(t)}</a></li>' for k, t in sorted(items, key=lambda kt: num[kt[0]])) + "</ol>"
                    for g, items in [(g, [(k, rail_links[k]) for k in ORDER if k in dict(it)]) for g, it in nav])
     slides = {k: FN[k]() for k in ORDER}
-    return rail, slides
+    return rail, slides, xtext_registry()
 
 
 def render(R, template_text, title=None, banner=None, run_log=None, strict=False):
@@ -2101,12 +2250,13 @@ def render(R, template_text, title=None, banner=None, run_log=None, strict=False
     from jinja2 import Environment
     check_template(template_text)
     R.warnings = []
-    rail, slides = _build(R, with_ai=True, strict=strict, run_log=run_log)
+    rail, slides, xreg = _build(R, with_ai=True, strict=strict, run_log=run_log)
     if R.warnings:
         R.say(f"⚠️ Предупреждения вёрстки: {sorted(set(R.warnings))}")
     return Environment(autoescape=True).from_string(template_text).render(
         title=title or f"Качество 1С-поддержки · Неделя {R.WEEK}", banner=banner,
-        period=f"Неделя {R.WEEK} · {R.PER} · срез {R.NOW:%d.%m %H:%M}", rail=rail, slides="".join(slides[k] for k in ORDER))
+        period=f"Неделя {R.WEEK} · {R.PER} · срез {R.NOW:%d.%m %H:%M}", rail=rail,
+        slides="".join(slides[k] for k in ORDER) + xreg)
 
 
 def report_file_name(R):
@@ -2170,6 +2320,6 @@ def html_text(h):
 def slide_texts(R, keys=None):
     """{ключ: текст слайда без блока «Разбор ИИ по слайду»} — что видит читатель; для промпта разбора."""
     saved, R.warnings = getattr(R, "warnings", []), []
-    _, slides = _build(R, with_ai=False)
+    _, slides, _ = _build(R, with_ai=False)
     R.warnings = saved
     return {k: html_text(v) for k, v in slides.items() if keys is None or k in keys}

@@ -1,8 +1,10 @@
-{#- template_v5.html · TEMPLATE_VERSION = "5.0" · 02.10.2026
+{#- template_v5.html · TEMPLATE_VERSION = "5.1" · 05.10.2026
     Оболочка отчёта ReportSPPR v5: стили, верхняя панель, меню слайдов, переключение слайдов.
     Слайды и меню собирает модуль src/report_v5.py (render) — он же проверяет мажор этого шаблона.
     Переменные: title — заголовок вкладки; banner — плашка над отчётом (только макет), текст;
-    period — неделя, период, срез; rail — HTML меню; slides — HTML слайдов. -#}
+    period — неделя, период, срез; rail — HTML меню; slides — HTML слайдов.
+    5.1: раскрытие описания и решения по клику (З-4, Т-78) — кнопки .tname/.tmore и блок .xfull
+    собирает модуль; шаблон добавляет стили и обработчик клика. Без сети и внешних библиотек. -#}
 <!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }}</title><style>
 :root{--page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
 --num:"Bahnschrift","DIN Alternate","Roboto Condensed","Arial Narrow",sans-serif;--text:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif}
@@ -63,6 +65,18 @@ th{text-align:left;font-weight:600;color:var(--ink2);border-bottom:1px solid var
 td{border-bottom:1px solid var(--rule);padding:8px 10px 8px 0;vertical-align:top}tbody th{font-weight:600;border-bottom:1px solid var(--rule);vertical-align:top}
 table.num td,td.c{text-align:center}table.num th{text-align:center}table.num tbody th{text-align:left}
 .tk{display:inline-flex;flex-direction:column;margin:0 8px 6px 0;vertical-align:top}.tk small{font-size:11.5px;color:var(--muted);white-space:nowrap}
+/* З-3/З-4 (5.1): краткое описание в ячейке «Обращение» и раскрытие описания/решения по клику.
+   Полный текст живёт один раз в скрытом реестре #xtreg (hidden; правил display у него и его детей нет —
+   атрибут работает), клик вставляет строку <tr class=xtrow><td> с копией текста из реестра */
+.tname{font:12.5px var(--text);color:var(--ink2);background:none;border:none;border-top:1px dotted var(--rule);padding:4px 0 0;cursor:pointer;max-width:420px;text-align:left}
+.tname:hover{color:#1A56DB}
+.tmore{font:11px var(--num);color:var(--ink2);background:var(--wash);border:1px solid var(--rule);border-radius:3px;padding:1px 5px;cursor:pointer;vertical-align:1px;margin-right:4px}
+.tmore:hover{color:#1A56DB;border-color:#1A56DB}
+tr.xtrow td{background:var(--wash);border-bottom:1px solid var(--rule)}
+div.xtrow{margin:4px 0 8px}
+.xfull{margin:2px 0;border-left:3px solid var(--rule);padding:4px 0 4px 10px;max-width:900px}
+.xfull b{font:600 11.5px var(--text);color:var(--muted);display:block;margin-top:4px}
+.xfull .xt{font-size:12.5px;line-height:1.45;white-space:pre-wrap;color:var(--ink);margin-bottom:4px;overflow-wrap:anywhere}
 a.tid{color:#1A56DB;text-decoration:none}a.tid:hover{text-decoration:underline}
 .tid{font:13px var(--num);white-space:nowrap;background:var(--wash);border:1px solid var(--rule);border-radius:3px;padding:1px 5px;display:inline-block;width:max-content}
 .ids{margin-top:6px}
@@ -110,6 +124,26 @@ links.forEach((a,k)=>a.addEventListener('click',e=>{e.preventDefault();document.
 document.getElementById('prev').onclick=()=>show(cur-1);document.getElementById('next').onclick=()=>show(cur+1);
 document.getElementById('all').onclick=()=>document.body.classList.toggle('all');
 document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')show(cur+1);if(e.key==='ArrowLeft')show(cur-1)});
+// З-4 (5.1): раскрытие описания и решения — клик по краткому описанию (.tname) или «▸» (.tmore).
+// Полный текст берётся из реестра #xtreg (хранится один раз на обращение), в таблицу вставляется
+// строка <tr class=xtrow><td colspan> с копией; повторный клик строку убирает, реестр не трогает —
+// раскрыть можно снова. Вне таблицы (плитка «Самый долгий») — блок под ячейкой. Без сети и библиотек.
+document.querySelectorAll('.tname,.tmore').forEach(b=>{b.addEventListener('click',()=>{
+const tk=b.closest('.tk'),reg=document.getElementById('xtf-'+tk.dataset.tid);
+const html=reg?'<div class="xfull">'+reg.innerHTML+'</div>':'<small class="mut">Текст недоступен.</small>';
+const tr=b.closest('tr');
+if(tr){ // в таблице: строка <tr class=xtrow><td colspan>; открытый блок в таблице — один
+if(tr._xrow){tr._xrow.remove();tr._xrow=null;if(b.classList.contains('tmore'))b.textContent='▸';return;}
+const tbl=tr.closest('table');
+tbl.querySelectorAll('tr.xtrow').forEach(o=>o.remove());
+tbl.querySelectorAll('.tmore').forEach(o=>{if(o!==b)o.textContent='▸'});
+const x=document.createElement('tr');x.className='xtrow';const c=document.createElement('td');c.colSpan=99;
+c.innerHTML=html;x.appendChild(c);tr.after(x);tr._xrow=x;
+}else{ // вне таблицы (плитка): блок после ячейки, повторный клик — свернуть
+const old=tk.nextElementSibling;
+if(old&&old.classList.contains('xtrow')){old.remove();if(b.classList.contains('tmore'))b.textContent='▸';return;}
+tk.insertAdjacentHTML('afterend',html);}
+if(b.classList.contains('tmore'))b.textContent='▾';})});
 // длинные таблицы: видны первые 10 строк, остальное — по кнопке (печать показывает всё)
 document.querySelectorAll('table:not(.heat) > tbody').forEach(tb=>{const rs=[...tb.rows];if(rs.length<=12||tb.querySelector('tr.grp'))return;
 rs.slice(10).forEach(r=>r.classList.add('hid'));const b=document.createElement('button');b.className='more';b.textContent='Показать все строки: '+rs.length;

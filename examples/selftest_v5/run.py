@@ -15,7 +15,7 @@
 # Нужно: Python 3.10+ и jinja2. В проект ничего не пишет: работа — во временной папке, при успехе она удаляется.
 # Итог: «ИТОГ: ОК» и код возврата 0; иначе — что разошлось, код 1 и путь к рабочей папке (вывод ноутбука — stdout.txt).
 # ----------------------------------------------------------------------
-VERSION = "1.1"                                   # 1.1 — ноутбук 5.2, сценарий е) (модуль и шаблон с GitHub)
+VERSION = "1.2"                                   # 1.2 — ссылка «Открыть в Colab» в README.md = NOTEBOOK_FILE; 1.1 — ноутбук 5.2, сценарий е)
 STAND_MAJOR = 5                                   # стенд для мажора 5: ноутбук, модуль и шаблон — 5.x
 NOTEBOOK_FILE = "RepSSPR_v5.2.ipynb"              # проверяемый ноутбук; вышел новый номер — поправить здесь (стенд напомнит)
 MODULE_FILE = "src/report_v5.py"
@@ -302,6 +302,13 @@ def preflight():
     for name, path in (("MODULE_FILE", MODULE_FILE), ("TEMPLATE_FILE", TEMPLATE_FILE)):
         if notebook_param(name) != os.path.basename(path):
             raise Fail(f"ноутбук ищет {name} = {notebook_param(name)}, стенд подкладывает {os.path.basename(path)}")
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО (1.2): README.md — единый вход; его кнопка «Открыть в Colab» должна вести на проверяемый ноутбук
+    # ПОЧЕМУ: my-FT Р-10 — продуктив = main; вышел новый номер ноутбука, а ссылка старая — пользователь запустит старую версию
+    # ----------------------------------------------------------------------
+    links = set(re.findall(r"blob/main/(RepSSPR_v[\d.]+\.ipynb)", read("README.md"))) if os.path.exists("README.md") else set()
+    if links != {NOTEBOOK_FILE}:
+        raise Fail(f"README.md ведёт на {', '.join(sorted(links)) or 'ничего'}, а ноутбук — {NOTEBOOK_FILE}: поправьте ссылки в README.md")
     return f"{NOTEBOOK_FILE} ({nb_ver}) + {MODULE_FILE} {rv5.VERSION} + {TEMPLATE_FILE} {tpl_ver}"
 
 

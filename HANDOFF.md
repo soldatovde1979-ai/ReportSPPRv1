@@ -154,7 +154,7 @@
 2. Удалить ветки `claude/awesome-gates-ns0nhd` и `ccr-91bdb9e0-p876h1` на GitHub (Branches → корзина).
 3. Проверить, что делает Zoo Code в VS Code с git (авто-коммиты).
 4. Запуск v5 в Colab (прогон 02.10 прошёл; замечания по отчёту — за пользователем):
-   - открыть ноутбук с GitHub: `https://colab.research.google.com/github/soldatovde1979-ai/ReportSPPRv1/blob/main/RepSSPR_v5.2.ipynb` (продуктив = `main`, my-FT Р-10); секрет `DEEPSEEK_API_KEY` на месте, параметры по умолчанию (`REPORT_WEEK = 0`, `REUSE_AI = True`, `DRIVE_MODE = always`, `CODE_SOURCE = github`);
+   - открыть ноутбук с GitHub — единый вход `https://github.com/soldatovde1979-ai/ReportSPPRv1`, кнопка «Открыть в Colab» (`README.md`; продуктив = `main`, my-FT Р-10); секрет `DEEPSEEK_API_KEY` на месте, параметры по умолчанию (`REPORT_WEEK = 0`, `REUSE_AI = True`, `DRIVE_MODE = always`, `CODE_SOURCE = github`);
    - модуль и шаблон ячейка 1 скачивает с GitHub; после неё сверить строку «🧩 Модуль report_v5.py 5.x (GitHub)». «(запасная копия)» — GitHub недоступен, взята копия с Диска `DRIVE_ROOT` (`MyDrive/PROJECTs/ReportSPPRv1`), версия может быть старой;
    - «Выполнить всё», в окне загрузки — выгрузка `sppr_dump_*.json`;
    - перезапускать среду после обновления модуля больше не нужно; GitHub отдаёт свежий файл с задержкой до 5 минут после push;

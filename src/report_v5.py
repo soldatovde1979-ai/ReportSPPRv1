@@ -355,16 +355,17 @@ def load(raw, dump_name="", report_week=None, history=None, demo=False, say=prin
         r["holder"] = HOLDER_OF.get(r["st"], "Разработка") if r["is_open"] else ""
         # ----------------------------------------------------------------------
         # ЧТО ИЗМЕНЕНО (5.3): срок у держателя по истории статусов (З-5, Т-81)
-        # ПОЧЕМУ: возраст от регистрации не показывает, сколько обращение висит у текущего держателя;
-        #         идём по событиям tab_status регистра «карточка» от последнего к первому, пока держатель
+        # ПОЧЕМУ: возраст от регистрации не показывает, сколько обращение висит у текущего держателя.
+        #         События — только регистра «карточка» (события требования «Отработано»/«Закрыто»
+        #         обрывали расчёт), сортировка по дате — по возрастанию; идём с конца, пока держатель
         #         статуса равен текущему; дата самого раннего такого события — начало. Нет истории — None
         # ----------------------------------------------------------------------
         r["hold_days"] = None
         if r["is_open"] and r["tab_status"]:
-            cur = r["holder"]
+            ev = sorted((e for e in r["tab_status"] if e[2] == "карточка"), key=lambda e: e[0])
             start = None
-            for e in reversed(r["tab_status"]):        # события по возрастанию; держатель статуса — как у панели
-                if status_holder(e[3]) != cur:
+            for e in reversed(ev):
+                if status_holder(e[3]) != r["holder"]:
                     break
                 start = e[0]
             if start is not None:
@@ -1061,6 +1062,9 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         return '<div class="stamps">' + "".join(
             f'<span class="stamp s-{k}"><i>{STAMP[k][0]}</i>{E(STAMP[k][1])}</span>' for k in keys) + "</div>"
 
+    # полный текст для раскрытия — один раз на обращение на весь отчёт (З-6: без дублей в разметке)
+    XTEXT = {}
+
     def tk(i, full=False):
         """Ячейка «Обращение» (З-3, Т-78): номер-ссылка (url из выгрузки); мелко — регистрация,
         дней (у решённых — «реш»), инициатор; ниже — аналитик; затем краткое описание, клик
@@ -1071,7 +1075,10 @@ def _build(R, with_ai=True, strict=False, run_log=None):
             return f'<span class="tid">{E(i)}</span>'
         reg = P(r["reg"]) if isinstance(r.get("reg"), str) else r["reg_dt"]
         res = P(r["res"]) if r.get("res") else None
-        # открытое обращение с датой решения — как возврат, с возрастом (00-00034389 выглядел решённым)
+        # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО: открытое обращение с датой решения показывается как возврат, с возрастом
+        # ПОЧЕМУ: 00-00034389 в «Анализе» выглядело решённым («реш 04.09», без возраста)
+        # ----------------------------------------------------------------------
         if res and r.get("st") not in SOLVED + [REJECTED]:
             d = f"рег {DD(reg)} · возврат: решение {DD(res)} · {(NOW - reg).days} дн."
         elif res:
@@ -1080,28 +1087,44 @@ def _build(R, with_ai=True, strict=False, run_log=None):
             d = f"рег {DD(reg)}"
         else:
             d = f"рег {DD(reg)} · {(NOW - reg).days} дн."
-        cli = short(r.get("cli", "")) if isinstance(r.get("cli"), str) else ""
-        # номер — ссылка, если в выгрузке есть url (Т-57); нет поля — текст
+        # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО: если у обращения есть поле url — номер становится ссылкой, как пришла из выгрузки
+        # ПОЧЕМУ: Т-57 (В-13: тонкий клиент, ссылка приходит готовой и просто открывается; нет поля — номер остаётся текстом)
+        # ----------------------------------------------------------------------
         url = r.get("url")
         tid = f'<a class="tid" href="{E(url)}">{E(i)}</a>' if url else f'<span class="tid">{E(i)}</span>'
+        cli = short(r.get("cli", "")) if isinstance(r.get("cli"), str) else ""
         anl = short(r.get("anl", "")) if isinstance(r.get("anl"), str) else ""
-        # раскрытие (З-4): причёсанные описание и решение, ≤ 3000 символов, текст — в разметке отчёта
-        has_x = bool(r.get("desc") or r.get("sol"))
-        xfull = ""
-        if has_x:
-            xfull = '<span class="xfull" hidden>' \
-                    + (f'<b>Описание</b><div class="xt">{E(_clip(r.get("desc", "")))}</div>' if r.get("desc") else "") \
-                    + (f'<b>Решение</b><div class="xt">{E(_clip(r.get("sol", "")))}</div>' if r.get("sol") else "") \
-                    + "</span>"
+        # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО (5.3): описание и решение — по клику; полный текст живёт один раз в реестре
+        # XTEXT внизу отчёта, в ячейке — только кнопка (З-4, З-6)
+        # ПОЧЕМУ: без реестра полный текст повторялся в разметке при каждом упоминании обращения
+        #         (отчёт ×3–3,6 раза); клик вставляет строку <tr><td> с копией из реестра и
+        #         сворачивается без потери текста — раскрыть можно снова
+        # ----------------------------------------------------------------------
+        more = ""
+        if r.get("desc") or r.get("sol"):
+            XTEXT.setdefault(i, (r.get("desc") or "", r.get("sol") or ""))
+            more = (f'<button class="tname" title="Нажмите, чтобы раскрыть описание и решение">{E(short_name(r))}</button>'
+                    if full else '<button class="tmore" title="Описание и решение — по клику">▸</button>')
         if full:
-            anl_l = f"<small>{E(anl)}</small>" if anl else ""
-            if has_x:
-                return (f'<span class="tk">{tid}<small>{E(d)} · {E(cli)}</small>{anl_l}'
-                        f'<button class="tname" title="Нажмите, чтобы раскрыть описание и решение">{E(short_name(r))}</button>{xfull}</span>')
-            return f'<span class="tk">{tid}<small>{E(d)} · {E(anl)}</small></span>'
+            # инициатор и аналитик всегда: нет текста — ячейка не теряет их (З-3.2)
+            return f'<span class="tk" data-tid="{E(i)}">{tid}<small>{E(d)} · {E(cli)}</small><small>{E(anl)}</small>{more}</span>'
         # компактный вид — как раньше, плюс «▸» с раскрытием (З-3.3)
-        more = f'<button class="tmore" title="Описание и решение — по клику">▸</button>{xfull}' if has_x else ""
-        return f'<span class="tk">{tid}{more}<small>{E(d)} · {E(anl)}</small></span>'
+        return f'<span class="tk" data-tid="{E(i)}">{tid}{more}<small>{E(d)} · {E(anl)}</small></span>'
+
+    def xtext_registry():
+        """Скрытый реестр полных текстов (id → описание и решение ≤ 3000 симв.) —
+        заполняется вызовами tk(); в отчёте один экземпляр, читается скриптом раскрытия."""
+        if not XTEXT:
+            return ""
+        parts = "".join(
+            f'<div class="xtf" id="xtf-{E(k)}">'
+            + (f'<b>Описание</b><div class="xt">{E(_clip(v[0]))}</div>' if v[0] else "")
+            + (f'<b>Решение</b><div class="xt">{E(_clip(v[1]))}</div>' if v[1] else "")
+            + "</div>"
+            for k, v in XTEXT.items())
+        return f'<div id="xtreg" hidden>{parts}</div>'
 
     def tks(ids):
         return "".join(tk(i) for i in ids)
@@ -1214,7 +1237,12 @@ def _build(R, with_ai=True, strict=False, run_log=None):
             out.append(f'<div class="own"><div class="own-l"><b>{h}</b><small>{E(", ".join(f"{s} {n}" for s, n in sts))}</small></div>'
                        f'<div class="own-b">{segs}</div><div class="own-n">{len(o)}<small>{E(sub)}</small></div></div>')
         leg = '<div class="legend">' + "".join(f'<span><i style="background:{c}"></i>{l}</span>' for l, _, _, c in buckets) + "</div>"
+        # ----------------------------------------------------------------------
         # ЧТО ИЗМЕНЕНО (5.3): сноска — откуда сроки и что без истории берётся возраст от регистрации (З-5.2, З-5.3)
+        # ПОЧЕМУ: в выгрузке нет tab_status ни у одного обращения — панель остаётся как раньше, без сноски (З-5, «без истории — как сейчас»)
+        # ----------------------------------------------------------------------
+        if not TAB_ON["tab_status"]:
+            return "".join(out) + leg
         if with_hist < len(lst):
             note = (f'<p class="cmp mut">Срок у держателя — по истории статусов (tab_status), цветные корзины — по нему. '
                     f'По истории — {with_hist} из {len(lst)}; у остальных — возраст от регистрации.</p>')
@@ -2214,7 +2242,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
     rail = "".join(f'<div class="act">{g}</div><ol>' + "".join(f'<li><a href="#{k}"><span>{num[k]}</span>{E(t)}</a></li>' for k, t in sorted(items, key=lambda kt: num[kt[0]])) + "</ol>"
                    for g, items in [(g, [(k, rail_links[k]) for k in ORDER if k in dict(it)]) for g, it in nav])
     slides = {k: FN[k]() for k in ORDER}
-    return rail, slides
+    return rail, slides, xtext_registry()
 
 
 def render(R, template_text, title=None, banner=None, run_log=None, strict=False):
@@ -2222,12 +2250,13 @@ def render(R, template_text, title=None, banner=None, run_log=None, strict=False
     from jinja2 import Environment
     check_template(template_text)
     R.warnings = []
-    rail, slides = _build(R, with_ai=True, strict=strict, run_log=run_log)
+    rail, slides, xreg = _build(R, with_ai=True, strict=strict, run_log=run_log)
     if R.warnings:
         R.say(f"⚠️ Предупреждения вёрстки: {sorted(set(R.warnings))}")
     return Environment(autoescape=True).from_string(template_text).render(
         title=title or f"Качество 1С-поддержки · Неделя {R.WEEK}", banner=banner,
-        period=f"Неделя {R.WEEK} · {R.PER} · срез {R.NOW:%d.%m %H:%M}", rail=rail, slides="".join(slides[k] for k in ORDER))
+        period=f"Неделя {R.WEEK} · {R.PER} · срез {R.NOW:%d.%m %H:%M}", rail=rail,
+        slides="".join(slides[k] for k in ORDER) + xreg)
 
 
 def report_file_name(R):
@@ -2291,6 +2320,6 @@ def html_text(h):
 def slide_texts(R, keys=None):
     """{ключ: текст слайда без блока «Разбор ИИ по слайду»} — что видит читатель; для промпта разбора."""
     saved, R.warnings = getattr(R, "warnings", []), []
-    _, slides = _build(R, with_ai=False)
+    _, slides, _ = _build(R, with_ai=False)
     R.warnings = saved
     return {k: html_text(v) for k, v in slides.items() if keys is None or k in keys}

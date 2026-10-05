@@ -11,14 +11,19 @@
 #      обращения); остальные поля — настоящие.
 # Запуск (Linux / Bash):  python3 examples/make_demo_tab.py
 # ----------------------------------------------------------------------
-VERSION = "1.2"   # 1.2 — name у части обращений (выгрузка 1С v1.8; модуль report_v5 5.3, З-6.2)
+VERSION = "1.3"   # 1.3 — name из причёсанного описания (clean_text); 1.2 — name у части обращений (1С v1.8, З-6.2)
 DUMP_FILE = "data/sppr_dump_20260929_180748_842rec.json"
 OUT_FILE = "examples/sppr_dump_20260929_180748_842rec_demo_tab.json"
 
-import json, re, os, hashlib
+import json, re, os, hashlib, importlib.util
 from datetime import datetime, timedelta
 
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# clean_text из общего модуля: name демо — первая фраза причёсанного текста (Т-80),
+# тот же, что видит report_v5
+spec = importlib.util.spec_from_file_location("report_v5", "src/report_v5.py")
+rv5 = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(rv5)
 SOLVED = ["Отработано, требует подтверждения", "Закрыто"]
 NAME_RX = re.compile(r"\d{2}\.\d{2}\.\d{4} \d{1,2}:\d{2}:\d{2} ([А-ЯЁ][а-яё]+ [А-ЯЁ][а-яё]+(?: [А-ЯЁ][а-яё]+)?):")
 DEV_CHAIN = ["Планирование разработки", "Разработка", "Внутреннее тестирование", "Проверка релиза"]
@@ -55,13 +60,15 @@ for r in raw:
     res = datetime.fromisoformat(r["res"]) if r["res"] else None
     cls = datetime.fromisoformat(r["cls"]) if r["cls"] else None
     # ----------------------------------------------------------------------
-    # ЧТО ИЗМЕНЕНО (1.2): name у части обращений — как придёт из выгрузки 1С v1.8 (vygruzka-1c.md, п. 2.8)
-    # ПОЧЕМУ: З-6.2 — макет должен показывать оба пути краткого описания: из 1С и из ИИ (нет name)
+    # ЧТО ИЗМЕНЕНО (1.3): name — первая фраза причёсанного описания (clean_text), не сырца:
+    # в сыром описании первая фраза — почти всегда приветствие («Добрый день!»).
+    # ПОЧЕМУ: Т-80 — краткое описание без приветствий; причёсанный текст пуст — name не ставим
     # ----------------------------------------------------------------------
     if rnd(i + "name", 3) == 0 and r["desc"]:
-        first = re.split(r"[.!?\n]", r["desc"].strip(), maxsplit=1)[0]
-        r["name"] = (first[:60] + "…") if len(first) > 60 else first
-        n_name += 1
+        first = re.split(r"[.!?\n]", rv5.clean_text(r["desc"]), maxsplit=1)[0]
+        if first:
+            r["name"] = (first[:60] + "…") if len(first) > 60 else first
+            n_name += 1
     # ---- tab_trud: AmountTrud по исполнителям (ответственный — 70%, остальное поровну)
     total = float(r.get("AmountTrud") or 0)
     ppl = []

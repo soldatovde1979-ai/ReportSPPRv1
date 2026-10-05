@@ -1,11 +1,13 @@
 # ----------------------------------------------------------------------
 # run.py — стенд самопроверки ReportSPPR v5: ноутбук целиком на подставной модели — без ключей, сети и токенов
-# ЧТО: прогоняет ноутбук (ячейки как есть, exec_notebook.py) в пяти сценариях и сверяет отчёт:
+# ЧТО: прогоняет ноутбук (ячейки как есть, exec_notebook.py) в шести сценариях и сверяет отчёт:
 #      а) демо-выгрузка → отчёт = макет examples/mockup_report_v2.html, кроме известных отличий; лог в Sheets пишется;
 #      б) боевая выгрузка → отчёт ноутбука = прямая сборка модулем, кроме журнала ИИ;
 #      в) сбои модели (обрыв JSON, негодная строка, чужой номер, неизвестный ключ, не-JSON) → отчёт собирается, повторы есть;
 #      г) Диск: модуль и шаблон найдены в папке проекта (src/), история записана; повтор → 0 вызовов, тот же отчёт;
-#      д) шаблон чужого мажора, нет модуля → остановка в ячейке 1, до вызовов модели.
+#      д) шаблон чужого мажора, нет модуля → остановка в ячейке 1, до вызовов модели;
+#      е) модуль и шаблон «с GitHub» (file:// этой папки) → отчёт = прямая сборка; GitHub недоступен → запасная копия
+#         с Диска с предупреждением, без копии — остановка в ячейке 1.
 # ПОЧЕМУ: my-FT Т-72 — «единый тест сэкономит деньги и время»: правка проверяется за секунды, а не боевым прогоном
 #         (02.10 — 608 тыс. токенов). Качество ответов настоящей модели стенд не проверяет — только боевой прогон.
 # Запуск из любой папки:  Linux / Bash — python3 examples/selftest_v5/run.py
@@ -13,9 +15,9 @@
 # Нужно: Python 3.10+ и jinja2. В проект ничего не пишет: работа — во временной папке, при успехе она удаляется.
 # Итог: «ИТОГ: ОК» и код возврата 0; иначе — что разошлось, код 1 и путь к рабочей папке (вывод ноутбука — stdout.txt).
 # ----------------------------------------------------------------------
-VERSION = "1.0"
+VERSION = "1.1"                                   # 1.1 — ноутбук 5.2, сценарий е) (модуль и шаблон с GitHub)
 STAND_MAJOR = 5                                   # стенд для мажора 5: ноутбук, модуль и шаблон — 5.x
-NOTEBOOK_FILE = "RepSSPR_v5.1.ipynb"              # проверяемый ноутбук; вышел новый номер — поправить здесь (стенд напомнит)
+NOTEBOOK_FILE = "RepSSPR_v5.2.ipynb"              # проверяемый ноутбук; вышел новый номер — поправить здесь (стенд напомнит)
 MODULE_FILE = "src/report_v5.py"
 TEMPLATE_FILE = "template_v5.html"
 MOCKUP_FILE = "examples/mockup_report_v2.html"    # эталон отчёта: макет собирает тот же модуль (build_mockup_v2.py)
@@ -35,7 +37,7 @@ RUN_LOG_DIFFS = ["сноска паспорта о расходе ИИ", "таб
 
 import sys
 sys.dont_write_bytecode = True                    # стенд не оставляет __pycache__ в проекте
-import difflib, glob, importlib.util, json, os, re, shutil, subprocess, tempfile, time
+import difflib, glob, importlib.util, json, os, pathlib, re, shutil, subprocess, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 os.chdir(os.path.dirname(os.path.dirname(HERE)))  # корень репозитория
@@ -102,9 +104,9 @@ def notebook_param(name):
     return m.group(1)
 
 
-def run_nb(tag, dump, upload, drive="never", fail="", debug=False, seed=None, drive_from=None):
+def run_nb(tag, dump, upload, drive="never", fail="", debug=False, seed=None, drive_from=None, code="drive", github=""):
     """Один прогон ноутбука в папке TMP/tag. upload — файлы окна загрузки кроме выгрузки; seed(work) — подготовить Диск;
-    drive_from — взять Диск из рабочей папки прошлого прогона (повтор недели)."""
+    drive_from — взять Диск из рабочей папки прошлого прогона (повтор недели); code, github — CODE_SOURCE и GITHUB_RAW."""
     work = os.path.join(TMP, tag)
     os.makedirs(work)
     if drive_from:
@@ -113,6 +115,7 @@ def run_nb(tag, dump, upload, drive="never", fail="", debug=False, seed=None, dr
         seed(work)
     env = dict(os.environ, NB_UPLOAD=";".join(os.path.abspath(p) for p in [dump] + upload), NB_DRIVE=drive,
                NB_DEBUG="1" if debug else "0", NB_AI_FILE=os.path.abspath(AI_FILE), FAIL_MODE=fail,
+               NB_CODE=code, NB_GITHUB=github,
                PYTHONIOENCODING="utf-8", PYTHONDONTWRITEBYTECODE="1")
     p = subprocess.run([sys.executable, os.path.join(HERE, "exec_notebook.py"), os.path.abspath(NOTEBOOK_FILE), work],
                        env=env, capture_output=True, timeout=900)
@@ -152,14 +155,19 @@ def scen_a():
     return f"отчёт = макет, кроме {len(KNOWN_DIFFS)} известных отличий; лог в Sheets записан"
 
 
-def scen_b():
-    r = run_nb("b", REAL_DUMP, TOOLS)
-    need_ok(r, "прогон")
+def direct_html():
+    """Отчёт по боевой выгрузке, собранный модулем напрямую, — эталон для «б» и «е»."""
     rv5 = load_module()
     R = rv5.load(json.load(open(REAL_DUMP, encoding="utf-8-sig")), os.path.basename(REAL_DUMP), None, [],
                  demo=False, say=lambda *a, **k: None)
     rv5.attach_ai(R, json.load(open(AI_FILE, encoding="utf-8")))
-    expect_diffs(rv5.render(R, read(TEMPLATE_FILE)), r["html"], RUN_LOG_DIFFS, "отчёт ноутбука против прямой сборки модулем")
+    return rv5.render(R, read(TEMPLATE_FILE))
+
+
+def scen_b():
+    r = run_nb("b", REAL_DUMP, TOOLS)
+    need_ok(r, "прогон")
+    expect_diffs(direct_html(), r["html"], RUN_LOG_DIFFS, "отчёт ноутбука против прямой сборки модулем")
     STATE["b"] = r
     return "отчёт ноутбука = прямая сборка модулем, кроме журнала ИИ"
 
@@ -189,17 +197,22 @@ def scen_v():
     return "обрыв JSON, негодная строка, чужой номер, неизвестный ключ, не-JSON — отчёт собран, повторы сработали"
 
 
+def on_disk(work, p):
+    """Путь Colab /content/... внутри рабочей папки прогона."""
+    return p.replace("/content", work.replace("\\", "/"))
+
+
+def seed_drive(work):
+    """Папка проекта на Диске — как репозиторий: шаблон в корне, модуль в src/."""
+    root = on_disk(work, notebook_param("DRIVE_ROOT"))
+    os.makedirs(os.path.join(root, "src"))
+    shutil.copy(TEMPLATE_FILE, root)
+    shutil.copy(MODULE_FILE, os.path.join(root, "src"))
+
+
 def scen_g():
-    drive_root, history_dir = notebook_param("DRIVE_ROOT"), notebook_param("HISTORY_DIR")
-    on_disk = lambda work, p: p.replace("/content", work.replace("\\", "/"))
-
-    def seed(work):                               # папка проекта на Диске — как репозиторий: шаблон в корне, модуль в src/
-        root = on_disk(work, drive_root)
-        os.makedirs(os.path.join(root, "src"))
-        shutil.copy(TEMPLATE_FILE, root)
-        shutil.copy(MODULE_FILE, os.path.join(root, "src"))
-
-    r1 = run_nb("g1", DEMO_DUMP, [], drive="always", seed=seed)
+    history_dir = notebook_param("HISTORY_DIR")
+    r1 = run_nb("g1", DEMO_DUMP, [], drive="always", seed=seed_drive)
     need_ok(r1, "первый прогон с Диском")
     weeks = glob.glob(os.path.join(on_disk(r1["work"], history_dir), "week_*.json"))
     if not weeks:
@@ -242,6 +255,30 @@ def scen_d():
     return "оба случая остановлены в ячейке 1, модель не вызывалась"
 
 
+def scen_e():
+    repo = pathlib.Path(".").resolve().as_uri()   # «GitHub» = эта папка репозитория: сеть не нужна
+    gone = repo + "/missing"                      # «GitHub недоступен»
+    probs = []
+    r = run_nb("e1", REAL_DUMP, [], code="github", github=repo)
+    need_ok(r, "модуль и шаблон с GitHub")
+    if "(GitHub)" not in r["out"]:
+        probs.append("в строке «🧩» нет пометки (GitHub)")
+    expect_diffs(direct_html(), r["html"], RUN_LOG_DIFFS, "отчёт с модулем с GitHub против прямой сборки")
+    r = run_nb("e2", REAL_DUMP, [], drive="always", seed=seed_drive, code="github", github=gone)
+    need_ok(r, "GitHub недоступен, запасная копия на Диске")
+    if "взята запасная копия" not in r["out"] or "(запасная копия)" not in r["out"]:
+        probs.append("GitHub недоступен: нет предупреждения о запасной копии")
+    r = run_nb("e3", REAL_DUMP, [], code="github", github=gone)
+    if r["ok"] or r["cell"] != 1 or "GitHub недоступен" not in r["error"]:
+        probs.append("GitHub недоступен и копии нет: ждали остановку в ячейке 1, вышло: "
+                     + ("прогон прошёл" if r["ok"] else f"ячейка {r['cell']}, {short(r['error'])}"))
+    if sum(r["calls"].values()):
+        probs.append(f"GitHub недоступен и копии нет: модель вызвана {sum(r['calls'].values())} раз до остановки")
+    if probs:
+        raise Fail("; ".join(probs))
+    return "с GitHub — отчёт = прямая сборка; GitHub недоступен — запасная копия с Диска с предупреждением, без неё — остановка"
+
+
 def preflight():
     """Контроль версий до прогонов: стенд мажора STAND_MAJOR, ноутбук — последний, модуль и шаблон того же мажора."""
     found = []
@@ -274,6 +311,7 @@ SCENARIOS = [
     ("в", "сбои модели → отчёт собирается, повторы срабатывают", scen_v),
     ("г", "Диск и повтор недели из кэша → 0 вызовов, тот же отчёт", scen_g),
     ("д", "чужой мажор шаблона, нет модуля → остановка в ячейке 1", scen_d),
+    ("е", "модуль и шаблон с GitHub, GitHub недоступен → запасная копия или остановка", scen_e),
 ]
 
 

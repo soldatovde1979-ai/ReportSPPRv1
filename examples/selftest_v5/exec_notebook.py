@@ -6,7 +6,8 @@
 #      скачанные файлы, строки лога в Sheets.
 # Вход: python exec_notebook.py <ноутбук.ipynb> <рабочая папка>; параметры — переменные окружения от run.py:
 #      NB_UPLOAD (файлы окна загрузки через «;»), NB_DRIVE (never / always), NB_DEBUG (1 — включить лог в Sheets),
-#      NB_AI_FILE (ответы подставной модели), FAIL_MODE (errors — сбои модели).
+#      NB_AI_FILE (ответы подставной модели), FAIL_MODE (errors — сбои модели),
+#      NB_CODE (drive / github — откуда модуль и шаблон), NB_GITHUB (адрес вместо GITHUB_RAW, на стенде — file://).
 # ----------------------------------------------------------------------
 import sys
 sys.dont_write_bytecode = True                      # стенд не оставляет __pycache__ в проекте
@@ -31,6 +32,13 @@ def patch(pattern, repl, name):
 
 
 patch(r'^DRIVE_MODE = "\w+"', f'DRIVE_MODE = "{os.environ.get("NB_DRIVE", "never")}"', "DRIVE_MODE")
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО: CODE_SOURCE и GITHUB_RAW задаёт стенд; по умолчанию "drive" — прежние сценарии не ходят в GitHub
+# ПОЧЕМУ: ноутбук 5.2 скачивает модуль и шаблон с GitHub; на стенде «GitHub» — file:// папки репозитория, сеть не нужна
+# ----------------------------------------------------------------------
+patch(r'^CODE_SOURCE = "\w+"', f'CODE_SOURCE = "{os.environ.get("NB_CODE", "drive")}"', "CODE_SOURCE")
+if os.environ.get("NB_GITHUB"):
+    patch(r"^GITHUB_RAW = '[^']*'", f"GITHUB_RAW = '{os.environ['NB_GITHUB']}'", "GITHUB_RAW")
 if os.environ.get("NB_DEBUG") == "1":
     patch(r'^IS_DEBUG = \d+', 'IS_DEBUG = 1', "IS_DEBUG")
 cells = [s.replace("/content", work) for s in cells]

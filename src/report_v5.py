@@ -12,7 +12,14 @@
 #   R.AI["slides"] = разборы                                # разборы слайдов (s1…s11)
 #   html = render(R, текст_шаблона, title=...)
 # ----------------------------------------------------------------------
-VERSION = "5.1"                 # 5.1 — блок контроля решений прошлой недели скрыт до Т-70 (my-FT В-21)
+VERSION = "5.2"                 # 5.2 — данные выгрузки 1С v1.7: срок по 1С (tab_sla), оценки (tab_rate), связи (parent)
+# Изменения 5.2 относительно 5.1 (my-FT Т-74, Т-76, Т-77; выгрузка — src/vygruzka-1c.md, п. 2.4):
+#   load()    — читает tab_sla, tab_rate, parent; на строке: h1c (срок по 1С без пауз), rate (последняя оценка);
+#   _metrics  — метрики sla1c_*, rate_*, par_* и a_<код>_rate для каталога ИИ (только если данные есть);
+#   s1, s11   — срок по 1С рядом с нашим и обращения, где сроки сильно расходятся;
+#   s9        — колонка «Оценка польз.» и панель «Оценки пользователей»;
+#   s5        — панель «Связи из 1С: главное — дочернее»;
+#   s10       — tab_sla, tab_rate и parent в паспорте; «Чего нет в выгрузке» — только то, чего правда нет.
 TEMPLATE_MAJOR = 5              # мажор template_v5.html, с которым работает модуль (контроль — check_template)
 
 OLD_BOARD_PREFIX = "Выполнено - "   # статусы старой доски — игнорируются при загрузке (Т-21)
@@ -50,7 +57,9 @@ HOLDER_OF = {"Уточнение": "Пользователь", "Ожидает �
              "Новое": "Поддержка", "Передано в работу": "Поддержка", "Уточнение предоставлено": "Поддержка",
              "Возврат на доработку": "Поддержка", "Перенесено": "Поддержка"}
 FINAL_ST = {"Отработано, требует подтверждения", "Закрыто", "Отклонено"}
-TAB_COLS = {"tab_trud": 2, "tab_status": 4}   # число колонок строки табличной части (data.md, разд. 10)
+# ЧТО ИЗМЕНЕНО (5.2): добавлены tab_sla и tab_rate. ПОЧЕМУ: их отдаёт выгрузка 1С v1.7 (Т-74, Т-77)
+TAB_COLS = {"tab_trud": 2, "tab_status": 4, "tab_sla": 5, "tab_rate": 5}   # число колонок строки (data.md, разд. 10)
+SLA_DIV_X, SLA_DIV_H = 1.5, 1.0     # «сроки расходятся»: больший ≥ меньшего × 1,5 и разница ≥ 1 ч (5.2, Т-74)
 WD = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 MON = ["", "янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
 # ----------------------------------------------------------------------
@@ -240,6 +249,19 @@ def load(raw, dump_name="", report_week=None, history=None, demo=False, say=prin
                     if len(row) != ncol: raise ValueError
                     if tname == "tab_trud":
                         good.append((str(row[0]).strip(), float(row[1])))
+                    # ----------------------------------------------------------------------
+                    # ЧТО ИЗМЕНЕНО (5.2): разбор tab_sla [дата, статус, секунд, пауза, дата смены] и tab_rate [дата, оценка, заявитель, ответственный, комментарий]
+                    # ПОЧЕМУ: Т-74 — срок по 1С рядом с нашим; Т-77 — оценки пользователей (vygruzka-1c.md, п. 2.4)
+                    # ----------------------------------------------------------------------
+                    elif tname == "tab_sla":
+                        dt = P(row[0])
+                        if dt is None: raise ValueError
+                        pause = row[3] is True or str(row[3]).strip().lower() in ("true", "да", "1")
+                        good.append((dt, str(row[1]).strip(), float(row[2] or 0), pause, P(row[4]) if row[4] else None))
+                    elif tname == "tab_rate":
+                        dt = P(row[0])
+                        if dt is None: raise ValueError
+                        good.append((dt, str(row[1]).strip(), str(row[2] or "").strip(), str(row[3] or "").strip(), str(row[4] or "").strip()))
                     else:
                         dt = P(row[0])
                         if dt is None: raise ValueError
@@ -247,6 +269,14 @@ def load(raw, dump_name="", report_week=None, history=None, demo=False, say=prin
                 except (ValueError, TypeError):
                     TAB_BAD[tname] += 1
             r[tname] = good
+        # срок по 1С: секунды в статусах без пауз (как считает 1С; рабочие или календарные — не проверено), часы
+        r["h1c"] = round(sum(x[2] for x in r["tab_sla"] if not x[3]) / 3600, 1) if r["tab_sla"] else None
+        r["p1c"] = round(sum(x[2] for x in r["tab_sla"] if x[3]) / 3600, 1) if r["tab_sla"] else None
+        # оценка пользователя: последняя по дате; число — первая цифра значения («5», «5 - Отлично»)
+        r["rate"] = max(r["tab_rate"], key=lambda x: x[0]) if r["tab_rate"] else None
+        m_ = re.match(r"\s*(\d)", r["rate"][1]) if r["rate"] else None
+        r["rate_v"] = int(m_.group(1)) if m_ else None
+        r["parent"] = str(r.get("parent") or "").strip()
         r["line"] = "L1" if r["anl"].startswith(L1_ANALYST) or L1_WORD in r["sol"].lower() else "L2"
         r["cat"] = "НСИ" if r["sec"] == NSI_SECTION else TYPE_SHORT.get(r["type"], r["type"]).replace("Права", "Права доступа")
         r["is_sol"] = r["st"] in SOLVED
@@ -471,6 +501,29 @@ def _metrics(R):
              lng_cons=len(cons), lng_cons_trud=round(sum(r["trud"] for r in cons)), lng_cons_h=round(sum(r["h"] for r in cons)),
              lng_two=sum(v for _, v in top2), lng_top_h=round(lng[0]["h"]) if lng else None, lng_top_pct=pct(lng[0]["h"], tot_h) if lng else None,
              lng_med=med([r["h"] for r in lng]))
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО (5.2): метрики срока по 1С, оценок пользователей и связей «главное — дочернее»
+    # ПОЧЕМУ: Т-74, Т-76, Т-77 — новые данные выгрузки v1.7 рядом с нашими (дополнение, не замена; оценки — замена);
+    #         нет данных в выгрузке — метрик нет, каталог ИИ их не показывает
+    # ----------------------------------------------------------------------
+    sl = R.sla1c = [r for r in real if r["h1c"] is not None]
+    div = lambda r: max(r["h"], r["h1c"]) >= SLA_DIV_X * min(r["h"], r["h1c"]) and abs(r["h"] - r["h1c"]) >= SLA_DIV_H
+    R.sla_div = sorted([r for r in sl if div(r)], key=lambda r: -abs(r["h"] - r["h1c"]))
+    if sl:
+        M.update(sla1c_n=len(sl), sla1c_med=med([r["h1c"] for r in sl]), sla1c_our_med=med([r["h"] for r in sl]),
+                 sla1c_pause_med=med([r["p1c"] for r in sl]), sla1c_div=len(R.sla_div),
+                 sla1c_div_more=sum(r["h1c"] > r["h"] for r in R.sla_div), sla1c_div_less=sum(r["h1c"] < r["h"] for r in R.sla_div))
+    real4 = R.real4 = [r for r in sol4 if r["cat"] != "Служебное"]
+    rt = R.rated4 = [r for r in real4 if r["rate_v"] is not None]
+    R.rate_on = any(r["tab_rate"] for r in rows)
+    if R.rate_on:
+        M.update(rate_n=len(rt), rate_sol4=len(real4), rate_share=pct(len(rt), len(real4)),
+                 rate_avg=round(statistics.mean(r["rate_v"] for r in rt), 1) if rt else None,
+                 rate_low=sum(r["rate_v"] < 5 for r in rt))
+    R.links = [r for r in rows if r["parent"] and r["reg_dt"] >= W4S]
+    if any(r["parent"] for r in rows):
+        same = [r for r in R.links if r["ai"].get("g") and (R.BYID.get(r["parent"]) or {}).get("ai", {}).get("g") == r["ai"]["g"]]
+        M.update(par_4w=len(R.links), par_main=len({r["parent"] for r in R.links}), par_same_g=len(same))
     num = {k: i + 1 for i, k in enumerate(ORDER)}
     M.update({f"n_{k}": v for k, v in num.items()})   # номера слайдов в текстах разборов ИИ — от порядка слайдов
     # ----------------------------------------------------------------------
@@ -496,6 +549,9 @@ def _metrics(R):
                 "bad": sum(r["anl"] == nm and r["ai"].get("gr") == "П" for r in sol_ai),
                 "old": len(ol), "old0": sum(r["trud"] == 0 for r in ol),
                 "zero4w": pct(sum(r["trud"] == 0 for r in s4), len(s4)) if s4 else None}
+        # ЧТО ИЗМЕНЕНО (5.2): средняя оценка пользователей за 4 недели. ПОЧЕМУ: Т-77 — оценка в рейтинге аналитиков
+        rv = [r["rate_v"] for r in s4 if r["rate_v"] is not None and r["cat"] != "Служебное"]
+        if rv: vals.update(rate=round(statistics.mean(rv), 1), rate_n=len(rv))
         for k, v in vals.items():
             if v is not None: M[f"a_{s}_{k}"] = v
     R.devices = Counter()
@@ -582,10 +638,23 @@ METRIC_INFO = {
     "lng_cons_h": "срок долгостроев-консультаций, раб. ч", "lng_two": "долгостроев у двух аналитиков, у которых их больше всего",
     "lng_top_h": "срок самого долгого обращения, раб. ч", "lng_top_pct": "его доля в часах долгостроя, %",
     "lng_med": "медиана срока долгостроев, раб. ч",
+    # 5.2: данные выгрузки 1С v1.7 (Т-74, Т-76, Т-77)
+    "sla1c_n": "решённых за период без служебных, у которых есть срок по 1С (tab_sla)",
+    "sla1c_med": "медиана срока по 1С, ч: секунды в статусах без пауз (ожидание пользователя 1С не считает)",
+    "sla1c_our_med": "медиана нашего срока, раб. ч, по тем же обращениям, что и sla1c_med",
+    "sla1c_pause_med": "медиана часов на паузе по 1С (ожидание пользователя)",
+    "sla1c_div": f"обращений, где наш срок и срок по 1С расходятся: больший ≥ меньшего × {SLA_DIV_X} и разница ≥ {SLA_DIV_H:g} ч",
+    "sla1c_div_more": "из них по 1С дольше нашего", "sla1c_div_less": "из них по 1С короче нашего",
+    "rate_n": "решённых за 4 недели без служебных с оценкой пользователя", "rate_sol4": "решённых за 4 недели без служебных",
+    "rate_share": "доля решённых за 4 недели с оценкой пользователя, %", "rate_avg": "средняя оценка пользователей за 4 недели (1–5)",
+    "rate_low": "оценок пользователей ниже «5» за 4 недели",
+    "par_4w": "обращений за 4 недели, связанных в 1С с главным (поле parent; заполняют примерно в 70% случаев)",
+    "par_main": "разных главных обращений у этих связей", "par_same_g": "из связанных — в той же группе тем ИИ, что и главное",
 }
 ANL_INFO = {"sol": "решено за период", "mis": "из них с неверным типом", "med": "медиана срока решённых за период, раб. ч",
             "bad": "оценок «Плохо» за период", "old": f"открытых старше {OLD_DAYS} дней", "old0": "из них без единого часа",
-            "zero4w": "доля решённых за 4 недели без часов, %"}
+            "zero4w": "доля решённых за 4 недели без часов, %",
+            "rate": "средняя оценка пользователей за 4 недели (1–5)", "rate_n": "оценок пользователей за 4 недели"}
 
 
 def metric_info(R, k):
@@ -1082,7 +1151,9 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         prev_med = med([r["h"] for r in wk[-2]["s"]])
         k = [kpi("Время до решения, медиана", stamps("sol"), c1(M["med_all"]), "раб. ч",
                  h1(M["med_l1"]), h1(M["med_l2"]),
-                 f'неделей ранее {h1(prev_med)}' + "; раб. ч: 8 ч в рабочем дне, выходные не считаются"),
+                 f'неделей ранее {h1(prev_med)}' + "; раб. ч: 8 ч в рабочем дне, выходные не считаются"
+                 # ЧТО ИЗМЕНЕНО (5.2): срок по 1С рядом с нашим. ПОЧЕМУ: Т-74 — сравнить, потом решить, какой основной
+                 + (f'<br>по 1С без пауз — <b>{c1(M["sla1c_med"])} ч</b> · <a href="#s11">сравнение →</a>' if M.get("sla1c_med") is not None else "")),
              kpi("Решено в пределах рабочего дня", stamps("sol"), le8(real)[:-1], "%", le8(L1), le8(L2), f"≤ {FAST_H} раб. ч от регистрации до решения"),
              kpi("Долгострой", stamps("sol"), str(M["long_all"]), "обращ.", str(M["long_l1"]), str(M["long_l2"]), f'решены, но шли дольше {LONG_H} раб. ч · <a href="#s11">подробно →</a>'),
              kpi("Инциденты", stamps("open", "in"), str(len(oi)), "открыто", f'{sum(r["line"]=="L1" for r in oi)} откр.', f'{sum(r["line"]=="L2" for r in oi)} откр.',
@@ -1248,9 +1319,25 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                    hbars(cnt, unit=" обр.") + f'<p class="cmp">Медиана {c1(M["med_all"])} раб. ч; за рабочий день (≤ {FAST_H} ч) — {sum(c for _, c, _ in cnt[:3])}, долгострой (> {LONG_H} ч) — {cnt[-1][1]} из {len(real)}.</p>',
                    f"Все решённые за {PER_S} без служебных карточек, по сроку от регистрации до решения в рабочих часах (8 ч в рабочем дне, выходные не считаются).",
                    "Одна медиана прячет «два горба»: быстрые решения и хвост, который идёт неделями. Улучшать надо хвост — он и даёт недовольство.")
+        # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО (5.2): панель «Наш срок и срок по 1С» — по tab_sla
+        # ПОЧЕМУ: Т-74 — срок из 1С рядом с нашим; сначала сравнить на неделях, потом решить, какой основной
+        # ----------------------------------------------------------------------
+        p_sla = ""
+        if R.sla1c:
+            dv = R.sla_div
+            body = "".join(f'<tr><td>{tk(r["id"])}</td><td class="c"><b>{c1(r["h"])}</b></td><td class="c"><b>{c1(r["h1c"])}</b></td><td class="c">{c1(r["p1c"])}</td>'
+                           f'<td class="c {"bad" if r["h1c"] > r["h"] else "ok"}">{"по 1С дольше" if r["h1c"] > r["h"] else "по 1С короче"}</td><td>{E(r["cat"])}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in dv[:10])
+            p_sla = panel("Наш срок и срок по 1С", stamps("sol"),
+                          f'<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))"><div class="kpi"><h4>Наш срок, медиана</h4><div class="kpi-v">{c1(M["sla1c_our_med"])}<span>раб. ч</span></div><div class="kpi-s">8 ч в рабочем дне, паузы считаются</div></div>'
+                          f'<div class="kpi"><h4>Срок по 1С, медиана</h4><div class="kpi-v">{c1(M["sla1c_med"])}<span>ч</span></div><div class="kpi-s">без пауз; на паузе — медиана {c1(M["sla1c_pause_med"])} ч</div></div>'
+                          f'<div class="kpi"><h4>Сильно расходятся</h4><div class="kpi-v">{len(dv)}<span>из {len(R.sla1c)}</span></div><div class="kpi-s">по 1С дольше — {M["sla1c_div_more"]}, короче — {M["sla1c_div_less"]}</div></div></div>'
+                          + (f'<div class="ch" style="margin-top:12px">Сильнее всего расходятся — первые {min(10, len(dv))}</div><div class="tw"><table><thead><tr><th>Обращение</th><th>Наш, раб. ч</th><th>По 1С, ч</th><th>Пауза по 1С, ч</th><th>Что</th><th>Тип</th><th>Суть (ИИ)</th></tr></thead><tbody>{body}</tbody></table></div>' if dv else '<p class="cmp">Сильных расхождений нет.</p>'),
+                          f"Решённые за {PER_S} без служебных, у которых в выгрузке есть время по статусам из 1С (tab_sla): {len(R.sla1c)} из {len(real)}. Срок по 1С — сумма секунд в статусах без пауз; рабочие это часы или календарные — ещё не проверено. «Сильно расходятся» — больший срок не меньше меньшего × {c1(SLA_DIV_X)} и разница от {SLA_DIV_H:g} ч.",
+                          "Наш срок считает и ожидание пользователя, 1С — нет. Пока оба рядом: где сильно расходятся — там либо долгое ожидание пользователя, либо статусы ведут не так. По итогам нескольких недель решаем, какой срок основной (my-FT Т-74).")
         return (f'<article class="slide" id="s11"><div class="sh"><h2>Сроки решения и долгострой</h2>'
                 f'<p class="lead">Решено за {PER_S}: {len(real)} обращений без служебных; дольше {LONG_H} раб. ч — {n}</p></div>'
-                + p0 + p1 + p2 + p3 + ai_block("s11") + "</article>")
+                + p0 + p_sla + p1 + p2 + p3 + ai_block("s11") + "</article>")
 
     # ================================================================ СЛАЙД 2 — очередь
     def slide2():
@@ -1589,9 +1676,30 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                    f'<th>Изменение</th></tr></thead><tbody>{body}</tbody></table></div>',
                    f"Пришедшие по разделу за 4 недели (W{wk[-1]['a'].isocalendar()[1]} — отчётный период без выходных). Темнее — больше.",
                    "Раздел, где поток растёт, — первым на разбор: рост почти всегда означает новый дефект или релиз.")
+        # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО (5.2): панель «Связи из 1С: главное — дочернее» по полю parent
+        # ПОЧЕМУ: Т-76 — связь ставят примерно в 70% случаев: помощь группам тем ИИ, но не замена
+        # ----------------------------------------------------------------------
+        p_par = ""
+        if "par_4w" in M:
+            grp_ = by(R.links, lambda r: r["parent"])
+            body = ""
+            for pid, ch_ in sorted(grp_.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+                pg = (BYID.get(pid) or {}).get("ai", {}).get("g")
+                gs = [r["ai"].get("g") for r in ch_]
+                mark = ("—" if not pg or not any(gs) else f'<span class="ok">та же группа</span>' if all(g == pg for g in gs if g)
+                        else '<span class="bad">разные группы</span>')
+                body += (f'<tr><td>{tk(pid)}</td><td>{E((BYID.get(pid) or {}).get("ai", {}).get("s", "") or str((BYID.get(pid) or RAWID.get(pid) or {}).get("desc", ""))[:120])}</td><td class="c"><b>{len(ch_)}</b></td>'
+                         f'<td>{tks([r["id"] for r in ch_][:4])}{"<small class=mut> +" + str(len(ch_) - 4) + "</small>" if len(ch_) > 4 else ""}</td><td>{mark}</td></tr>')
+            p_par = panel(f"Связи из 1С: главное — дочернее", stamps("in4"),
+                          (f'<div class="tw"><table><thead><tr><th>Главное</th><th>Суть</th><th>Дочерних</th><th>Дочерние</th><th>Группа ИИ</th></tr></thead><tbody>{body}</tbody></table></div>'
+                           f'<p class="cmp">За 4 недели связано <b>{M["par_4w"]}</b> обращений с <b>{M["par_main"]}</b> главными; в той же группе тем ИИ, что и главное, — <b>{M["par_same_g"]}</b>.</p>'
+                           if R.links else '<p class="cmp">За 4 недели связей в 1С не ставили.</p>'),
+                          f"Обращения, зарегистрированные за 4 недели ({W4S:%d.%m}–{PER_S[-5:]}), у которых в 1С указано главное (регистр «Связанные требования», поле parent). «Группа ИИ» — совпала ли группа темы дочернего с группой главного (только для решённых за период).",
+                          "Связь ставит аналитик — это подтверждённый повтор. Её ставят не всегда (около 70%), поэтому это подсказка к группам ИИ, а не замена. Много дочерних у одного главного — проблема не решена с первого раза.")
         return (f'<article class="slide" id="s5"><div class="sh"><h2>Повторы: что придёт снова</h2>'
-                f'<p class="lead">Группы тем ИИ по решённым за {PER}; поток по разделам — 4 недели</p></div>'
-                + p1 + p3 + p2 + p4 + ai_block("s5") + "</article>")
+                f'<p class="lead">Группы тем ИИ по решённым за {PER}; связи из 1С и поток по разделам — 4 недели</p></div>'
+                + p1 + p3 + p_par + p2 + p4 + ai_block("s5") + "</article>")
 
     # ================================================================ СЛАЙД 6 — качество и классификация
     def slide6():
@@ -1800,20 +1908,23 @@ def _build(R, with_ai=True, strict=False, run_log=None):
             mi = sum(r in mis for r in l); bd = sum(r["ai"].get("gr") == "П" for r in l); ex = sum(r["ai"].get("gr") == "О" for r in l)
             cxs = [_num(r["ai"]["cx"]) for r in l if r["ai"].get("cx")]
             z = sum(r["trud"] == 0 for r in l4)
+            rv = [r["rate_v"] for r in l4 if r["rate_v"] is not None]   # 5.2, Т-77: оценки пользователей за 4 недели
+            rate_td = (f'<td class="c {"bad" if rv and statistics.mean(rv) < 4.5 else ""}">{c1(round(statistics.mean(rv), 1)) + " · " + str(len(rv)) if rv else "·"}</td>') if R.rate_on else ""
             dim = "" if len(l4) >= 5 else ' class="dim"'
             line = f'{pct(sum(r["line"] == "L1" for r in l4), len(l4))}%'
             body += (f'<tr{dim}><th>{E(short(a))}</th><td>{line}</td><td class="c"><b>{len(l4)}</b></td><td class="c">{len(l) or "·"}</td>'
                      f'<td class="c">{c1(med([r["h"] for r in l4]))}</td>'
                      f'<td class="c {"bad" if k and k > 1.5 else "ok" if k and k < 0.8 else ""}">×{c1(round(k, 1)) if k else "—"}</td>'
                      f'<td class="c">{hsum(l4):.0f}</td><td class="c">{pct(sum(r["cat"] == "Правка данных" for r in l4), len(l4))}%</td>'
-                     f'<td class="c {"bad" if pct(z, len(l4)) >= 30 else ""}">{pct(z, len(l4))}%</td>'
+                     f'<td class="c {"bad" if pct(z, len(l4)) >= 30 else ""}">{pct(z, len(l4))}%</td>{rate_td}'
                      f'<td class="c">{c1(round(statistics.mean(cxs), 1)) if cxs else "·"}</td>'
                      f'<td class="c {"bad" if bd else ""}">{f"{bd} · {pct(bd, len(l))}%" if bd else "·"}</td><td class="c">{f"{ex} · {pct(ex, len(l))}%" if ex else "·"}</td><td class="c {"bad" if mi and pct(mi, len(l)) >= 25 else ""}">{mi or "·"}</td>'
                      f'<td style="text-align:left">{fmt(fix.get(a, ""))}</td></tr>')
         p1 = panel("Сводная таблица и что поправить", stamps("sol4", "sol", "ai"),
-                   f'<div class="tw"><table class="num"><thead><tr><th rowspan="2">Аналитик</th><th rowspan="2">Доля 1-й линии</th><th colspan="7">4 недели — скорость и объём</th><th colspan="4">Период {PER_S} — разбор ИИ</th><th rowspan="2" style="text-align:left">Что поправить (ИИ)</th></tr>'
-                   f'<tr><th>Решено</th><th>за период</th><th>Медиана, раб. ч</th><th>К медиане типа</th><th>Часы</th><th>Доля правок</th><th>Без часов</th><th>Сложн. 1–5</th><th>Плохо · доля</th><th>Отлично · доля</th><th>Неверный тип</th></tr></thead><tbody>{body}</tbody></table></div>',
-                   f"Скорость, объём и часы — за 4 недели ({W4S:%d.%m}–{PER_S[-5:]}), чтобы доли не прыгали от одного обращения; качество, сложность и тип — разбор ИИ решённых за период. «Доля 1-й линии» — сколько его решений по правилу Т-10 относятся к первой линии. «К медиане типа» — правка сравнивается с правкой, инцидент — с инцидентом. Меньше 5 решённых за 4 недели — серым.",
+                   f'<div class="tw"><table class="num"><thead><tr><th rowspan="2">Аналитик</th><th rowspan="2">Доля 1-й линии</th><th colspan="{8 if R.rate_on else 7}">4 недели — скорость и объём</th><th colspan="4">Период {PER_S} — разбор ИИ</th><th rowspan="2" style="text-align:left">Что поправить (ИИ)</th></tr>'
+                   f'<tr><th>Решено</th><th>за период</th><th>Медиана, раб. ч</th><th>К медиане типа</th><th>Часы</th><th>Доля правок</th><th>Без часов</th>{"<th>Оценка польз. · сколько</th>" if R.rate_on else ""}<th>Сложн. 1–5</th><th>Плохо · доля</th><th>Отлично · доля</th><th>Неверный тип</th></tr></thead><tbody>{body}</tbody></table></div>',
+                   f"Скорость, объём и часы — за 4 недели ({W4S:%d.%m}–{PER_S[-5:]}), чтобы доли не прыгали от одного обращения; качество, сложность и тип — разбор ИИ решённых за период. «Доля 1-й линии» — сколько его решений по правилу Т-10 относятся к первой линии. «К медиане типа» — правка сравнивается с правкой, инцидент — с инцидентом. Меньше 5 решённых за 4 недели — серым."
+                   + (" «Оценка польз.» — средняя оценка пользователей (1–5) и число оценок за 4 недели, из 1С." if R.rate_on else ""),
                    "Один балл не строится: скорость, качество и классификация смотрятся рядом. Последняя колонка — конкретная ошибка человека с номером обращения.")
         cx_l = [r for r in real if r["ai"].get("cx")]
         hard = sorted(cx_l, key=lambda r: (-_num(r["ai"]["cx"]), -r["trud"]))[:5]
@@ -1846,8 +1957,29 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                    f'<div class="grid g2">{case(S.get("case_best"), "good", "Лучший")}{case(S.get("case_worst"), "badc", "Худший")}</div>',
                    "Вместо номинаций: один лучший и один худший случай недели с номерами (Т-50).",
                    "Пример для команды: что тиражировать и чего не допускать — на реальном обращении, а не на абстрактном балле.")
+        # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО (5.2): панель «Оценки пользователей» по tab_rate; подзаголовок — без «оценок пока нет»
+        # ПОЧЕМУ: Т-77 — оценки из 1С заменяют заглушку (Т-34); внедрены около двух месяцев назад, оценок пока мало
+        # ----------------------------------------------------------------------
+        p_rate = ""
+        if R.rate_on:
+            rt = R.rated4
+            dist = Counter(r["rate_v"] for r in rt)
+            low = sorted([r for r in rt if r["rate_v"] < 5], key=lambda r: (r["rate_v"], r["rate"][0]))
+            body = "".join(f'<tr><td>{tk(r["id"])}</td><td class="c bad"><b>{r["rate_v"]}</b></td><td>{E(short(r["rate"][2]))}</td><td>{E(r["rate"][4]) or "·"}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in low[:20])
+            if len(low) > 20: body += f'<tr><td colspan="5" class="mut">и ещё {len(low) - 20}</td></tr>'
+            p_rate = panel("Оценки пользователей", stamps("sol4"),
+                           f'<div class="grid g2"><div><div class="ch">Оценки за 4 недели: {len(rt)} из {len(R.real4)} решённых ({M["rate_share"]}%), средняя {c1(M["rate_avg"])}</div>'
+                           f'{hbars([(str(v), dist[v], "#1E8E3E" if v == 5 else "#D08700" if v == 4 else "#D93025") for v in (5, 4, 3, 2, 1)], unit=" оц.")}</div>'
+                           f'<div><div class="ch">Ниже «5» — {len(low)}</div>'
+                           + (f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Оценка</th><th>Кто оценил</th><th>Комментарий</th><th>Суть (ИИ)</th></tr></thead><tbody>{body}</tbody></table></div>' if low else '<p class="cmp">Оценок ниже «5» нет.</p>')
+                           + "</div></div>",
+                           f"Решённые за 4 недели ({W4S:%d.%m}–{PER_S[-5:]}) без служебных; оценка — последняя, которую пользователь поставил в 1С (tab_rate). Оценки внедрены недавно — пока их мало, доля оценённых важнее средней.",
+                           "Прямой голос пользователя вместо автозакрытия: каждая оценка ниже «5» — повод разобрать обращение с аналитиком.")
+        lead9 = (f"Скорость и оценки пользователей — за 4 недели, качество — разбор ИИ за {PER}" if R.rate_on
+                 else f"Скорость — за 4 недели, качество — разбор ИИ за {PER}; оценок пользователей в выгрузке нет")
         return (f'<article class="slide" id="s9"><div class="sh"><h2>Аналитики: скорость, качество, что поправить</h2>'
-                f'<p class="lead">Скорость — за 4 недели, качество — разбор ИИ за {PER}; оценки пользователей в выгрузке пока нет</p></div>' + p1 + p_grab + p_cx + p2 + ai_block("s9") + "</article>")
+                f'<p class="lead">{lead9}</p></div>' + p1 + p_rate + p_grab + p_cx + p2 + ai_block("s9") + "</article>")
 
     # ================================================================ СЛАЙД 10 — паспорт данных
     def slide10():
@@ -1881,11 +2013,16 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         #               ссылка и код сотрудника показываются, только пока их нет в выгрузке (Т-57, Т-69)
         # ПОЧЕМУ: список — то, чего не хватает отчёту сейчас
         # ----------------------------------------------------------------------
-        miss = [("Оценка пользователя и комментарий", "Настоящий сигнал качества вместо автозакрытия; учёт в рейтинге"),
-                ("Дата последнего изменения обращения", "Сколько дней обращение без движения — точнее, чем возраст"),
-                ("История статусов и трудозатраты по исполнителям", "Постановка есть — tab_status, tab_trud (vygruzka-1c.md, п. 2.4); в 1С пока не выгружаются"),
-                ("Номер релиза, которым закрыт инцидент", "Какие инциденты ждут какой релиз"),
+        # ЧТО ИЗМЕНЕНО (5.2): строки про оценки, историю статусов и часы исполнителей — только пока частей нет в выгрузке
+        # ПОЧЕМУ: выгрузка 1С v1.7 их отдаёт; список — то, чего не хватает сейчас
+        miss = ([] if R.rate_on else [("Оценка пользователя и комментарий (tab_rate)", "Настоящий сигнал качества вместо автозакрытия; учёт в рейтинге")]) + \
+               [("Дата последнего изменения обращения", "Сколько дней обращение без движения — точнее, чем возраст")] + \
+               ([] if TAB_ON["tab_status"] and TAB_ON["tab_trud"] else [("История статусов и трудозатраты по исполнителям", "tab_status, tab_trud (vygruzka-1c.md, п. 2.4)")]) + \
+               ([] if TAB_ON["tab_sla"] else [("Время по статусам из 1С (tab_sla)", "Срок по 1С рядом с нашим (Т-74)")]) + \
+               [("Номер релиза, которым закрыт инцидент", "Какие инциденты ждут какой релиз"),
                 ("Выгрузка за 6 месяцев (разово)", "Полная динамика по месяцам")]
+        if "par_4w" not in M:
+            miss.append(("Связь с главным обращением (parent)", "Подтверждённые повторы рядом с группами ИИ (Т-76)"))
         if not any(r.get("url") for r in rows):
             miss.append(("Ссылка на обращение (url)", "Номер в отчёте открывает карточку в СППР (Т-57, vygruzka-1c.md, п. 2.5)"))
         if R.merged.get("cli") is None:
@@ -1898,6 +2035,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         p3 = panel("Правила расчёта", "", f'<div class="tw"><table><tbody>{r_}</tbody></table></div>', "Определения, на которых стоят все цифры.", "Одно определение на весь отчёт — нет «57 против 58» на разных слайдах.")
         tb = "".join(f'<tr><td><b>{t}</b></td><td class="c">{TAB_ON[t]}</td><td class="c">{sum(len(r[t]) for r in rows)}</td><td class="c">{TAB_BAD[t] or "·"}</td></tr>' for t in TAB_COLS)
         tchk = (f'<p class="cmp">Сумма tab_trud = AmountTrud: <span class="{"ok" if not TRUD_MISMATCH else "bad"}">{"сходится у всех" if not TRUD_MISMATCH else "расхождений " + str(len(TRUD_MISMATCH))}</span>.'
+                + f' Связь с главным (parent): у {sum(1 for r in rows if r["parent"])} обращений.'
                 + (' <b class="warn">Части в этой выгрузке выдуманы (демо).</b>' if DEMO_TAB else "") + "</p>")
         p5 = panel("Табличные части обращения", stamps("demo") if DEMO_TAB else "",
                    f'<div class="tw"><table class="num"><thead><tr><th>Часть</th><th>Обращений с частью</th><th>Строк</th><th>Отброшено строк</th></tr></thead><tbody>{tb}</tbody></table></div>{tchk}',

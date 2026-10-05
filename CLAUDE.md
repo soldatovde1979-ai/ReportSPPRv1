@@ -1,6 +1,6 @@
 # CLAUDE.md — ReportSPPR
 
-**Версия: 2.9** · 05.10.2026 · соответствует `RepSSPR_v5.1.ipynb` + `src/report_v5.py` 5.1 + `template_v5.html` 5.0 + стенд `examples/selftest_v5` 1.0 (ноутбуки v4.x, `RepSSPR_v5.0` и `template_v4.html` удалены 02.10, коммит `e81f023`)
+**Версия: 2.10** · 05.10.2026 · соответствует `RepSSPR_v5.1.ipynb` + `src/report_v5.py` 5.2 + `template_v5.html` 5.0 + стенд `examples/selftest_v5` 1.0 (ноутбуки v4.x, `RepSSPR_v5.0` и `template_v4.html` удалены 02.10, коммит `e81f023`)
 
 Служебный документ для ИИ-ассистента, работающего с этим проектом. Перед любой правкой кода или отчёта — прочитать `spec.md` и `data.md`. Где остановилась прошлая сессия, что решено и что открыто — `HANDOFF.md`. Требования пользователя — `docs/my-FT.md` (источник истины).
 

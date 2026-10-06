@@ -12,7 +12,7 @@
 #   R.AI["slides"] = разборы                                # разборы слайдов (s1…s11)
 #   html = render(R, текст_шаблона, title=...)
 # ----------------------------------------------------------------------
-VERSION = "5.3"                 # 5.3 — ячейка «Обращение», раскрытие описания, clean_text, срок у держателя (Т-78…Т-81)
+VERSION = "5.4"                 # 5.4 — фазы срока Ожидание/Уточнение/Решение по tab_status, панель «Из чего состоит срок» (phases_v1)
 # Изменения 5.3 относительно 5.2 (docs/postanovka_tables_v1.md):
 #   load()    — clean_text для desc/sol (исходник — desc_raw/sol_raw, З-2); читает name (выгрузка v1.8, З-3);
 #               hold_days — срок у держателя по tab_status (З-5);
@@ -275,6 +275,58 @@ def holder_hours(r, NOW):
     return out
 
 
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО (5.4): фазы срока решения по истории статусов (постановка phases_v1, разд. 0)
+# ПОЧЕМУ: полное время решения смешивает «не брали в работу», «ждём ответа инициатора» и работу —
+#         разбиение показывает, где теряется время. Хвост подтверждения («Отработано…» → «Закрыто»)
+#         исключается целиком: в выгрузке он константен (медиана 122 ч у 604 из 842) — автоподтверждение
+# ----------------------------------------------------------------------
+CONFIRM_ST = "Отработано, требует подтверждения"
+PH_COLORS = {"wait": "#8A94A6", "clar": "#C9A227", "solve": "#5D86B0"}
+PH_NAMES = [("wait", "Ожидание"), ("clar", "Уточнение"), ("solve", "Решение")]
+
+
+def phases(r):
+    """Фазы календарных часов: Ожидание (до выхода из «Ожидает анализа»), Уточнение (сумма интервалов),
+    Решение (остаток). Конец фаз — первое «Отработано…» или done_dt, если его нет. Нет истории — None."""
+    if not r["tab_status"] or not r["done_dt"]:
+        return None
+    ev = sorted((e for e in r["tab_status"] if e[2] == "карточка"), key=lambda e: e[0])
+    if not ev:
+        return None
+    end = next((e[0] for e in ev if e[3] == CONFIRM_ST), r["done_dt"])
+    total = (end - r["reg_dt"]).total_seconds()
+    if total <= 0:
+        return None
+    wait = total                                            # автозакрытие из ожидания — весь срок Ожидание
+    for e in ev:                                            # первый выход из «Ожидает анализа»
+        if e[3] != "Ожидает анализа":
+            wait = min(total, max(0.0, (e[0] - r["reg_dt"]).total_seconds()))   # событие позже конца — зажать
+            break
+    clar = 0.0
+    for k, e in enumerate(ev):
+        if e[3] != "Уточнение":
+            continue
+        nxt = ev[k + 1][0] if k + 1 < len(ev) else end
+        clar += max(0.0, (min(nxt, end) - e[0]).total_seconds())
+    n_clar = sum(1 for e in ev if e[3] == "Уточнение" and e[0] <= end)
+    return {"wait": wait / 3600, "clar": clar / 3600, "solve": max(0.0, total - wait - clar) / 3600,
+            "n_clar": n_clar, "total": total / 3600}
+
+
+def ph_bar(ph, w=90):
+    """Мини-полоса долей фаз (stacked, цвета PH_COLORS). Нет фаз — пустая строка."""
+    if not ph or not ph.get("total"):
+        return ""
+    seg = "".join(f'<i style="width:{100 * ph[k] / ph["total"]:.1f}%;background:{PH_COLORS[k]}"></i>' for k, _ in PH_NAMES)
+    return f'<span class="phb" style="width:{w}px">{seg}</span>'
+
+
+def ph_legend():
+    """Легенда фаз — цветные плашки «Ожидание / Уточнение / Решение»."""
+    return '<div class="legend">' + "".join(f'<span><i style="background:{PH_COLORS[k]}"></i>{n}</span>' for k, n in PH_NAMES) + "</div>"
+
+
 # ================================================================ ЗАГРУЗКА И ПЕРИОД
 def load(raw, dump_name="", report_week=None, history=None, demo=False, say=print):
     """Выгрузка (список объектов JSON) → Report: строки, отчётный период, выборки. Разметки ИИ ещё нет."""
@@ -370,6 +422,11 @@ def load(raw, dump_name="", report_week=None, history=None, demo=False, say=prin
                 start = e[0]
             if start is not None:
                 r["hold_days"] = max(0, (R.NOW - start).days)
+        # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО (5.4): фазы срока решения — Ожидание / Уточнение / Решение (phases_v1, разд. 0–1)
+        # ПОЧЕМУ: полное время смешивает очередь, ожидание инициатора и работу; нет истории или даты решения — None
+        # ----------------------------------------------------------------------
+        r["ph"] = phases(r)
         # служебные карточки учёта времени: явные признаки в тексте (разметка ИИ SVC — в attach_ai)
         if re.search(SVC_RX, r["desc"] + " " + r["sol"], re.I):
             r["cat"] = "Служебное"
@@ -600,6 +657,38 @@ def _metrics(R):
                  sla1c_pause_med=med([r["p1c"] for r in sl]), sla1c_div=len(R.sla_div),
                  sla1c_div_more=sum(r["h1c"] > r["h"] for r in R.sla_div), sla1c_div_less=sum(r["h1c"] < r["h"] for r in R.sla_div))
     real4 = R.real4 = [r for r in sol4 if r["cat"] != "Служебное"]
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО (5.4): метрики фаз срока — Ожидание/Уточнение/Решение (phases_v1, разд. 1)
+    # ПОЧЕМУ: каталог метрик должен быть полным до вызова модели; фазы — календарные часы,
+    #         хвост подтверждения исключён; медианы фаз не суммируются в медиану полного срока
+    # ----------------------------------------------------------------------
+    phs = R.phs = [r for r in real if r["ph"]]
+    if phs:
+        p90 = lambda xs: round(sorted(xs)[min(len(xs) - 1, int(0.9 * len(xs)))], 1) if xs else None
+        sh = lambda k: [100 * r["ph"][k] / r["ph"]["total"] for r in phs if r["ph"]["total"] > 0]
+        wsu = lambda k: 100 * sum(r["ph"][k] for r in phs) / sum(r["ph"]["total"] for r in phs)
+        M.update(ph_n=len(phs),
+                 ph_wait_med=med([r["ph"]["wait"] for r in phs]), ph_clar_med=med([r["ph"]["clar"] for r in phs]),
+                 ph_solve_med=med([r["ph"]["solve"] for r in phs]),
+                 ph_wait_p90=p90([r["ph"]["wait"] for r in phs]), ph_clar_p90=p90([r["ph"]["clar"] for r in phs]),
+                 ph_solve_p90=p90([r["ph"]["solve"] for r in phs]),
+                 ph_wait_sh=round(statistics.median(sh("wait")), 1), ph_clar_sh=round(statistics.median(sh("clar")), 1),
+                 ph_solve_sh=round(statistics.median(sh("solve")), 1),
+                 ph_wait_wsh=round(wsu("wait"), 1), ph_clar_wsh=round(wsu("clar"), 1), ph_solve_wsh=round(wsu("solve"), 1))
+        M["fe"] = M["ph_solve_sh"]                                     # flow efficiency: медиана доли «Решения», %
+        M["clar_n"] = sum(r["ph"]["clar"] > 0 for r in phs); M["clar_share"] = pct(M["clar_n"], len(phs))
+        M["clar_pingpong"] = pct(sum(r["ph"]["n_clar"] >= 2 for r in phs), len(phs))
+        for ln, lst in (("l1", L1), ("l2", L2)):
+            p2_ = [r for r in lst if r["ph"]]
+            if p2_:
+                M[f"ph_{ln}_wait_med"] = med([r["ph"]["wait"] for r in p2_])
+                M[f"ph_{ln}_solve_med"] = med([r["ph"]["solve"] for r in p2_])
+                M[f"ph_{ln}_wsh"] = round(100 * sum(r["ph"]["wait"] for r in p2_) / sum(r["ph"]["total"] for r in p2_), 1)
+        # без автозакрытых из ожидания (Решение = 0) — доля Ожидания не должна выглядеть катастрофой (phases_v1, 5.7)
+        nw = [r for r in phs if r["ph"]["solve"] > 0 or r["ph"]["clar"] > 0]
+        if len(nw) < len(phs):
+            M["ph_wait_wsh_nofa"] = round(100 * sum(r["ph"]["wait"] for r in nw) / sum(r["ph"]["total"] for r in nw), 1)
+            M["ph_nofa_n"] = len(nw)
     rt = R.rated4 = [r for r in real4 if r["rate_v"] is not None]
     R.rate_on = any(r["tab_rate"] for r in rows)
     if R.rate_on:
@@ -736,6 +825,23 @@ METRIC_INFO = {
     "rate_low": "оценок пользователей ниже «5» за 4 недели",
     "par_4w": "обращений за 4 недели, связанных в 1С с главным (поле parent; заполняют примерно в 70% случаев)",
     "par_main": "разных главных обращений у этих связей", "par_same_g": "из связанных — в той же группе тем ИИ, что и главное",
+    # 5.4: фазы срока решения (phases_v1) — календарные часы по tab_status, хвост подтверждения исключён
+    "ph_n": "решённых за период без служебных, у которых фазы срока посчитаны по истории статусов (tab_status)",
+    "ph_wait_med": "медиана фазы «Ожидание» (регистрация → выход из «Ожидает анализа»), кал. ч",
+    "ph_clar_med": "медиана фазы «Уточнение» (сумма интервалов «Уточнение»), кал. ч",
+    "ph_solve_med": "медиана фазы «Решение» (работа: анализ, разработка, тесты), кал. ч",
+    "ph_wait_p90": "p90 фазы «Ожидание», кал. ч", "ph_clar_p90": "p90 фазы «Уточнение», кал. ч", "ph_solve_p90": "p90 фазы «Решение», кал. ч",
+    "ph_wait_sh": "медиана доли «Ожидания» в календарном сроке, %", "ph_clar_sh": "медиана доли «Уточнения», %",
+    "ph_solve_sh": "медиана доли «Решения» (flow efficiency), %",
+    "ph_wait_wsh": "взвешенная часами доля «Ожидания», %", "ph_clar_wsh": "взвешенная доля «Уточнения», %", "ph_solve_wsh": "взвешенная доля «Решения», %",
+    "fe": "flow efficiency: медиана доли работы («Решения») в календарном сроке, %",
+    "clar_n": "решённых с уточнением (хотя бы одним)", "clar_share": "доля решённых с уточнением, %",
+    "clar_pingpong": "доля решённых, возвращавшихся на уточнение дважды и больше, %",
+    "ph_l1_wait_med": "медиана фазы «Ожидание» первой линии, кал. ч", "ph_l1_solve_med": "медиана фазы «Решение» первой линии, кал. ч",
+    "ph_l1_wsh": "взвешенная доля «Ожидания» первой линии, %",
+    "ph_l2_wait_med": "медиана фазы «Ожидание» второй линии, кал. ч", "ph_l2_solve_med": "медиана фазы «Решение» второй линии, кал. ч",
+    "ph_l2_wsh": "взвешенная доля «Ожидания» второй линии, %",
+    "ph_wait_wsh_nofa": "взвешенная доля «Ожидания» без автозакрытых из ожидания, %", "ph_nofa_n": "решённых без автозакрытия из ожидания",
 }
 ANL_INFO = {"sol": "решено за период", "mis": "из них с неверным типом", "med": "медиана срока решённых за период, раб. ч",
             "bad": "оценок «Плохо» за период", "old": f"открытых старше {OLD_DAYS} дней", "old0": "из них без единого часа",
@@ -1300,7 +1406,9 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                  h1(M["med_l1"]), h1(M["med_l2"]),
                  f'неделей ранее {h1(prev_med)}' + "; раб. ч: 8 ч в рабочем дне, выходные не считаются"
                  # ЧТО ИЗМЕНЕНО (5.2): срок по 1С рядом с нашим. ПОЧЕМУ: Т-74 — сравнить, потом решить, какой основной
-                 + (f'<br>по 1С без пауз — <b>{c1(M["sla1c_med"])} ч</b> · <a href="#s11">сравнение →</a>' if M.get("sla1c_med") is not None else "")),
+                 + (f'<br>по 1С без пауз — <b>{c1(M["sla1c_med"])} ч</b> · <a href="#s11">сравнение →</a>' if M.get("sla1c_med") is not None else "")
+                 # ЧТО ИЗМЕНЕНО (5.4): фазы срока рядом с медианой (phases_v1, разд. 2.3)
+                 + (f'<br>из них ожидание {c1(M["ph_wait_wsh"])}% · уточнение {c1(M["ph_clar_wsh"])}% календарного времени · <a href="#s11">фазы →</a>' if M.get("ph_wait_wsh") is not None else "")),
              kpi("Решено в пределах рабочего дня", stamps("sol"), le8(real)[:-1], "%", le8(L1), le8(L2), f"≤ {FAST_H} раб. ч от регистрации до решения"),
              kpi("Долгострой", stamps("sol"), str(M["long_all"]), "обращ.", str(M["long_l1"]), str(M["long_l2"]), f'решены, но шли дольше {LONG_H} раб. ч · <a href="#s11">подробно →</a>'),
              kpi("Инциденты", stamps("open", "in"), str(len(oi)), "открыто", f'{sum(r["line"]=="L1" for r in oi)} откр.', f'{sum(r["line"]=="L2" for r in oi)} откр.',
@@ -1320,8 +1428,14 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         for c in CATS + ["Служебное"]:
             s = [r for r in sol if r["cat"] == c]
             if not s: continue
+            # ЧТО ИЗМЕНЕНО (5.4): мини-полоса долей фаз типа (phases_v1, разд. 2.4); числа — по наведению
+            ag = None
+            if any(r["ph"] for r in s):
+                ag = {k_: sum(r["ph"][k_] for r in s if r["ph"]) for k_, _ in PH_NAMES}
+                ag["total"] = sum(r["ph"]["total"] for r in s if r["ph"])
             cards += (f'<div class="tc" style="--c:{CAT_COLOR[c]}"><span>{c}</span><b>{c1(med([r["h"] for r in s]))}</b><small>раб. ч медиана</small>'
-                      f'<em>{len(s)} решено · {hsum(s):.0f} ч трудозатрат</em></div>')
+                      f'<em>{len(s)} решено · {hsum(s):.0f} ч трудозатрат</em>'
+                      + (f'<em>{ph_bar(ag, w=120)}</em>' if ag else "") + "</div>")
         row2 = panel("Сколько ждут решения — по типам", stamps("sol"), f'<div class="tcs">{cards}</div>',
                      "Медиана от регистрации до решения по типу при регистрации. НСИ — раздел «Нормализация» целиком, «Правка данных» — без НСИ. Трудозатраты — поле AmountTrud.",
                      "Сравнение типов между собой: какой тип заставляет ждать и сколько стоит в часах. Инцидент в десятки раз медленнее правки — место для ускорения.")
@@ -1342,11 +1456,17 @@ def _build(R, with_ai=True, strict=False, run_log=None):
             lab = f'W{w["a"].isocalendar()[1]}|{w["a"]:%d.%m}' + (f" · {nd} дн." if nd < 7 else "")
             wgroups += [(lab.replace("|", " пришло|"), Counter(r["cat"] for r in w["i"]), False),
                         (lab.replace("|", " решено|"), Counter(r["cat"] for r in w["s"]), False)]
-        tbl = "".join(f'<tr><td>W{w["a"].isocalendar()[1]} · {w["a"]:%d.%m}–{(w["b"]-timedelta(days=1)):%d.%m}</td><td>{len(w["i"])}</td><td>{len(w["s"])}</td>'
-                      f'<td>{len(w["j"])}</td><td class="{"bad" if w["dq"] > 0 else "ok"}">{w["dq"]:+d}</td><td>{c1(med([r["h"] for r in w["s"]]))}</td><td>{hsum(w["s"]):.0f}</td></tr>' for w in wk)
+        # ЧТО ИЗМЕНЕНО (5.4): колонка «Ожидание+уточнение, %» — взвешенная доля этих фаз в календарном времени решённых недели (phases_v1, разд. 2.5)
+        tbl = ""
+        for w in wk:
+            pp = [r for r in w["s"] if r["ph"]]
+            wu = f'{100 * (sum(r["ph"]["wait"] for r in pp) + sum(r["ph"]["clar"] for r in pp)) / sum(r["ph"]["total"] for r in pp):.0f}%' \
+                if pp and sum(r["ph"]["total"] for r in pp) > 0 else "·"
+            tbl += (f'<tr><td>W{w["a"].isocalendar()[1]} · {w["a"]:%d.%m}–{(w["b"]-timedelta(days=1)):%d.%m}</td><td>{len(w["i"])}</td><td>{len(w["s"])}</td>'
+                    f'<td>{len(w["j"])}</td><td class="{"bad" if w["dq"] > 0 else "ok"}">{w["dq"]:+d}</td><td>{c1(med([r["h"] for r in w["s"]]))}</td><td>{hsum(w["s"]):.0f}</td><td>{wu}</td></tr>')
         row4 = panel("Динамика по неделям", stamps("in4", "sol4"),
                      f'{stack_svg([(g[0].replace(" пришло", " ▲").replace(" решено", " ▼"), g[1], g[2]) for g in wgroups], cats7, w=1100, h=240)}{legend(cats7)}'
-                     f'<div class="tw"><table class="num"><thead><tr><th>Неделя</th><th>▲ Пришло</th><th>▼ Решено</th><th>✕ Отклонено</th><th>Очередь</th><th>Медиана, ч</th><th>Трудозатраты, ч</th></tr></thead><tbody>{tbl}</tbody></table></div>',
+                     f'<div class="tw"><table class="num"><thead><tr><th>Неделя</th><th>▲ Пришло</th><th>▼ Решено</th><th>✕ Отклонено</th><th>Очередь</th><th>Медиана, ч</th><th>Трудозатраты, ч</th><th>Ожидание+уточнение, %</th></tr></thead><tbody>{tbl}</tbody></table></div>',
                      f"Пары столбцов: ▲ пришло и ▼ решено за неделю по типам. Последняя неделя — отчётный период {PER_S} (без выходных). Источник — та же выгрузка за 4 недели.",
                      "Тренд, а не один снимок: поток снижается, очередь тает — или наоборот. Смена состава типов видна раньше, чем рост очереди.")
         # строка 5 — по месяцам
@@ -1442,11 +1562,13 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         p1 = ('<div class="grid g4">' + "".join(k) + "</div>"
               f'<p class="why rowwhy"><b>Что это.</b> Решённые за {PER_S} обращения, шедшие дольше {LONG_H} раб. ч (8 ч в рабочем дне, выходные и праздники не считаются); служебные карточки исключены. Мелко — первая и вторая линия.</p>'
               '<p class="use rowwhy"><b>Польза / проблема.</b> Сколько обращений «зависает» и как мало в этом времени работы: если работы единицы процентов — проблема в ожидании, а не в сложности.</p>')
-        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td class="c"><b>{r["h"]:g}</b></td><td class="c">{r["trud"]:g}</td><td>{E(r["cat"])}</td><td>{E(r["sec"])}</td>'
-                       f'<td>{"1-я" if r["line"] == "L1" else "2-я"}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in lng)
+        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td class="c"><b>{r["h"]:g}</b></td><td class="c">{r["trud"]:g}</td>'
+                       + (f'<td class="c">{r["ph"]["wait"]/24:.0f}</td><td class="c">{r["ph"]["clar"]/24:.0f}</td><td class="c">{r["ph"]["solve"]/24:.0f}</td><td>{ph_bar(r["ph"], w=72)}</td>'
+                          if r["ph"] else '<td class="mut">·</td><td class="mut">·</td><td class="mut">·</td><td></td>')
+                       + f'<td>{E(r["cat"])}</td><td>{E(r["sec"])}</td><td>{"1-я" if r["line"] == "L1" else "2-я"}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in lng)
         p2 = panel(f"Все долгострои периода — {n}", stamps("sol", "ai"),
-                   f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Срок, раб. ч</th><th>Работа, ч</th><th>Тип</th><th>Раздел</th><th>Линия</th><th>Суть (ИИ)</th></tr></thead><tbody>{body}</tbody></table></div>',
-                   f"Решённые за период, шедшие дольше {LONG_H} раб. ч, от самого долгого (бывший «Топ-10 самых длительных» приложения старого отчёта, Т-51). Дата и аналитик — в номере.",
+                   f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Срок, раб. ч</th><th>Работа, ч</th><th>Ожидание, дн</th><th>Уточнение, дн</th><th>Решение, дн</th><th>Фазы</th><th>Тип</th><th>Раздел</th><th>Линия</th><th>Суть (ИИ)</th></tr></thead><tbody>{body}</tbody></table></div>',
+                   f"Решённые за период, шедшие дольше {LONG_H} раб. ч, от самого долгого (бывший «Топ-10 самых длительных» приложения старого отчёта, Т-51). Дата и аналитик — в номере. Фазы — календарные дни без хвоста подтверждения; полоса — доли фаз (phases_v1).",
                    "С этих строк начинается разбор: где ждали — у пользователя, в анализе или у разработки. Большой срок при малой работе — ожидание.")
         bt = Counter(r["cat"] for r in lng).most_common(); ba = Counter(short(r["anl"]) for r in lng).most_common(); bs = Counter(r["sec"] for r in lng).most_common(6)
         p3 = panel("Кто и что в долгострое", stamps("sol"),
@@ -1467,6 +1589,24 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                    f"Все решённые за {PER_S} без служебных карточек, по сроку от регистрации до решения в рабочих часах (8 ч в рабочем дне, выходные не считаются).",
                    "Одна медиана прячет «два горба»: быстрые решения и хвост, который идёт неделями. Улучшать надо хвост — он и даёт недовольство.")
         # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО (5.4): панель «Из чего состоит срок» — фазы Ожидание/Уточнение/Решение (phases_v1)
+        # ПОЧЕМУ: полное время смешивает очередь, ожидание инициатора и работу; хвост автоподтверждения исключён
+        # ----------------------------------------------------------------------
+        p_ph = ""
+        if M.get("ph_n"):
+            phs = R.phs
+            tot = sum(r["ph"]["total"] for r in phs) or 1
+            seg = "".join(f'<i style="width:{100 * sum(r["ph"][k] for r in phs) / tot:.1f}%;background:{PH_COLORS[k]}"></i>' for k, _ in PH_NAMES)
+            cell = lambda k, n: (f'<div class="kpi"><h4>{n}</h4><div class="kpi-v">{c1(M["ph_" + k + "_med"])}<span>ч медиана</span></div>'
+                                 f'<div class="kpi-s">p90 {c1(M["ph_" + k + "_p90"])} ч · взвешенно {c1(M["ph_" + k + "_wsh"])}% времени</div></div>')
+            nofa = f'Без автозакрытых из ожидания ({M["ph_nofa_n"]}) — Ожидание {c1(M["ph_wait_wsh_nofa"])}%. ' if M.get("ph_wait_wsh_nofa") is not None else ""
+            p_ph = panel("Из чего состоит срок", stamps("sol"),
+                         f'<span class="hb-t" style="display:flex;width:100%;height:18px">{seg}</span>{ph_legend()}'
+                         f'<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-top:10px">{cell("wait", "Ожидание — не брали в работу")}{cell("clar", "Уточнение — ждём инициатора")}{cell("solve", "Решение — работа")}</div>'
+                         f'<p class="cmp">Уточнение было у {M["clar_n"]} из {M["ph_n"]} ({M["clar_share"]}%); возвращались дважды и больше — {M["clar_pingpong"]}%. {nofa}Хвост автоподтверждения («Отработано…» → «Закрыто») исключён.</p>',
+                         f"Календарные часы {M['ph_n']} решённых за {PER_S} без служебных по истории статусов (tab_status); конец фаз — первое «Отработано, требует подтверждения». Цвета: серый — Ожидание, янтарный — Уточнение, синий — Решение.",
+                         "Показывает, где теряется время: долгое Ожидание — не брали в работу; Уточнение — мяч у инициатора; Решение — наша работа. flow efficiency (доля Решения) — главный ответ, у кого мяч.")
+        # ----------------------------------------------------------------------
         # ЧТО ИЗМЕНЕНО (5.2): панель «Наш срок и срок по 1С» — по tab_sla
         # ПОЧЕМУ: Т-74 — срок из 1С рядом с нашим; сначала сравнить на неделях, потом решить, какой основной
         # ----------------------------------------------------------------------
@@ -1484,7 +1624,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                           "Наш срок считает и ожидание пользователя, 1С — нет. Пока оба рядом: где сильно расходятся — там либо долгое ожидание пользователя, либо статусы ведут не так. По итогам нескольких недель решаем, какой срок основной (my-FT Т-74).")
         return (f'<article class="slide" id="s11"><div class="sh"><h2>Сроки решения и долгострой</h2>'
                 f'<p class="lead">Решено за {PER_S}: {len(real)} обращений без служебных; дольше {LONG_H} раб. ч — {n}</p></div>'
-                + p0 + p_sla + p1 + p2 + p3 + ai_block("s11") + "</article>")
+                + p0 + p_ph + p_sla + p1 + p2 + p3 + ai_block("s11") + "</article>")
 
     # ================================================================ СЛАЙД 2 — очередь
     def slide2():
@@ -1509,7 +1649,10 @@ def _build(R, with_ai=True, strict=False, run_log=None):
             tt = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td class="c">{hh[r["id"]]["Пользователь"]:.0f}</td><td class="c">{hh[r["id"]]["Поддержка"]:.0f}</td><td class="c">{hh[r["id"]]["Разработка"]:.0f}</td></tr>' for r in top if hh[r["id"]]["Пользователь"] > 0)
             p_wait = panel("Где ждали решённые за период — по истории статусов", stamps("sol", "demo" if DEMO_TAB else "sol"),
                            f'<div class="grid g2"><div class="tw"><table class="num"><thead><tr><th>Держатель</th><th>Обращ.</th><th>Медиана, ч</th><th>Доля времени</th><th></th></tr></thead><tbody>{body}</tbody></table>'
-                           f'<p class="cmp">Возвращали пользователю на уточнение дважды и больше: <b>{len(pingpong)}</b>. Закрыто автоматически: <b>{len(auto)}</b> из {len(closed)} закрытых.</p></div>'
+                           f'<p class="cmp">'
+                           + (f'Фазы решённых за период: Ожидание <b>{c1(M["ph_wait_wsh"])}%</b> · Уточнение <b>{c1(M["ph_clar_wsh"])}%</b> · Решение <b>{c1(M["ph_solve_wsh"])}%</b> календарного времени (взвешенно). '
+                              if M.get("ph_wait_wsh") is not None else "")
+                           + f'Возвращали пользователю на уточнение дважды и больше: <b>{len(pingpong)}</b>. Закрыто автоматически: <b>{len(auto)}</b> из {len(closed)} закрытых.</p></div>'
                            f'<div><div class="ch">Дольше всего ждали пользователя, ч</div><div class="tw"><table class="num"><thead><tr><th>Обращение</th><th>Пользователь</th><th>Поддержка</th><th>Разработка</th></tr></thead><tbody>{tt}</tbody></table></div></div></div>',
                            f"Календарные часы в каждом статусе из табличной части tab_status для {len(ws)} решённых за период; держатель — по статусу (data.md, разд. 10).",
                            "Показывает, где на самом деле теряется время: у пользователя, в анализе или у разработки. Пинг-понг с уточнениями и автозакрытие видны по фактам, а не по догадке.",
@@ -2006,9 +2149,17 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         t5 = "".join(f'<tr><th>{E(short(a))}</th><td>{len(l)}</td><td class="{"bad" if pct(sum(r["trud"] == 0 for r in l), len(l)) >= 30 else ""}">{pct(sum(r["trud"] == 0 for r in l), len(l))}%</td></tr>'
                      for a, l in sorted(anl4.items(), key=lambda kv: -pct(sum(r["trud"] == 0 for r in kv[1]), len(kv[1]))) if len(l) >= 2)
         wr = M["wait_ratio"]
+        # ЧТО ИЗМЕНЕНО (5.4): фазы календарного времени за 4 недели рядом с таблицей (phases_v1, разд. 2.7)
+        p44 = [r for r in s4 if r["ph"]]
+        ph8 = ""
+        if p44:
+            t_ = sum(r["ph"]["total"] for r in p44) or 1
+            ph8 = (f'<p class="cmp">Фазы календарного времени за 4 недели: '
+                   + " · ".join(f'{n} <b>{100 * sum(r["ph"][k_] for r in p44) / t_:.0f}%</b>' for k_, n in PH_NAMES)
+                   + f' — работа занимает {100 * sum(r["ph"]["solve"] for r in p44) / t_:.0f}% времени (flow efficiency).</p>')
         p3 = panel("Работали против ждали", stamps("sol4"),
                    f'<div class="grid g2"><div class="tw"><table class="num"><thead><tr><th>Тип</th><th>Работа, ч (медиана)</th><th>Календарно, ч (медиана)</th><th>Часов ожидания на час работы</th></tr></thead><tbody>{t4}</tbody></table></div>'
-                   f'<div class="tw"><div class="ch">Дисциплина учёта: доля решённых без часов</div><table class="num"><thead><tr><th>Аналитик</th><th>Решено</th><th>Без часов</th></tr></thead><tbody>{t5}</tbody></table></div></div>',
+                   f'<div class="tw"><div class="ch">Дисциплина учёта: доля решённых без часов</div><table class="num"><thead><tr><th>Аналитик</th><th>Решено</th><th>Без часов</th></tr></thead><tbody>{t5}</tbody></table></div></div>{ph8}',
                    "Слева — сколько обращение реально делали (трудозатраты) и сколько оно шло по календарю. Справа — у кого часы не списаны (от 2 решённых).",
                    (f"Обращение ждёт в {wr} раз дольше, чем над ним работают: ускорять надо очередь и маршрут, а не людей. " if wr is not None else
                     "Часы по решённым за период не списаны — соотношение работы и ожидания не посчитать. ")
@@ -2140,7 +2291,10 @@ def _build(R, with_ai=True, strict=False, run_log=None):
               # ЧТО ИЗМЕНЕНО: проверка номеров — по факту, а не постоянная строка «все = все». ПОЧЕМУ: в v5 тексты пишет модель
               ("Номера в разборах ИИ есть в выгрузке", "все", "все" if not bad_ids else f"нет {len(bad_ids)}"),
               ("Сумма «кто держит» = открытые", len(opn), sum(1 for r in opn if r["holder"] in HOLDERS)),
-              ("Первая + вторая линия = решённые без служебных", len(real), len(L1) + len(L2))]
+              ("Первая + вторая линия = решённые без служебных", len(real), len(L1) + len(L2)),
+              # ЧТО ИЗМЕНЕНО (5.4): контрольная сумма фаз (phases_v1, разд. 0)
+              ("Сумма фаз = времени до первого «Отработано…»", sum(1 for r in rows if r["ph"]),
+               sum(1 for r in rows if r["ph"] and abs(r["ph"]["wait"] + r["ph"]["clar"] + r["ph"]["solve"] - r["ph"]["total"]) < 0.02))]
         body = "".join(f'<tr><td>{E(a)}</td><td class="c">{b}</td><td class="c">{c}</td><td class="{"ok" if b == c else "bad"}">{"сходится" if b == c else "расхождение"}</td></tr>' for a, b, c in ch)
         sel = [("▲ Пришло", f"дата регистрации в {PER}", len(inc)), ("▼ Решено", f"статус «Закрыто» или «Отработано…», дата решения в {PER}", len(sol)),
                ("✕ Отклонено", f"статус «Отклонено», дата отклонения в {PER}", len(rej)), ("● Открыто", f"не решены и не отклонены на {NOW:%d.%m %H:%M}", len(opn)),
@@ -2153,6 +2307,8 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                  ("Первая линия", f"Ответственный — {L1_ANALYST} или в решении есть «{L1_WORD}»; остальное — вторая."),
                  ("НСИ", f"Раздел «{NSI_SECTION}» целиком; «Правка данных» — тип «Изменение данных в системе» вне НСИ."),
                  ("Срок решения", f"Календарные часы рабочих дней от регистрации до решения / {SLA_DIVIDER}: 8 ч в рабочем дне, выходные и праздники РФ не считаются (Т-67, Т-68); позже — настоящий SLA из 1С. Дата решения — «Отработано»; «Закрыто» — формальная."),
+                 # ЧТО ИЗМЕНЕНО (5.4): правило фаз срока (phases_v1)
+                 ("Фазы срока", "По истории статусов (tab_status), календарные часы: Ожидание — до выхода из «Ожидает анализа», Уточнение — сумма интервалов «Уточнение», Решение — остальное до первого «Отработано, требует подтверждения» (или до даты решения). Хвост автоподтверждения исключён целиком; полный срок в раб. ч считается как раньше, без исключений."),
                  ("Трудозатраты", "AmountTrud, часы по обращению на момент выгрузки; 0 — не списано."),
                  ("Сложность и расход ИИ", ai_rule),
                  ("Служебные карточки", f"ИИ помечает карточки учёта времени и поручения, плюс явные признаки в тексте ({SVC_RX}) — из скорости и цены исключаются.")]

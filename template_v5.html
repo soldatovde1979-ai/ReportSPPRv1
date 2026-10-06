@@ -1,12 +1,15 @@
-{#- template_v5.html · TEMPLATE_VERSION = "5.1" · 05.10.2026
+{#- template_v5.html · TEMPLATE_VERSION = "5.2" · 06.10.2026
     Оболочка отчёта ReportSPPR v5: стили, верхняя панель, меню слайдов, переключение слайдов.
     Слайды и меню собирает модуль src/report_v5.py (render) — он же проверяет мажор этого шаблона.
     Переменные: title — заголовок вкладки; banner — плашка над отчётом (только макет), текст;
     period — неделя, период, срез; rail — HTML меню; slides — HTML слайдов.
     5.1: раскрытие описания и решения по клику (З-4, Т-78) — кнопки .tname/.tmore и блок .xfull
-    собирает модуль; шаблон добавляет стили и обработчик клика. Без сети и внешних библиотек. -#}
+    собирает модуль; шаблон добавляет стили и обработчик клика. Без сети и внешних библиотек.
+    5.2: фазы срока решения (phases_v1) — токены цветов фаз --ph-wait/--ph-clar/--ph-solve и
+    мини-полоса долей .phb (собирает модуль); без скриптов. -#}
 <!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }}</title><style>
 :root{--page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
+--ph-wait:#8A94A6;--ph-clar:#C9A227;--ph-solve:#5D86B0;
 --num:"Bahnschrift","DIN Alternate","Roboto Condensed","Arial Narrow",sans-serif;--text:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font:15px/1.45 var(--text);color:var(--ink);background:var(--page);font-variant-numeric:tabular-nums}
@@ -93,6 +96,7 @@ table.ai td:first-child{min-width:170px}table.dec td:first-child{width:18%}
 .own-n{font:600 26px/1 var(--num)}.own-n small{display:block;font:12px var(--text);color:var(--muted);margin-top:3px}
 .hbars{display:grid;gap:6px}.hb{display:grid;grid-template-columns:minmax(120px,44%) 1fr 52px;gap:10px;align-items:center;font-size:13.5px}
 .hb-l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hb-t{height:14px;background:var(--wash);border-radius:2px;overflow:hidden;background-image:repeating-linear-gradient(90deg,transparent 0,transparent calc(25% - 1px),#C9D1D9 calc(25% - 1px),#C9D1D9 25%)}.hb-t i{display:block;height:100%}
+.phb{display:inline-flex;height:9px;border-radius:2px;overflow:hidden;vertical-align:-1px}.phb i{display:block;height:100%}.ph-wait{color:var(--ph-wait)}.ph-clar{color:var(--ph-clar)}.ph-solve{color:var(--ph-solve)}
 .hb-v{font:600 15px var(--num);text-align:right}.hb-v small{font:12px var(--text);color:var(--muted)}
 .big-claim{display:flex;gap:22px;align-items:center}.bc-n{font:600 96px/0.9 var(--num);color:#B7800F}.bc-n span{font-size:48px}
 .bc-t{font-size:15px;color:var(--ink2)}.bc-t b{font-size:19px;color:var(--ink)}

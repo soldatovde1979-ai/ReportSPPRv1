@@ -814,12 +814,12 @@ METRIC_INFO = {
     "lng_top_h": "срок самого долгого обращения, раб. ч", "lng_top_pct": "его доля в часах долгостроя, %",
     "lng_med": "медиана срока долгостроев, раб. ч",
     # 5.2: данные выгрузки 1С v1.7 (Т-74, Т-76, Т-77)
-    "sla1c_n": "решённых за период без служебных, у которых есть срок по 1С (tab_sla)",
-    "sla1c_med": "медиана срока по 1С, ч: секунды в статусах без пауз (ожидание пользователя 1С не считает)",
-    "sla1c_our_med": "медиана нашего срока, раб. ч, по тем же обращениям, что и sla1c_med",
-    "sla1c_pause_med": "медиана часов на паузе по 1С (ожидание пользователя)",
-    "sla1c_div": f"обращений, где наш срок и срок по 1С расходятся: больший ≥ меньшего × {SLA_DIV_X} и разница ≥ {SLA_DIV_H:g} ч",
-    "sla1c_div_more": "из них по 1С дольше нашего", "sla1c_div_less": "из них по 1С короче нашего",
+    "sla1c_n": "решённых за период без служебных, у которых есть срок по БД (tab_sla)",
+    "sla1c_med": "медиана срока по БД (tab_sla), ч: секунды в статусах без пауз (ожидание пользователя БД не считает)",
+    "sla1c_our_med": "медиана расч. срока, раб. ч, по тем же обращениям, что и sla1c_med",
+    "sla1c_pause_med": "медиана часов на паузе по БД (ожидание пользователя)",
+    "sla1c_div": f"обращений, где расч. срок и срок по БД расходятся: больший ≥ меньшего × {SLA_DIV_X} и разница ≥ {SLA_DIV_H:g} ч",
+    "sla1c_div_more": "из них по БД дольше расч.", "sla1c_div_less": "из них по БД короче расч.",
     "rate_n": "решённых за 4 недели без служебных с оценкой пользователя", "rate_sol4": "решённых за 4 недели без служебных",
     "rate_share": "доля решённых за 4 недели с оценкой пользователя, %", "rate_avg": "средняя оценка пользователей за 4 недели (1–5)",
     "rate_low": "оценок пользователей ниже «5» за 4 недели",
@@ -1126,7 +1126,7 @@ def _months6(R):
     return out[::-1]
 
 
-def _build(R, with_ai=True, strict=False, run_log=None):
+def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
     """Слайды отчёта: (меню, {ключ слайда: HTML}). with_ai=False — без блоков «Разбор ИИ по слайду» (текст для промпта)."""
     raw, rows, dropped = R.raw, R.rows, R.dropped
     AI, AIT, AIO, BYID, RAWID, M = R.AI, R.AIT, R.AIO, R.BYID, R.RAWID, R.M
@@ -1211,12 +1211,13 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         more = ""
         if r.get("desc") or r.get("sol"):
             XTEXT.setdefault(i, (r.get("desc") or "", r.get("sol") or ""))
-            more = (f'<button class="tname" title="Нажмите, чтобы раскрыть описание и решение">{E(short_name(r))}</button>'
-                    if full else '<button class="tmore" title="Описание и решение — по клику">▸</button>')
+            # ЧТО ИЗМЕНЕНО (5.4): кнопка раскрытия — компактный значок «⤵»; в полном виде
+            # (revью 06.10, п. 10) — только в компактном виде и в колонке «Суть (ИИ)» — ai_btn
+            more = '<button class="tmore" title="Описание и решение — по клику">⤵</button>'
         if full:
-            # инициатор и аналитик всегда: нет текста — ячейка не теряет их (З-3.2)
-            return f'<span class="tk" data-tid="{E(i)}">{tid}<small>{E(d)} · {E(cli)}</small><small>{E(anl)}</small>{more}</span>'
-        # компактный вид — как раньше, плюс «▸» с раскрытием (З-3.3)
+            # (ревью п. 10) без краткого описания и кнопки: номер, дата, инициатор, аналитик
+            return f'<span class="tk" data-tid="{E(i)}">{tid}<small>{E(d)} · {E(cli)}</small><small>{E(anl)}</small></span>'
+        # компактный вид — как раньше, плюс «⤵» с раскрытием (З-3.3)
         return f'<span class="tk" data-tid="{E(i)}">{tid}{more}<small>{E(d)} · {E(anl)}</small></span>'
 
     def xtext_registry():
@@ -1234,6 +1235,15 @@ def _build(R, with_ai=True, strict=False, run_log=None):
 
     def tks(ids):
         return "".join(tk(i) for i in ids)
+
+    def ai_cell(r):
+        """Последняя колонка «Суть (ИИ)» (ревью 06.10, п. 10): суть + кнопка раскрытия
+        описания и решения — кнопка живёт здесь, а не в первой колонке."""
+        more = ""
+        if r.get("desc") or r.get("sol"):
+            XTEXT.setdefault(r["id"], (r.get("desc") or "", r.get("sol") or ""))
+            more = '<button class="tmore" title="Описание и решение — по клику">⤵</button>'
+        return f'<span class="tk" data-tid="{E(r["id"])}">{E(r["ai"].get("s", ""))}{more}</span>'
 
     def panel(title, st, body, what, use, cls=""):
         return (f'<section class="panel {cls}"><header class="ph"><h3>{title}</h3>{st}</header><div class="pb">{body}</div>'
@@ -1406,7 +1416,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                  h1(M["med_l1"]), h1(M["med_l2"]),
                  f'неделей ранее {h1(prev_med)}' + "; раб. ч: 8 ч в рабочем дне, выходные не считаются"
                  # ЧТО ИЗМЕНЕНО (5.2): срок по 1С рядом с нашим. ПОЧЕМУ: Т-74 — сравнить, потом решить, какой основной
-                 + (f'<br>по 1С без пауз — <b>{c1(M["sla1c_med"])} ч</b> · <a href="#s11">сравнение →</a>' if M.get("sla1c_med") is not None else "")
+                 + (f'<br>по БД без пауз — <b>{c1(M["sla1c_med"])} ч</b> · <a href="#s11">сравнение →</a>' if M.get("sla1c_med") is not None else "")
                  # ЧТО ИЗМЕНЕНО (5.4): фазы срока рядом с медианой (phases_v1, разд. 2.3)
                  + (f'<br>из них ожидание {c1(M["ph_wait_wsh"])}% · уточнение {c1(M["ph_clar_wsh"])}% календарного времени · <a href="#s11">фазы →</a>' if M.get("ph_wait_wsh") is not None else "")),
              kpi("Решено в пределах рабочего дня", stamps("sol"), le8(real)[:-1], "%", le8(L1), le8(L2), f"≤ {FAST_H} раб. ч от регистрации до решения"),
@@ -1436,8 +1446,9 @@ def _build(R, with_ai=True, strict=False, run_log=None):
             cards += (f'<div class="tc" style="--c:{CAT_COLOR[c]}"><span>{c}</span><b>{c1(med([r["h"] for r in s]))}</b><small>раб. ч медиана</small>'
                       f'<em>{len(s)} решено · {hsum(s):.0f} ч трудозатрат</em>'
                       + (f'<em>{ph_bar(ag, w=120)}</em>' if ag else "") + "</div>")
-        row2 = panel("Сколько ждут решения — по типам", stamps("sol"), f'<div class="tcs">{cards}</div>',
-                     "Медиана от регистрации до решения по типу при регистрации. НСИ — раздел «Нормализация» целиком, «Правка данных» — без НСИ. Трудозатраты — поле AmountTrud.",
+        row2 = panel("Сколько ждут решения — по типам", stamps("sol"), f'<div class="tcs">{cards}</div>{ph_legend()}',
+                     "Медиана от регистрации до решения по типу при регистрации. НСИ — раздел «Нормализация» целиком, «Правка данных» — без НСИ. Трудозатраты — поле AmountTrud. "
+                     "Полоса под медианой — из чего состоит срок типа по истории статусов; календарные часы, хвост автоподтверждения исключён. Медианы фаз не суммируются в медиану срока.",
                      "Сравнение типов между собой: какой тип заставляет ждать и сколько стоит в часах. Инцидент в десятки раз медленнее правки — место для ускорения.")
         # строка 3 — поток по дням и типам
         days_in = [(f"{WD[d.weekday()]}|{d:%d.%m}", Counter(r["cat"] for r in inc if r["reg_dt"].date() == d.date()), False) for d in DAYS]
@@ -1565,7 +1576,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td class="c"><b>{r["h"]:g}</b></td><td class="c">{r["trud"]:g}</td>'
                        + (f'<td class="c">{r["ph"]["wait"]/24:.0f}</td><td class="c">{r["ph"]["clar"]/24:.0f}</td><td class="c">{r["ph"]["solve"]/24:.0f}</td><td>{ph_bar(r["ph"], w=72)}</td>'
                           if r["ph"] else '<td class="mut">·</td><td class="mut">·</td><td class="mut">·</td><td></td>')
-                       + f'<td>{E(r["cat"])}</td><td>{E(r["sec"])}</td><td>{"1-я" if r["line"] == "L1" else "2-я"}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in lng)
+                       + f'<td>{E(r["cat"])}</td><td>{E(r["sec"])}</td><td>{"1-я" if r["line"] == "L1" else "2-я"}</td><td>{ai_cell(r)}</td></tr>' for r in lng)
         p2 = panel(f"Все долгострои периода — {n}", stamps("sol", "ai"),
                    f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Срок, раб. ч</th><th>Работа, ч</th><th>Ожидание, дн</th><th>Уточнение, дн</th><th>Решение, дн</th><th>Фазы</th><th>Тип</th><th>Раздел</th><th>Линия</th><th>Суть (ИИ)</th></tr></thead><tbody>{body}</tbody></table></div>',
                    f"Решённые за период, шедшие дольше {LONG_H} раб. ч, от самого долгого (бывший «Топ-10 самых длительных» приложения старого отчёта, Т-51). Дата и аналитик — в номере. Фазы — календарные дни без хвоста подтверждения; полоса — доли фаз (phases_v1).",
@@ -1581,12 +1592,24 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         # ЧТО ИЗМЕНЕНО: слайд расширен до «Сроки решения и долгострой»: распределение сроков всех решённых
         # ПОЧЕМУ: медиана прячет «два горба» — часть решается за час, часть идёт неделями (аудит 8а.4); слайд раскрывает плитки «Медиана», «За рабочий день», «Долгострой»
         # ----------------------------------------------------------------------
-        B = [(0, 1, "≤ 1 ч", "#0F6E3A"), (1, 4, "1–4 ч", "#4E9A6B"), (4, FAST_H, f"4–{FAST_H} ч", "#8DBA9C"),
-             (FAST_H, 24, f"{FAST_H}–24 ч", "#C9A227"), (24, LONG_H, f"24–{LONG_H} ч", "#D08700"), (LONG_H, 10**9, f"> {LONG_H} ч", "#B3261E")]
-        cnt = [(lab, sum(a < r["h"] <= b or (a == 0 and r["h"] == 0) for r in real), col) for a, b, lab, col in B]
+        # ЧТО ИЗМЕНЕНО (5.4): бары — stacked по типам обращения (ревью 06.10: «< часа это сколько конс, сколько НСИ…»)
+        B = [(0, 1, "≤ 1 ч"), (1, 4, "1–4 ч"), (4, FAST_H, f"4–{FAST_H} ч"),
+             (FAST_H, 24, f"{FAST_H}–24 ч"), (24, LONG_H, f"24–{LONG_H} ч"), (LONG_H, 10**9, f"> {LONG_H} ч")]
+        bcnt = []
+        for a, b, lab in B:
+            inb = [r for r in real if a < r["h"] <= b or (a == 0 and r["h"] == 0)]
+            bcnt.append((lab, len(inb), {c: n for c, n in Counter(r["cat"] for r in inb).most_common()}))
+        # собранный stacked-вариант:
+        def _seg_row(lab, nv, cats):
+            tot = sum(cats.values()) or 1
+            segs = "".join(f'<i style="width:{100 * n / tot:.0f}%;background:{CAT_COLOR.get(c, "#999")}" title="{E(c)}: {n} из {nv}"></i>' for c, n in cats.items())
+            return (f'<div class="hb"><span class="hb-l" title="{E(lab)}">{E(lab)}</span><span class="hb-t">{segs}</span>'
+                    f'<span class="hb-v">{nv}<small> обр.</small></span></div>')
         p0 = panel("Распределение сроков решения", stamps("sol"),
-                   hbars(cnt, unit=" обр.") + f'<p class="cmp">Медиана {c1(M["med_all"])} раб. ч; за рабочий день (≤ {FAST_H} ч) — {sum(c for _, c, _ in cnt[:3])}, долгострой (> {LONG_H} ч) — {cnt[-1][1]} из {len(real)}.</p>',
-                   f"Все решённые за {PER_S} без служебных карточек, по сроку от регистрации до решения в рабочих часах (8 ч в рабочем дне, выходные не считаются).",
+                   '<div class="hbars">' + "".join(_seg_row(lab, nv, cats) for lab, nv, cats in bcnt) + '</div>'
+                   + legend(list(CAT_COLOR.keys()))
+                   + f'<p class="cmp">Медиана {c1(M["med_all"])} раб. ч; за рабочий день (≤ {FAST_H} ч) — {sum(nv for _, nv, _ in bcnt[:3])}, долгострой (> {LONG_H} ч) — {bcnt[-1][1]} из {len(real)}. Цвет внутри бара — тип обращения.</p>',
+                   f"Все решённые за {PER_S} без служебных карточек, по сроку от регистрации до решения в рабочих часах (8 ч в рабочем дне, выходные не считаются). Сегменты бара — тип при регистрации.",
                    "Одна медиана прячет «два горба»: быстрые решения и хвост, который идёт неделями. Улучшать надо хвост — он и даёт недовольство.")
         # ----------------------------------------------------------------------
         # ЧТО ИЗМЕНЕНО (5.4): панель «Из чего состоит срок» — фазы Ожидание/Уточнение/Решение (phases_v1)
@@ -1597,15 +1620,24 @@ def _build(R, with_ai=True, strict=False, run_log=None):
             phs = R.phs
             tot = sum(r["ph"]["total"] for r in phs) or 1
             seg = "".join(f'<i style="width:{100 * sum(r["ph"][k] for r in phs) / tot:.1f}%;background:{PH_COLORS[k]}"></i>' for k, _ in PH_NAMES)
-            cell = lambda k, n: (f'<div class="kpi"><h4>{n}</h4><div class="kpi-v">{c1(M["ph_" + k + "_med"])}<span>ч медиана</span></div>'
-                                 f'<div class="kpi-s">p90 {c1(M["ph_" + k + "_p90"])} ч · взвешенно {c1(M["ph_" + k + "_wsh"])}% времени</div></div>')
+            cell = lambda k, n: (f'<div class="kpi"><h4>{n}</h4><div class="kpi-v">{c1(M["ph_" + k + "_wsh"])}<span>% времени</span></div>'
+                                 f'<div class="kpi-s">медиана {c1(M["ph_" + k + "_med"])} ч · каждый 10-й дольше {c1(M["ph_" + k + "_p90"])} ч</div></div>')
+            # ЧТО ИЗМЕНЕНО (5.4, ревью п. 9): четвёртая плитка — открытые сейчас в статусе «Ожидает анализа»
+            ow = [r for r in opn if r["st"] == "Ожидает анализа"]
+            wd_ = [r["age"] for r in ow]
+            if ow:
+                cell4 = (f'<div class="kpi kpi-inc"><h4>Сейчас в ожидании</h4><div class="kpi-v">{len(ow)}<span>обращений</span></div>'
+                         f'<div class="kpi-s">средняя длительность в ожидании {sum(wd_) / len(wd_):.0f} дн · суммарно {sum(wd_)} дн · '
+                         f'до дня — {sum(a <= 1 for a in wd_)} · от дня до недели — {sum(1 < a <= 7 for a in wd_)} · больше недели — {sum(a > 7 for a in wd_)}</div></div>')
+            else:
+                cell4 = '<div class="kpi"><h4>Сейчас в ожидании</h4><div class="kpi-v">0<span>обращений</span></div><div class="kpi-s">в статусе «Ожидает анализа» никого нет</div></div>'
             nofa = f'Без автозакрытых из ожидания ({M["ph_nofa_n"]}) — Ожидание {c1(M["ph_wait_wsh_nofa"])}%. ' if M.get("ph_wait_wsh_nofa") is not None else ""
-            p_ph = panel("Из чего состоит срок", stamps("sol"),
+            p_ph = panel("Из чего состоит срок", stamps("sol", "open"),
                          f'<span class="hb-t" style="display:flex;width:100%;height:18px">{seg}</span>{ph_legend()}'
-                         f'<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-top:10px">{cell("wait", "Ожидание — не брали в работу")}{cell("clar", "Уточнение — ждём инициатора")}{cell("solve", "Решение — работа")}</div>'
+                         f'<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-top:10px">{cell("wait", "Ожидание — не брали в работу")}{cell("clar", "Уточнение — ждём инициатора")}{cell("solve", "Решение — работа")}{cell4}</div>'
                          f'<p class="cmp">Уточнение было у {M["clar_n"]} из {M["ph_n"]} ({M["clar_share"]}%); возвращались дважды и больше — {M["clar_pingpong"]}%. {nofa}Хвост автоподтверждения («Отработано…» → «Закрыто») исключён.</p>',
-                         f"Календарные часы {M['ph_n']} решённых за {PER_S} без служебных по истории статусов (tab_status); конец фаз — первое «Отработано, требует подтверждения». Цвета: серый — Ожидание, янтарный — Уточнение, синий — Решение.",
-                         "Показывает, где теряется время: долгое Ожидание — не брали в работу; Уточнение — мяч у инициатора; Решение — наша работа. flow efficiency (доля Решения) — главный ответ, у кого мяч.")
+                         f"Календарные часы {M['ph_n']} решённых за {PER_S} без служебных по истории статусов (tab_status); конец фаз — первое «Отработано, требует подтверждения». Цвета: серый — Ожидание, янтарный — Уточнение, синий — Решение. «Сейчас в ожидании» — открытые в статусе «Ожидает анализа» на срез.",
+                         "Показывает, где теряется время: долгое Ожидание — не брали в работу; Уточнение — мяч у инициатора; Решение — наша работа. flow efficiency (доля Решения) — главный ответ, у кого мяч. Плитка «Сейчас в ожидании» — сегодняшняя очередь, а не история.")
         # ----------------------------------------------------------------------
         # ЧТО ИЗМЕНЕНО (5.2): панель «Наш срок и срок по 1С» — по tab_sla
         # ПОЧЕМУ: Т-74 — срок из 1С рядом с нашим; сначала сравнить на неделях, потом решить, какой основной
@@ -1613,15 +1645,20 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         p_sla = ""
         if R.sla1c:
             dv = R.sla_div
-            body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td class="c"><b>{c1(r["h"])}</b></td><td class="c"><b>{c1(r["h1c"])}</b></td><td class="c">{c1(r["p1c"])}</td>'
-                           f'<td class="c {"bad" if r["h1c"] > r["h"] else "ok"}">{"по 1С дольше" if r["h1c"] > r["h"] else "по 1С короче"}</td><td>{E(r["cat"])}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in dv[:10])
-            p_sla = panel("Наш срок и срок по 1С", stamps("sol"),
-                          f'<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))"><div class="kpi"><h4>Наш срок, медиана</h4><div class="kpi-v">{c1(M["sla1c_our_med"])}<span>раб. ч</span></div><div class="kpi-s">8 ч в рабочем дне, паузы считаются</div></div>'
-                          f'<div class="kpi"><h4>Срок по 1С, медиана</h4><div class="kpi-v">{c1(M["sla1c_med"])}<span>ч</span></div><div class="kpi-s">без пауз; на паузе — медиана {c1(M["sla1c_pause_med"])} ч</div></div>'
-                          f'<div class="kpi"><h4>Сильно расходятся</h4><div class="kpi-v">{len(dv)}<span>из {len(R.sla1c)}</span></div><div class="kpi-s">по 1С дольше — {M["sla1c_div_more"]}, короче — {M["sla1c_div_less"]}</div></div></div>'
-                          + (f'<div class="ch" style="margin-top:12px">Сильнее всего расходятся — первые {min(10, len(dv))}</div><div class="tw"><table><thead><tr><th>Обращение</th><th>Наш, раб. ч</th><th>По 1С, ч</th><th>Пауза по 1С, ч</th><th>Что</th><th>Тип</th><th>Суть (ИИ)</th></tr></thead><tbody>{body}</tbody></table></div>' if dv else '<p class="cmp">Сильных расхождений нет.</p>'),
-                          f"Решённые за {PER_S} без служебных, у которых в выгрузке есть время по статусам из 1С (tab_sla): {len(R.sla1c)} из {len(real)}. Срок по 1С — сумма секунд в статусах без пауз; рабочие это часы или календарные — ещё не проверено. «Сильно расходятся» — больший срок не меньше меньшего × {c1(SLA_DIV_X)} и разница от {SLA_DIV_H:g} ч.",
-                          "Наш срок считает и ожидание пользователя, 1С — нет. Пока оба рядом: где сильно расходятся — там либо долгое ожидание пользователя, либо статусы ведут не так. По итогам нескольких недель решаем, какой срок основной (my-FT Т-74).")
+            # ЧТО ИЗМЕНЕНО (5.4, ревью п. 11): «наш» → «расч.», «по 1С» → «по БД»; пауза и «Что» убраны;
+            # справа — третья часть ширины: открытые в ожидании (Т-90, Т-91)
+            body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td class="c"><b>{c1(r["h"])}</b></td><td class="c"><b>{c1(r["h1c"])}</b></td>'
+                           f'<td>{E(r["cat"])}</td><td>{ai_cell(r)}</td></tr>' for r in dv[:10])
+            ow11 = [r for r in opn if r["st"] == "Ожидает анализа"]
+            ow_rows = "".join(f'<tr><td>{tk(r["id"])}</td><td class="c">{r["age"]} дн.</td></tr>' for r in ow11) or '<tr><td class="mut">нет</td><td class="mut">·</td></tr>'
+            two_tbl = (f'<div style="display:grid;grid-template-columns:2fr 1fr;gap:14px">'
+                       f'<div><div class="ch">Сильнее всего расходятся — первые {min(10, len(dv))}</div><div class="tw"><table><thead><tr><th>Обращение</th><th>Расч., раб. ч</th><th>По БД, ч</th><th>Тип</th><th>Суть (ИИ)</th></tr></thead><tbody>{body}</tbody></table></div></div>'
+                       f'<div><div class="ch">В ожидании сейчас — {len(ow11)}</div><div class="tw"><table class="num"><thead><tr><th>Обращение</th><th>Ждут</th></tr></thead><tbody>{ow_rows}</tbody></table></div></div></div>'
+                       if dv else
+                       f'<p class="cmp">Сильных расхождений нет.</p><div class="ch" style="margin-top:10px">В ожидании сейчас — {len(ow11)}</div><div class="tw" style="max-width:360px"><table class="num"><thead><tr><th>Обращение</th><th>Ждут</th></tr></thead><tbody>{ow_rows}</tbody></table></div>')
+            p_sla = panel("Расч. срок и срок по БД", stamps("sol"), two_tbl,
+                          f"KPI: расч. срок, медиана — {c1(M['sla1c_our_med'])} раб. ч (8 ч в рабочем дне, паузы считаются); по БД — {c1(M['sla1c_med'])} ч (без пауз; на паузе — медиана {c1(M['sla1c_pause_med'])} ч); сильно расходятся — {len(dv)} из {len(R.sla1c)} (по БД дольше — {M['sla1c_div_more']}, короче — {M['sla1c_div_less']}). Решённые за {PER_S} без служебных с временем по статусам из БД (tab_sla): {len(R.sla1c)} из {len(real)}; срок по БД — сумма секунд в статусах без пауз, рабочие это часы или календарные — ещё не проверено. «Сильно расходятся» — больший срок не меньше меньшего × {c1(SLA_DIV_X)} и разница от {SLA_DIV_H:g} ч.",
+                          "Расч. срок включает ожидание пользователя, БД — нет: где сильно расходятся — либо долгое ожидание пользователя, либо статусы ведут не так. По итогам нескольких недель решаем, какой срок основной (my-FT Т-74). Справа — сегодняшняя очередь в ожидании анализа.")
         return (f'<article class="slide" id="s11"><div class="sh"><h2>Сроки решения и долгострой</h2>'
                 f'<p class="lead">Решено за {PER_S}: {len(real)} обращений без служебных; дольше {LONG_H} раб. ч — {n}</p></div>'
                 + p0 + p_ph + p_sla + p1 + p2 + p3 + ai_block("s11") + "</article>")
@@ -1820,7 +1857,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         body = (f'<tr class="grp"><th colspan="4">Открытые — {len(oc)}</th></tr>' +
                 "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["st"])}<br><small>{E(r["sec"])}</small></td><td>{E(OPEN_CRIT[r["id"]])}</td><td>{E(AIO.get(r["id"], {}).get("a", "Срок решения — на ближайший разбор"))}</td></tr>' for r in oc) +
                 f'<tr class="grp"><th colspan="4">Решённые за период — {len(crit)}</th></tr>' +
-                "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["st"])}<br><small>{E(r["sec"])}</small></td><td>{E(r["ai"].get("s", ""))}</td><td>{E(r["ai"].get("rec", ""))}</td></tr>' for r in crit))
+                "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["st"])}<br><small>{E(r["sec"])}</small></td><td>{ai_cell(r)}</td><td>{E(r["ai"].get("rec", ""))}</td></tr>' for r in crit))
         p4 = panel(f"Критичные — {len(oc) + len(crit)}", stamps("open", "sol", "ai"),
                    f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Статус · раздел</th><th>Почему критично / что случилось</th><th>Что сделать</th></tr></thead><tbody>{body}</tbody></table></div>',
                    "Инциденты, которые ИИ отметил как критичные: остановка оплаты или процесса, налоговый и юридический риск, массовый пользователь. Открытые — без ограничения неделей, решённые — за период.",
@@ -1879,7 +1916,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                    "Каждая строка — отдельное управленческое действие: права — владельцу процесса, дефект — разработке, ошибки — руководителю подразделения.")
         # правки, которые на самом деле дефекты
         dfc = [r for r in prs if r["type_ai"] == "Инцидент" or r["ai"].get("why") == "дефект системы"]
-        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["sec"])}</td><td>{E(r["ai"].get("s", ""))}</td><td>{E(r["ai"].get("wa") or r["ai"].get("ta", ""))}</td><td>{E(r["ai"].get("rec", ""))}</td></tr>' for r in dfc)
+        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["sec"])}</td><td>{ai_cell(r)}</td><td>{E(r["ai"].get("wa") or r["ai"].get("ta", ""))}</td><td>{E(r["ai"].get("rec", ""))}</td></tr>' for r in dfc)
         p3 = panel(f"Правки, которые на самом деле дефекты — {len(dfc)}", stamps("ai", "sol"),
                    f'<div class="tw"><table class="ai"><thead><tr><th>Обращение</th><th>Раздел</th><th>Что поправили</th><th>Почему это дефект</th><th>Что сделать</th></tr></thead><tbody>{body}</tbody></table></div>',
                    "Правки, где по решению видно дефект системы: данные исправили руками, а механизм, который их испортил, остался.",
@@ -1888,7 +1925,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         cli = Counter(r["cli"] for r in prs).most_common(8)
         anl = Counter(r["anl"] for r in prs).most_common(8)
         ssl = [r for r in sol if r["ai"].get("ss")]
-        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["cli"])}</td><td>{E(r["ai"].get("s", ""))}</td><td>{E(r["ai"].get("rec") or "Право или инструкция")}</td></tr>' for r in ssl)
+        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["cli"])}</td><td>{ai_cell(r)}</td><td>{E(r["ai"].get("rec") or "Право или инструкция")}</td></tr>' for r in ssl)
         p4 = panel("Кто просит · кто делает", stamps("sol"),
                    f'<div class="grid g2"><div><div class="ch">Инициаторы</div>{hbars([(c, n, "#5D6B7A") for c, n in cli])}</div>'
                    f'<div><div class="ch">Исполнители</div>{hbars([(short(a) + (" · 1-я линия" if a.startswith(L1_ANALYST) else ""), n, "#3B4754") for a, n in anl])}</div></div>',
@@ -2000,7 +2037,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                f'<div class="glab"><span><b>{g["О"]}</b> Отлично — устранена причина или сделан шаг против повтора</span><span><b>{g["Х"]}</b> Хорошо — причина названа, проблема закрыта</span>'
                f'<span><b class="bad">{g["П"]}</b> Плохо — отписка, причина не названа, ответ не на вопрос</span></div>')
         bad = [r for r in sol_ai if r["ai"].get("gr") == "П"]
-        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["sec"])}</td><td>{E(r["ai"].get("s", ""))}</td><td>{E(r["ai"].get("ga", ""))}</td><td><b>{E(r["ai"].get("rec") or "Переделать решение")}</b></td></tr>' for r in bad)
+        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["sec"])}</td><td>{ai_cell(r)}</td><td>{E(r["ai"].get("ga", ""))}</td><td><b>{E(r["ai"].get("rec") or "Переделать решение")}</b></td></tr>' for r in bad)
         p1 = panel(f"Оценка решений и все «Плохо» — на переделку ({len(bad)})", stamps("ai", "sol"),
                    bar + f'<div class="tw"><table class="ai"><thead><tr><th>Обращение</th><th>Раздел</th><th>Суть</th><th>Что не так</th><th>Что переделать</th></tr></thead><tbody>{body}</tbody></table></div>',
                    f"Оценка ИИ по ужесточённым критериям для {tot} решённых (служебные карточки исключены). Показаны все «Плохо», без обрезки.",
@@ -2050,7 +2087,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
                    "Конкретно: с кем разобрать типы и на каких примерах. Общая доля ошибок этого не показывает.")
         # эмоциональный фон и служебные
         emo = [r for r in sol if _num(r["ai"].get("tone")) > 0]
-        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td class="c">{r["ai"]["tone"]}</td><td>{E(r["ai"].get("ea", ""))}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in emo)
+        body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td class="c">{r["ai"]["tone"]}</td><td>{E(r["ai"].get("ea", ""))}</td><td>{ai_cell(r)}</td></tr>' for r in emo)
         p5 = panel(f"Эмоциональный фон — {len(emo)}", stamps("ai", "sol"),
                    f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Уровень 0–3</th><th>Сигнал</th><th>Суть</th></tr></thead><tbody>{body}</tbody></table></div>',
                    "Отклонение от делового тона в решённых за период: 1 — скрытое недовольство, 2 — давление, 3 — грубость.",
@@ -2229,7 +2266,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
         cx_l = [r for r in real if r["ai"].get("cx")]
         hard = sorted(cx_l, key=lambda r: (-_num(r["ai"]["cx"]), -r["trud"]))[:5]
         easy = sorted(cx_l, key=lambda r: (_num(r["ai"]["cx"]), r["trud"]))[:5]
-        row_ = lambda r: f'<tr><td>{tk(r["id"], full=True)}</td><td class="c"><b>{r["ai"]["cx"]}</b></td><td class="c">{str(r["trud"]).replace(".", ",")}</td><td>{E(r["ai"].get("s", ""))}</td></tr>'
+        row_ = lambda r: f'<tr><td>{tk(r["id"], full=True)}</td><td class="c"><b>{r["ai"]["cx"]}</b></td><td class="c">{str(r["trud"]).replace(".", ",")}</td><td>{ai_cell(r)}</td></tr>'
         p_cx = panel("Самые сложные и самые простые решения", stamps("sol", "ai"),
                      f'<div class="grid g2"><div><div class="ch">Сложные — 5</div><div class="tw"><table><thead><tr><th>Обращение</th><th>Сложн.</th><th>Часы</th><th>Суть</th></tr></thead><tbody>{"".join(map(row_, hard))}</tbody></table></div></div>'
                      f'<div><div class="ch">Простые — 5</div><div class="tw"><table><thead><tr><th>Обращение</th><th>Сложн.</th><th>Часы</th><th>Суть</th></tr></thead><tbody>{"".join(map(row_, easy))}</tbody></table></div></div></div>',
@@ -2266,7 +2303,7 @@ def _build(R, with_ai=True, strict=False, run_log=None):
             rt = R.rated4
             dist = Counter(r["rate_v"] for r in rt)
             low = sorted([r for r in rt if r["rate_v"] < 5], key=lambda r: (r["rate_v"], r["rate"][0]))
-            body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td class="c bad"><b>{r["rate_v"]}</b></td><td>{E(short(r["rate"][2]))}</td><td>{E(r["rate"][4]) or "·"}</td><td>{E(r["ai"].get("s", ""))}</td></tr>' for r in low[:20])
+            body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td class="c bad"><b>{r["rate_v"]}</b></td><td>{E(short(r["rate"][2]))}</td><td>{E(r["rate"][4]) or "·"}</td><td>{ai_cell(r)}</td></tr>' for r in low[:20])
             if len(low) > 20: body += f'<tr><td colspan="5" class="mut">и ещё {len(low) - 20}</td></tr>'
             p_rate = panel("Оценки пользователей", stamps("sol4"),
                            f'<div class="grid g2"><div><div class="ch">Оценки за 4 недели: {len(rt)} из {len(R.real4)} решённых ({M["rate_share"]}%), средняя {c1(M["rate_avg"])}</div>'
@@ -2386,8 +2423,21 @@ def _build(R, with_ai=True, strict=False, run_log=None):
             p7 = panel("Расход ИИ по этапам", "", f'<div class="tw"><table class="num"><thead><tr><th>Этап</th><th>Модель</th><th>Вызовов</th><th>Из кэша</th><th>Токенов</th><th>Секунд</th><th>Примечание</th></tr></thead><tbody>{rl}</tbody></table></div>',
                        "Вызовы модели в этом прогоне: разметка, группы тем, открытые, разборы слайдов. «Из кэша» — ответы прошлого прогона той же выгрузки, без оплаты.",
                        "Сколько стоит отчёт и где теряется время прогона; рост числа повторов — признак, что модель плохо держит формат ответа.")
+        # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО (5.4): паспорт сборки — какими модулями собран отчёт (чат 06.10, Т-85)
+        # ПОЧЕМУ: отчёт собирается несколькими файлами разных версий; читатель видит состав на последней странице
+        # ----------------------------------------------------------------------
+        tpl_v = check_template(template_text) if template_text else "?"
+        p8 = panel("Сборка отчёта", "", f'<div class="tw"><table class="num"><tbody>'
+                   f'<tr><td><b>Генератор (расчёт и вёрстка)</b></td><td>report_v5.py <b>{VERSION}</b></td></tr>'
+                   f'<tr><td><b>Оболочка (стили, навигация, скрипт)</b></td><td>template_v5.html <b>{tpl_v}</b></td>'
+                   f'<tr><td><b>Ноутбук-оболочка прогона</b></td><td>RepSSPR_v5.2 (Colab)</td></tr>'
+                   f'<tr><td><b>Выгрузка 1С</b></td><td>{E(R.dump_name)}<br><span class="mut">формат v1.8: поля name, url, части tab_trud, tab_status, tab_sla, tab_rate</span></td></tr>'
+                   f'</tbody></table></div>',
+                   "Файлы и версии, из которых собран этот отчёт; мажор модуля и шаблона сверялся с ноутбуком в ячейке 1, до вызовов ИИ.",
+                   "Воспроизводимость: прогоны на разных версиях модуля и шаблона нельзя сравнивать молча — состав сборки фиксируется в паспорте.")
         return (f'<article class="slide" id="s10"><div class="sh"><h2>Паспорт данных и проверки</h2><p class="lead">Какие выборки в отчёте и можно ли верить цифрам · генератор report_v5 {VERSION}</p></div>'
-                + '<div class="grid g2">' + p1 + p2 + "</div>" + '<div class="grid g2">' + p3 + p4 + "</div>" + p6 + p5 + p7 + "</article>")
+                + '<div class="grid g2">' + p1 + p2 + "</div>" + '<div class="grid g2">' + p3 + p4 + "</div>" + p6 + p5 + p7 + p8 + "</article>")
 
     # ================================================================ СБОРКА
     FN = {"s1": slide1, "s2": slide2, "s3": slide3, "s4": slide4, "s5": slide5, "s6": slide6, "s7": slide7, "s8": slide8, "s9": slide9, "s10": slide10, "s11": slide11}

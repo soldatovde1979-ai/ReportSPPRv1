@@ -1647,12 +1647,13 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
             dv = R.sla_div
             # ЧТО ИЗМЕНЕНО (5.4, ревью п. 11): «наш» → «расч.», «по 1С» → «по БД»; пауза и «Что» убраны;
             # справа — третья часть ширины: открытые в ожидании (Т-90, Т-91)
-            body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td class="c"><b>{c1(r["h"])}</b></td><td class="c"><b>{c1(r["h1c"])}</b></td>'
+            body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td>'
+                           f'<td class="c"><b>{c1(r["h"])}</b><br><small class="mut">по БД {c1(r["h1c"])}</small></td>'
                            f'<td>{E(r["cat"])}</td><td>{ai_cell(r)}</td></tr>' for r in dv[:10])
             ow11 = [r for r in opn if r["st"] == "Ожидает анализа"]
             ow_rows = "".join(f'<tr><td>{tk(r["id"])}</td><td class="c">{r["age"]} дн.</td></tr>' for r in ow11) or '<tr><td class="mut">нет</td><td class="mut">·</td></tr>'
             two_tbl = (f'<div style="display:grid;grid-template-columns:2fr 1fr;gap:14px">'
-                       f'<div><div class="ch">Сильнее всего расходятся — первые {min(10, len(dv))}</div><div class="tw"><table><thead><tr><th>Обращение</th><th>Расч., раб. ч</th><th>По БД, ч</th><th>Тип</th><th>Суть (ИИ)</th></tr></thead><tbody>{body}</tbody></table></div></div>'
+                       f'<div><div class="ch">Сильнее всего расходятся — первые {min(10, len(dv))}</div><div class="tw"><table><thead><tr><th>Обращение</th><th>Расч., раб. ч<br><span class="mut">· по БД, ч</span></th><th>Тип</th><th>Суть (ИИ)</th></tr></thead><tbody>{body}</tbody></table></div></div>'
                        f'<div><div class="ch">В ожидании сейчас — {len(ow11)}</div><div class="tw"><table class="num"><thead><tr><th>Обращение</th><th>Ждут</th></tr></thead><tbody>{ow_rows}</tbody></table></div></div></div>'
                        if dv else
                        f'<p class="cmp">Сильных расхождений нет.</p><div class="ch" style="margin-top:10px">В ожидании сейчас — {len(ow11)}</div><div class="tw" style="max-width:360px"><table class="num"><thead><tr><th>Обращение</th><th>Ждут</th></tr></thead><tbody>{ow_rows}</tbody></table></div>')

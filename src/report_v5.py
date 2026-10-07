@@ -1237,13 +1237,14 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         return "".join(tk(i) for i in ids)
 
     def ai_cell(r):
-        """Последняя колонка «Суть (ИИ)» (ревью 06.10, п. 10): суть + кнопка раскрытия
-        описания и решения — кнопка живёт здесь, а не в первой колонке."""
+        """Последняя колонка «Суть (ИИ)» (ревью 06.10, п. 10): наименование или суть + кнопка раскрытия
+        описания и решения — кнопка живёт здесь, а не в первой колонке (Т-78: наименование обязано быть)."""
         more = ""
         if r.get("desc") or r.get("sol"):
             XTEXT.setdefault(r["id"], (r.get("desc") or "", r.get("sol") or ""))
             more = '<button class="tmore" title="Описание и решение — по клику">⤵</button>'
-        return f'<span class="tk" data-tid="{E(r["id"])}">{E(r["ai"].get("s", ""))}{more}</span>'
+        s = r["ai"].get("s", "") or short_name(r)          # нет сути ИИ — краткое описание из выгрузки (З-3.1)
+        return f'<span class="tk" data-tid="{E(r["id"])}">{E(s)}{more}</span>'
 
     def panel(title, st, body, what, use, cls=""):
         return (f'<section class="panel {cls}"><header class="ph"><h3>{title}</h3>{st}</header><div class="pb">{body}</div>'

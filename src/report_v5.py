@@ -12,7 +12,7 @@
 #   R.AI["slides"] = разборы                                # разборы слайдов (s1…s11)
 #   html = render(R, текст_шаблона, title=...)
 # ----------------------------------------------------------------------
-VERSION = "5.5"                 # 5.5 — доработки ревью 07.10: .ai-note на панелях s1, плитка μ/Σ, «?» в плитке Долгострой; шаблон 5.3
+VERSION = "5.6"                 # 5.6 — отчёт по умолчанию берёт прошлую завершённую неделю; история — за все недели выгрузки
 # Изменения 5.4 относительно 5.3 (docs/postanovka_phases_v1.md):
 #   phases()  — фазы срока Ожидание/Уточнение/Решение по tab_status (календарные часы, хвост автоподтверждения исключён);
 #   s11       — панель «Из чего состоит срок», фазы в KPI s1, карточках типов, таблице недель, s2/s8/s10;
@@ -468,8 +468,11 @@ def load(raw, dump_name="", report_week=None, history=None, demo=False, say=prin
         WS = datetime.fromisocalendar(max_res.year, int(report_week), 1); WE = WS + timedelta(days=7)
         rule = f"неделя {report_week} задана параметром"
     else:
-        WS = datetime(max_res.year, max_res.month, max_res.day) - timedelta(days=max_res.weekday())
-        WE = datetime(max_res.year, max_res.month, max_res.day) + timedelta(days=1)
+        d = datetime(max_res.year, max_res.month, max_res.day)
+        if d.weekday() != 6:                       # не воскресенье — неделя неполная, берём прошлую завершённую
+            d -= timedelta(days=d.weekday() + 1)   # воскресенье прошлой недели
+        WS = d - timedelta(days=d.weekday())       # понедельник этой недели
+        WE = d + timedelta(days=1)
         rule = f"по максимальной дате решения {max_res:%d.%m %H:%M}"
     R.WS, R.WE, R.rule = WS, WE, rule
     R.WEEK = WS.isocalendar()[1]
@@ -1081,22 +1084,30 @@ def normalize_history(lst):
 
 
 def history_records(R, decisions=None):
-    """Записи истории за недели, которые выгрузка покрывает целиком, — из 4 недель отчёта.
-    Отчётная неделя — ещё и очередь на срез и решения руководителя (Т-52, В-15)."""
+    """Записи истории за все недели выгрузки — от первого решения до отчётного периода (раньше — только 4 недели).
+    Недели, которые выгрузка не покрывает целиком, пропускаются. Отчётная неделя — ещё очередь на срез и решения руководителя (Т-52, В-15)."""
     out = []
-    for w in R.wk:
-        if w["a"] < datetime(R.first_res.year, R.first_res.month, R.first_res.day):
-            continue          # неделя началась раньше первого решения в выгрузке — данные неполные, не пишем
-        y, n = w["a"].isocalendar()[0], w["a"].isocalendar()[1]
-        cc = lambda lst: dict(Counter(r["cat"] for r in lst))
-        mm = lambda lst, f: {m: dict(Counter(r["cat"] for r in lst if f"{r[f]:%Y-%m}" == m)) for m in sorted({f"{r[f]:%Y-%m}" for r in lst})}
-        rec = {"year": y, "week_num": n, "hist_ver": 3, "total_tickets": len(w["s"]), "med_hour": med([r["h"] for r in w["s"]]) or 0.0,
-               "incidents": sum(r["type"] == "Инцидент" for r in w["s"]), "partial": (w["b"] - w["a"]).days < 7,
-               "in": cc(w["i"]), "sol": cc(w["s"]), "rej": cc(w["j"]), "in_m": mm(w["i"], "reg_dt"), "sol_m": mm(w["s"], "done_dt")}
-        if w is R.wk[-1]:
+    first_day = datetime(R.first_res.year, R.first_res.month, R.first_res.day)
+    a = first_day - timedelta(days=first_day.weekday())   # понедельник недели первого решения
+    cc = lambda lst: dict(Counter(r["cat"] for r in lst))
+    mm = lambda lst, f: {m: dict(Counter(r["cat"] for r in lst if f"{r[f]:%Y-%m}" == m)) for m in sorted({f"{r[f]:%Y-%m}" for r in lst})}
+    while a < R.WE:
+        b = min(a + timedelta(days=7), R.WE)
+        if a < first_day:                # неделя началась раньше первого решения — неполная, не пишем
+            a = b
+            continue
+        i = [r for r in R.rows if R.in_per(r["reg_dt"], a, b)]
+        s = [r for r in R.rows if r["is_sol"] and R.in_per(r["done_dt"], a, b)]
+        j = [r for r in R.rows if r["is_rej"] and R.in_per(r["cls_dt"], a, b)]
+        y, n = a.isocalendar()[0], a.isocalendar()[1]
+        rec = {"year": y, "week_num": n, "hist_ver": 3, "total_tickets": len(s), "med_hour": med([r["h"] for r in s]) or 0.0,
+               "incidents": sum(r["type"] == "Инцидент" for r in s), "partial": (b - a).days < 7,
+               "in": cc(i), "sol": cc(s), "rej": cc(j), "in_m": mm(i, "reg_dt"), "sol_m": mm(s, "done_dt")}
+        if b >= R.WE:
             rec.update(open=len(R.opn), open_gt30=len(R.old), holders=dict(Counter(r["holder"] for r in R.opn)),
                        dump=R.dump_name, decisions=decisions or [])
         out.append(rec)
+        a = b
     return out
 
 

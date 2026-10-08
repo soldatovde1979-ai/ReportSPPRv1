@@ -12,7 +12,12 @@
 #   R.AI["slides"] = разборы                                # разборы слайдов (s1…s11)
 #   html = render(R, текст_шаблона, title=...)
 # ----------------------------------------------------------------------
-VERSION = "5.4"                 # 5.4 — фазы срока Ожидание/Уточнение/Решение по tab_status, панель «Из чего состоит срок» (phases_v1)
+VERSION = "5.5"                 # 5.5 — доработки ревью 07.10: .ai-note на панелях s1, плитка μ/Σ, «?» в плитке Долгострой; шаблон 5.3
+# Изменения 5.4 относительно 5.3 (docs/postanovka_phases_v1.md):
+#   phases()  — фазы срока Ожидание/Уточнение/Решение по tab_status (календарные часы, хвост автоподтверждения исключён);
+#   s11       — панель «Из чего состоит срок», фазы в KPI s1, карточках типов, таблице недель, s2/s8/s10;
+#   tk()/ai_cell() — строки «рег ДД · инициатор» / «реш ДД · аналитик», кнопка ⤵, суть ИИ в последней колонке (Т-78);
+#   s11       — «наш» → «расч.», «по 1С» → «по БД», таблица на 2/3 + список «В ожидании сейчас» (Т-90, Т-91).
 # Изменения 5.3 относительно 5.2 (docs/postanovka_tables_v1.md):
 #   load()    — clean_text для desc/sol (исходник — desc_raw/sol_raw, З-2); читает name (выгрузка v1.8, З-3);
 #               hold_days — срок у держателя по tab_status (З-5);
@@ -995,6 +1000,12 @@ def validate(R, part, obj, key=None):
                 x = s.get(c)
                 if not isinstance(x, dict) or not isinstance(x.get("why"), str) or x.get("id") not in ai_ids:
                     errs.append(((c,), f"{c}: нужен id размеченного решённого за период и why"))
+        # ЧТО ИЗМЕНЕНО (5.5): notes — опциональный словарь строк (flow/weeks/history); есть — только строки
+        if key == "s1" and "notes" in s:
+            if not isinstance(s["notes"], dict):
+                errs.append((("notes",), "notes — не объект {flow: строка, weeks: строка, history: строка}"))
+            else:
+                errs += [(("notes", k), "значение notes — не строка") for k, v in s["notes"].items() if not isinstance(v, str)]
         errs += _check_text(R, s)
     elif part == "open_crit":
         if not isinstance(obj, list): return [((), "open_crit — не список")]
@@ -1181,18 +1192,19 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
             return f'<span class="tid">{E(i)}</span>'
         reg = P(r["reg"]) if isinstance(r.get("reg"), str) else r["reg_dt"]
         res = P(r["res"]) if r.get("res") else None
+        anl = short(r.get("anl", "")) if isinstance(r.get("anl"), str) else ""
         # ----------------------------------------------------------------------
         # ЧТО ИЗМЕНЕНО: открытое обращение с датой решения показывается как возврат, с возрастом
         # ПОЧЕМУ: 00-00034389 в «Анализе» выглядело решённым («реш 04.09», без возраста)
         # ----------------------------------------------------------------------
         if res and r.get("st") not in SOLVED + [REJECTED]:
-            d = f"рег {DD(reg)} · возврат: решение {DD(res)} · {(NOW - reg).days} дн."
+            d = f"возврат: реш {DD(res)} · {(NOW - reg).days} дн."
         elif res:
-            d = f"рег {DD(reg)} · реш {DD(res)}"                    # решённые — дата решения (З-3)
+            d = f"реш {DD(res)} · {E(anl)}"                          # решённые — дата решения (З-3)
         elif r.get("st") in SOLVED + [REJECTED]:
-            d = f"рег {DD(reg)}"
+            d = E(anl)
         else:
-            d = f"рег {DD(reg)} · {(NOW - reg).days} дн."
+            d = f"{(NOW - reg).days} дн. · {E(anl)}"
         # ----------------------------------------------------------------------
         # ЧТО ИЗМЕНЕНО: если у обращения есть поле url — номер становится ссылкой, как пришла из выгрузки
         # ПОЧЕМУ: Т-57 (В-13: тонкий клиент, ссылка приходит готовой и просто открывается; нет поля — номер остаётся текстом)
@@ -1200,7 +1212,6 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         url = r.get("url")
         tid = f'<a class="tid" href="{E(url)}">{E(i)}</a>' if url else f'<span class="tid">{E(i)}</span>'
         cli = short(r.get("cli", "")) if isinstance(r.get("cli"), str) else ""
-        anl = short(r.get("anl", "")) if isinstance(r.get("anl"), str) else ""
         # ----------------------------------------------------------------------
         # ЧТО ИЗМЕНЕНО (5.3): описание и решение — по клику; полный текст живёт один раз в реестре
         # XTEXT внизу отчёта, в ячейке — только кнопка (З-4, З-6)
@@ -1214,11 +1225,12 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
             # ЧТО ИЗМЕНЕНО (5.4): кнопка раскрытия — компактный значок «⤵»; в полном виде
             # (revью 06.10, п. 10) — только в компактном виде и в колонке «Суть (ИИ)» — ai_btn
             more = '<button class="tmore" title="Описание и решение — по клику">⤵</button>'
+        # ЧТО ИЗМЕНЕНО (5.4, ревью 07.10): строка 1 — «рег ДД · инициатор», строка 2 — «реш ДД · аналитик»
+        ln1 = f"рег {DD(reg)} · {E(cli)}" if cli else f"рег {DD(reg)}"
         if full:
-            # (ревью п. 10) без краткого описания и кнопки: номер, дата, инициатор, аналитик
-            return f'<span class="tk" data-tid="{E(i)}">{tid}<small>{E(d)} · {E(cli)}</small><small>{E(anl)}</small></span>'
+            return f'<span class="tk" data-tid="{E(i)}">{tid}<small>{ln1}</small><small>{d}</small></span>'
         # компактный вид — как раньше, плюс «⤵» с раскрытием (З-3.3)
-        return f'<span class="tk" data-tid="{E(i)}">{tid}{more}<small>{E(d)} · {E(anl)}</small></span>'
+        return f'<span class="tk" data-tid="{E(i)}">{tid}{more}<small>{ln1}</small><small>{d}</small></span>'
 
     def xtext_registry():
         """Скрытый реестр полных текстов (id → описание и решение ≤ 3000 симв.) —
@@ -1237,13 +1249,14 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         return "".join(tk(i) for i in ids)
 
     def ai_cell(r):
-        """Последняя колонка «Суть (ИИ)» (ревью 06.10, п. 10): суть + кнопка раскрытия
-        описания и решения — кнопка живёт здесь, а не в первой колонке."""
+        """Последняя колонка «Суть (ИИ)» (ревью 06.10, п. 10): наименование или суть + кнопка раскрытия
+        описания и решения — кнопка живёт здесь, а не в первой колонке (Т-78: наименование обязано быть)."""
         more = ""
         if r.get("desc") or r.get("sol"):
             XTEXT.setdefault(r["id"], (r.get("desc") or "", r.get("sol") or ""))
             more = '<button class="tmore" title="Описание и решение — по клику">⤵</button>'
-        return f'<span class="tk" data-tid="{E(r["id"])}">{E(r["ai"].get("s", ""))}{more}</span>'
+        s = r["ai"].get("s", "") or short_name(r)          # нет сути ИИ — краткое описание из выгрузки (З-3.1)
+        return f'<span class="tk" data-tid="{E(r["id"])}">{E(s)}{more}</span>'
 
     def panel(title, st, body, what, use, cls=""):
         return (f'<section class="panel {cls}"><header class="ph"><h3>{title}</h3>{st}</header><div class="pb">{body}</div>'
@@ -1275,6 +1288,19 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
                 f'<div class="pb"><p class="ai-sum">{fmt(s.get("summary"))}</p>{tbl}{extra}</div>'
                 f'<p class="why"><b>Что это.</b> {AI_WHAT}</p>'
                 f'<p class="use"><b>Польза / проблема.</b> {AI_USE}</p></section>')
+
+    def ai_note(text):
+        """Вывод ИИ внутри панели (ревью 07.10, шаблон 5.3): единый вид — чип ✦ слева, фиолетовая
+        кромка и подложка. Текст — из разметки ИИ слайда (ключ notes); нет текста — пустая строка."""
+        if not with_ai or not text:
+            return ""
+        return f'<div class="ai-note"><i>✦</i><div>{fmt(text)}</div></div>'
+
+    def ai_notes(key, name):
+        """Текст встраиваемого разбора ИИ для панели: AI["slides"][key]["notes"][name]."""
+        s = AI["slides"].get(key) or {}
+        n = (s.get("notes") or {}) if isinstance(s, dict) else {}
+        return n.get(name) if isinstance(n, dict) else None
 
     def legend(cats, colors=CAT_COLOR):
         return '<div class="legend">' + "".join(f'<span><i style="background:{colors[c]}"></i>{c}</span>' for c in cats) + "</div>"
@@ -1455,9 +1481,11 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         days_sol = [(f"{WD[d.weekday()]}|{d:%d.%m}", Counter(r["cat"] for r in sol if r["done_dt"].date() == d.date()), False) for d in DAYS]
         ym = max(max(sum(g[1].values()) for g in days_in), max(sum(g[1].values()) for g in days_sol))
         cats7 = CATS + ["Служебное"]
+        # ЧТО ИЗМЕНЕНО (5.5, ревью 07.10): под графиком потока — вывод ИИ (notes.flow: инциденты, правки данных)
         row3 = panel("Поток по дням и типам", stamps("in", "sol"),
                      f'<div class="grid g2"><div><div class="ch">Что пришло — по дню регистрации</div>{stack_svg(days_in, cats7, ymax=ym)}</div>'
-                     f'<div><div class="ch">Что решено — по дню решения</div>{stack_svg(days_sol, cats7, ymax=ym)}</div></div>{legend(cats7)}',
+                     f'<div><div class="ch">Что решено — по дню решения</div>{stack_svg(days_sol, cats7, ymax=ym)}</div></div>{legend(cats7)}'
+                     f'{ai_note(ai_notes("s1", "flow"))}',
                      "Слева — нагрузка на входе, справа — выход, шкала одна. Цвет — тип обращения.",
                      "Видно, в какие дни не успевали и какой тип копится: если столбец справа ниже левого — очередь в этот день росла.")
         # строка 4 — динамика по неделям
@@ -1467,17 +1495,13 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
             lab = f'W{w["a"].isocalendar()[1]}|{w["a"]:%d.%m}' + (f" · {nd} дн." if nd < 7 else "")
             wgroups += [(lab.replace("|", " пришло|"), Counter(r["cat"] for r in w["i"]), False),
                         (lab.replace("|", " решено|"), Counter(r["cat"] for r in w["s"]), False)]
-        # ЧТО ИЗМЕНЕНО (5.4): колонка «Ожидание+уточнение, %» — взвешенная доля этих фаз в календарном времени решённых недели (phases_v1, разд. 2.5)
-        tbl = ""
-        for w in wk:
-            pp = [r for r in w["s"] if r["ph"]]
-            wu = f'{100 * (sum(r["ph"]["wait"] for r in pp) + sum(r["ph"]["clar"] for r in pp)) / sum(r["ph"]["total"] for r in pp):.0f}%' \
-                if pp and sum(r["ph"]["total"] for r in pp) > 0 else "·"
-            tbl += (f'<tr><td>W{w["a"].isocalendar()[1]} · {w["a"]:%d.%m}–{(w["b"]-timedelta(days=1)):%d.%m}</td><td>{len(w["i"])}</td><td>{len(w["s"])}</td>'
-                    f'<td>{len(w["j"])}</td><td class="{"bad" if w["dq"] > 0 else "ok"}">{w["dq"]:+d}</td><td>{c1(med([r["h"] for r in w["s"]]))}</td><td>{hsum(w["s"]):.0f}</td><td>{wu}</td></tr>')
+        # ЧТО ИЗМЕНЕНО (5.5, ревью 07.10): таблица после графика заменена выводом ИИ (notes.weeks):
+        # акцент — поступление и решение инцидентов по неделям, правки данных; ниже — вывод по истории
+        # недель (notes.history; модель пишет пустую строку, если истории ещё нет — блок не рисуется)
+        wk_note = ai_notes("s1", "weeks") or "Разбор ИИ недоступен: сбой модели или ответ не прошёл проверку. Подробности — в журнале запуска."
         row4 = panel("Динамика по неделям", stamps("in4", "sol4"),
                      f'{stack_svg([(g[0].replace(" пришло", " ▲").replace(" решено", " ▼"), g[1], g[2]) for g in wgroups], cats7, w=1100, h=240)}{legend(cats7)}'
-                     f'<div class="tw"><table class="num"><thead><tr><th>Неделя</th><th>▲ Пришло</th><th>▼ Решено</th><th>✕ Отклонено</th><th>Очередь</th><th>Медиана, ч</th><th>Трудозатраты, ч</th><th>Ожидание+уточнение, %</th></tr></thead><tbody>{tbl}</tbody></table></div>',
+                     f'{ai_note(wk_note)}{ai_note(ai_notes("s1", "history"))}',
                      f"Пары столбцов: ▲ пришло и ▼ решено за неделю по типам. Последняя неделя — отчётный период {PER_S} (без выходных). Источник — та же выгрузка за 4 недели.",
                      "Тренд, а не один снимок: поток снижается, очередь тает — или наоборот. Смена состава типов видна раньше, чем рост очереди.")
         # строка 5 — по месяцам
@@ -1562,8 +1586,10 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
                f'<div class="kpi-lines"><span><b>{M["lng_top_pct"]}%</b> всех часов долгостроя</span></div>'
                f'<div class="kpi-s">{tk(lng[0]["id"], full=True)} {E(lng[0]["ai"].get("s", ""))}</div></div>') if lng else \
               (f'<div class="kpi">{stamps("sol")}<h4>Самый долгий</h4><div class="kpi-v">—</div><div class="kpi-s">долгостроя за период нет</div></div>')
+        # ЧТО ИЗМЕНЕНО (5.5, ревью 07.10): в подписи — «?»: порог и определение — в «Что это» панели ниже;
+        # плитка — приглашение к разбору, а не справка
         k = [kpi("Долгострой, обращений", stamps("sol"), str(n), "из " + str(len(real)), str(sum(r["line"] == "L1" for r in lng)), str(sum(r["line"] == "L2" for r in lng)),
-                 f"{M['lng_share']}% решённых; порог — {LONG_H} раб. ч от регистрации до решения"),
+                 "?"),
              kpi("Срок, медиана", stamps("sol"), f"{M['lng_med']:.0f}".replace(".", ",") if M["lng_med"] is not None else "—", "раб. ч",
                  medl([r for r in lng if r["line"] == "L1"]), medl([r for r in lng if r["line"] == "L2"]),
                  f"суммарно {M['lng_h']} раб. ч календарного срока"),
@@ -1626,11 +1652,14 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
             ow = [r for r in opn if r["st"] == "Ожидает анализа"]
             wd_ = [r["age"] for r in ow]
             if ow:
-                cell4 = (f'<div class="kpi kpi-inc"><h4>Сейчас в ожидании</h4><div class="kpi-v">{len(ow)}<span>обращений</span></div>'
-                         f'<div class="kpi-s">средняя длительность в ожидании {sum(wd_) / len(wd_):.0f} дн · суммарно {sum(wd_)} дн · '
-                         f'до дня — {sum(a <= 1 for a in wd_)} · от дня до недели — {sum(1 < a <= 7 for a in wd_)} · больше недели — {sum(a > 7 for a in wd_)}</div></div>')
+                # ЧТО ИЗМЕНЕНО (5.5, ревью 07.10): среднее — значок μ, сумма — Σ, углы острые (kpi-sharp);
+                # корзины ≤1 дн / 1–7 дн / >7 дн — строкой снизу
+                cell4 = (f'<div class="kpi kpi-inc kpi-sharp"><h4>Сейчас в ожидании</h4><div class="kpi-v">{len(ow)}<span>обращений</span></div>'
+                         f'<div class="kpi-m"><span title="средняя длительность в ожидании"><span class="mu">μ</span> <b>{sum(wd_) / len(wd_):.0f}</b> дн</span>'
+                         f'<span title="суммарно в ожидании"><span class="mu">Σ</span> <b>{sum(wd_)}</b> дн</span></div>'
+                         f'<div class="kpi-s">до дня — {sum(a <= 1 for a in wd_)} · от дня до недели — {sum(1 < a <= 7 for a in wd_)} · больше недели — {sum(a > 7 for a in wd_)}</div></div>')
             else:
-                cell4 = '<div class="kpi"><h4>Сейчас в ожидании</h4><div class="kpi-v">0<span>обращений</span></div><div class="kpi-s">в статусе «Ожидает анализа» никого нет</div></div>'
+                cell4 = '<div class="kpi kpi-sharp"><h4>Сейчас в ожидании</h4><div class="kpi-v">0<span>обращений</span></div><div class="kpi-s">в статусе «Ожидает анализа» никого нет</div></div>'
             nofa = f'Без автозакрытых из ожидания ({M["ph_nofa_n"]}) — Ожидание {c1(M["ph_wait_wsh_nofa"])}%. ' if M.get("ph_wait_wsh_nofa") is not None else ""
             p_ph = panel("Из чего состоит срок", stamps("sol", "open"),
                          f'<span class="hb-t" style="display:flex;width:100%;height:18px">{seg}</span>{ph_legend()}'

@@ -1,0 +1,57 @@
+graph TD
+    classDef primary fill:#4a7ebb,stroke:#fff,stroke-width:1px,color:#fff;
+    classDef secondary fill:#fff,stroke:#4a7ebb,stroke-width:1px,color:#4a7ebb;
+
+    Storage["<b>Тома хранения и УЗ</b><br/>\\svo.air.loc\ERP1CDOC\ - Prod<br/>\\svo.air.loc\ERP1C\ - Test"]:::secondary
+
+    subgraph WebCluster ["Отказоустойчивый кластер b-erp-webp (10.248.221.245)"]
+        W1["<b>b-erp-webp01</b><br/>10.248.221.118<br/>vCPU 4 | RAM 8Gb | HDD 120Gb"]:::primary
+        W2["<b>b-erp-webp02</b><br/>10.248.221.119<br/>vCPU 4 | RAM 8Gb | HDD 120Gb"]:::primary
+        CAP["https://shh-erpcap/имя_базы<br/>(10.248.221.246) - точка доступа клиента, CAP"]:::secondary
+    end
+    style WebCluster fill:#f8f9fa,stroke:#4a7ebb,stroke-width:1px
+
+    subgraph AppCluster ["Сервер приложений - кластер 1С"]
+        A3["центральный<br/><b>b-erp-appp03</b><br/>10.248.221.112<br/>192.18.243.2<br/>vCPU 16 | RAM 100Gb | HDD 600Gb"]:::primary
+        A4["<b>b-erp-appp04</b><br/>10.248.221.113<br/>192.18.243.3<br/>vCPU 16 | RAM 100Gb | HDD 500Gb"]:::primary
+        A5["<b>b-erp-appp05</b><br/>10.248.221.251<br/>192.18.243.4<br/>vCPU 16 | RAM 100Gb | HDD 500Gb"]:::primary
+    end
+    style AppCluster fill:#f8f9fa,stroke:#4a7ebb,stroke-width:1px
+
+    subgraph DBCluster ["Кластер СУБД (10.248.221.123 / 198.18.243.14 VIP)"]
+        DB1["<b>sh-erpdbp-pc01</b><br/>10.248.221.6<br/>198.18.243.8<br/>vCPU 26 | RAM 174 Gb | HDD 2 Tb"]:::primary
+        DB2["лидер<br/><b>sh-erpdbp-pc02</b><br/>10.248.221.21<br/>198.18.243.9<br/>vCPU 26 | RAM 174 Gb | HDD 2 Tb"]:::primary
+    end
+    style DBCluster fill:#f8f9fa,stroke:#4a7ebb,stroke-width:1px
+
+    Backup["<b>Сервер резервного копирования БД</b><br/>sh-ksubkp-ps01<br/>10.248.74.117"]:::primary
+
+    subgraph Patroni ["etcd + Patroni"]
+        P3["<b>sh-erpdbp-pc03</b><br/>10.248.221.96<br/>vCPU 2 | RAM 1,9 Gb | HDD 20 Gb"]:::primary
+        P4["<b>sh-erpdbp-pc04</b><br/>10.248.221.128<br/>vCPU 2 | RAM 1,9 Gb | HDD 20 Gb"]:::primary
+        P5["<b>sh-erpdbp-pc05</b><br/>10.248.221.142<br/>vCPU 2 | RAM 1,9 Gb | HDD 20 Gb"]:::primary
+    end
+    style Patroni fill:#f8f9fa,stroke:#4a7ebb,stroke-width:1px
+
+    T02["<b>b-erp-appt02</b><br/>10.248.63.121<br/>vCPU 2 | RAM 4Gb | HDD 150Gb"]:::primary
+    HASP["HASP — Sentinel LDK<br/>hasplms :1947 (+ dev-IIS)"]:::secondary
+    
+    P01["<b>b-erp-appp01</b><br/>10.248.221.110<br/>vCPU 4 | RAM 8Gb | HDD 32Gb"]:::primary
+    SLK1["Сервер лицензирования 1С<br/>Сервер СЛК «Оценка персонала»<br/>http://b-erp-appp01:9099"]:::secondary
+    
+    P02["<b>b-erp-appp02</b><br/>10.248.221.111<br/>vCPU 4 | RAM 8Gb | HDD 52Gb"]:::primary
+    SLK2["Сервер СЛК «УАТ для ЕРП»<br/>http://b-erp-appp01:9099"]:::secondary
+
+    Storage <--> A4
+    W2 <--> A3
+    A4 <--> DB1
+    DB1 <--> Backup
+    DB2 <--> P3
+    
+    A5 <--> T02
+    A5 <--> P01
+    A5 <--> P02
+    
+    T02 --- HASP
+    P01 --- SLK1
+    P02 --- SLK2

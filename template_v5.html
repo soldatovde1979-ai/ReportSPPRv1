@@ -1,4 +1,4 @@
-{#- template_v5.html · TEMPLATE_VERSION = "5.2" · 06.10.2026
+{#- template_v5.html · TEMPLATE_VERSION = "5.3" · 07.10.2026
     Оболочка отчёта ReportSPPR v5: стили, верхняя панель, меню слайдов, переключение слайдов.
     Слайды и меню собирает модуль src/report_v5.py (render) — он же проверяет мажор этого шаблона.
     Переменные: title — заголовок вкладки; banner — плашка над отчётом (только макет), текст;
@@ -6,7 +6,9 @@
     5.1: раскрытие описания и решения по клику (З-4, Т-78) — кнопки .tname/.tmore и блок .xfull
     собирает модуль; шаблон добавляет стили и обработчик клика. Без сети и внешних библиотек.
     5.2: фазы срока решения (phases_v1) — токены цветов фаз --ph-wait/--ph-clar/--ph-solve и
-    мини-полоса долей .phb (собирает модуль); без скриптов. -#}
+    мини-полоса долей .phb (собирает модуль); без скриптов.
+    5.3: вывод ИИ на панели — .ai-note (иконка ✦ слева в фиолетовом чипе, акцентная кромка);
+    плитка без скруглений .kpi-sharp и строка μ/Σ .kpi-m для плитки «Сейчас в ожидании». -#}
 <!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }}</title><style>
 :root{--page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
 --ph-wait:#8A94A6;--ph-clar:#C9A227;--ph-solve:#5D86B0;
@@ -54,6 +56,16 @@ main{padding:22px 28px 60px 10px;min-width:0}.pb{min-width:0}
 .kpi-v{font:600 46px/1 var(--num);margin:10px 0 6px}.kpi-v span{font:14px var(--text);color:var(--muted);margin-left:6px}
 .kpi-lines{display:flex;gap:14px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--rule);padding-top:6px;margin-bottom:6px}.kpi-lines b{font:600 17px var(--num);color:var(--ink2)}
 .kpi-s{font-size:12.5px;color:var(--ink2)}.kpi-inc{border-color:#D93025;box-shadow:inset 4px 0 0 #D93025}
+/* 5.3: плитка «Сейчас в ожидании» — острые углы, среднее μ и сумма Σ отдельной строкой (ревью 07.10) */
+.kpi-sharp{border-radius:0}
+.kpi-m{display:flex;gap:16px;border-top:1px solid var(--rule);padding-top:6px;margin:2px 0 6px;font-size:12.5px;color:var(--muted)}
+.kpi-m b{font:600 17px var(--num);color:var(--ink)}
+.kpi-m .mu{font:700 13px var(--num);color:#D93025}
+/* 5.3: вывод ИИ на панели — единый вид для всех встраиваемых разборов (ревью 07.10): чип ✦ слева,
+   фиолетовая кромка и подложка; видно, к какой панели относится, потому что блок живёт внутри панели */
+.ai-note{display:flex;gap:10px;align-items:flex-start;margin-top:10px;padding:9px 12px;background:#FBFAFE;border:1px solid #D8C8F0;border-left:4px solid #7E57C2;border-radius:8px;font-size:13.5px;line-height:1.45;color:var(--ink)}
+.ai-note i{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:#7E57C2;color:#fff;font-style:normal;font:700 13px var(--num)}
+.ai-note b{color:#5B3C99}
 .tcs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
 .tc{border:1px solid var(--rule);border-top:4px solid var(--c);border-radius:8px;padding:10px 12px}.tc span{font-size:13px;font-weight:600}.tc b{display:block;font:600 34px/1.1 var(--num);margin-top:4px}
 .tc small{font-size:11.5px;color:var(--muted)}.tc em{display:block;font-style:normal;font-size:12px;color:var(--ink2);margin-top:6px}
@@ -73,7 +85,7 @@ table.num td,td.c{text-align:center}table.num th{text-align:center}table.num tbo
    атрибут работает), клик вставляет строку <tr class=xtrow><td> с копией текста из реестра */
 .tname{font:12.5px var(--text);color:var(--ink2);background:none;border:none;border-top:1px dotted var(--rule);padding:4px 0 0;cursor:pointer;max-width:420px;text-align:left}
 .tname:hover{color:#1A56DB}
-.tmore{font:11.5px var(--num);color:#1A56DB;background:var(--wash);border:1px solid var(--rule);border-radius:3px;padding:0 5px;cursor:pointer;vertical-align:1px;margin-left:4px;line-height:1.5}
+.tmore{font:11.5px var(--num);color:#1A56DB;background:var(--wash);border:1px solid var(--rule);border-radius:3px;padding:0 4px;cursor:pointer;vertical-align:1px;margin-left:3px;line-height:1.4;white-space:nowrap;flex:0 0 auto}
 .tmore:hover{border-color:#1A56DB;background:#EBF1FA}
 tr.xtrow td{background:var(--wash);border-bottom:1px solid var(--rule)}
 div.xtrow{margin:4px 0 8px}

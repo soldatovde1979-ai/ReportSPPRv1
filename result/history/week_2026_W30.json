@@ -1,6 +1,20 @@
 {
-  "year": 2026,
-  "week_num": 30,
-  "total_tickets": 318,
-  "med_hour": 24.0
+ "year": 2026,
+ "week_num": 30,
+ "hist_ver": 3,
+ "total_tickets": 0,
+ "med_hour": 0.0,
+ "incidents": 0,
+ "partial": false,
+ "in": {
+  "Правка данных": 1
+ },
+ "sol": {},
+ "rej": {},
+ "in_m": {
+  "2026-07": {
+   "Правка данных": 1
+  }
+ },
+ "sol_m": {}
 }

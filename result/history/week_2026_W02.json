@@ -1,0 +1,14 @@
+{
+ "year": 2026,
+ "week_num": 2,
+ "hist_ver": 3,
+ "total_tickets": 0,
+ "med_hour": 0.0,
+ "incidents": 0,
+ "partial": false,
+ "in": {},
+ "sol": {},
+ "rej": {},
+ "in_m": {},
+ "sol_m": {}
+}

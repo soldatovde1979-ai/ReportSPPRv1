@@ -1,16 +1,22 @@
 {
-  "year": 2026,
-  "week_num": 29,
-  "period_str": "2026-06-10 00:00 — 2026-07-17 00:00",
-  "total_tickets": 262,
-  "med_hour": 24.0,
-  "mid_hour": 32.3,
-  "grades": {
-    "ОШИБКА": 262
-  },
-  "emo_total": 0,
-  "critical_count": 0,
-  "clusters": {
-    "Ошибка": 262
+ "year": 2026,
+ "week_num": 29,
+ "hist_ver": 3,
+ "total_tickets": 0,
+ "med_hour": 0.0,
+ "incidents": 0,
+ "partial": false,
+ "in": {
+  "Инцидент": 1,
+  "Правка данных": 1
+ },
+ "sol": {},
+ "rej": {},
+ "in_m": {
+  "2026-07": {
+   "Инцидент": 1,
+   "Правка данных": 1
   }
+ },
+ "sol_m": {}
 }

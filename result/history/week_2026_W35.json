@@ -1,6 +1,24 @@
 {
-  "year": 2026,
-  "week_num": 35,
-  "total_tickets": 152,
-  "med_hour": 0.0
+ "year": 2026,
+ "week_num": 35,
+ "hist_ver": 3,
+ "total_tickets": 0,
+ "med_hour": 0.0,
+ "incidents": 0,
+ "partial": false,
+ "in": {
+  "НСИ": 1,
+  "Консультация": 2,
+  "Инцидент": 1
+ },
+ "sol": {},
+ "rej": {},
+ "in_m": {
+  "2026-08": {
+   "НСИ": 1,
+   "Консультация": 2,
+   "Инцидент": 1
+  }
+ },
+ "sol_m": {}
 }

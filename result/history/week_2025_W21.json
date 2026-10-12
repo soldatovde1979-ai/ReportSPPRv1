@@ -1,0 +1,20 @@
+{
+ "year": 2025,
+ "week_num": 21,
+ "hist_ver": 3,
+ "total_tickets": 0,
+ "med_hour": 0.0,
+ "incidents": 0,
+ "partial": false,
+ "in": {
+  "Инцидент": 1
+ },
+ "sol": {},
+ "rej": {},
+ "in_m": {
+  "2025-05": {
+   "Инцидент": 1
+  }
+ },
+ "sol_m": {}
+}

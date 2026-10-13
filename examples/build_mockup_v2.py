@@ -6,7 +6,7 @@
 #         один модуль, разойтись они не могут. До 2.5 расчёт и вёрстка жили в этом файле (1500 строк).
 # Запуск (Linux / Bash):  python3 examples/build_mockup_v2.py
 # ----------------------------------------------------------------------
-VERSION = "2.6"
+VERSION = "2.7"      # 2.7 — неделя макета зафиксирована (REPORT_WEEK = 39); 2.6 — тонкая обёртка над модулем 5.x
 # выгрузка; демо-копия с табличными частями — examples/sppr_dump_20260929_180748_842rec_demo_tab.json
 DUMP_FILE = "examples/sppr_dump_20260929_180748_842rec_demo_tab.json"
 AI_FILE = "examples/mockup_v2_ai.json"
@@ -14,7 +14,10 @@ OUT_FILE = "examples/mockup_report_v2.html"
 MODULE_FILE = "src/report_v5.py"     # модуль расчёта и вёрстки — мажор MODULE_MAJOR
 MODULE_MAJOR = 5
 TEMPLATE_FILE = "template_v5.html"   # оболочка отчёта — мажор проверяет модуль
-REPORT_WEEK = None                   # номер ISO-недели; None — с понедельника недели максимальной даты решения
+# ЧТО ИЗМЕНЕНО: неделя макета зафиксирована (39), а не «по умолчанию» модуля
+# ПОЧЕМУ: модуль 5.6 сменил неделю по умолчанию — прошл. завершённая (W38), а макет и разметка mockup_v2_ai.json
+#         собраны под W39; без фиксации макет «уезжает» от разметки и не проходит проверку ключей
+REPORT_WEEK = 39                     # номер ISO-недели; 39 — неделя макета и разметки mockup_v2_ai.json
 
 import json, os, sys, importlib.util
 

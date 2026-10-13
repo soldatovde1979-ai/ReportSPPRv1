@@ -15,13 +15,17 @@
 # Нужно: Python 3.10+ и jinja2. В проект ничего не пишет: работа — во временной папке, при успехе она удаляется.
 # Итог: «ИТОГ: ОК» и код возврата 0; иначе — что разошлось, код 1 и путь к рабочей папке (вывод ноутбука — stdout.txt).
 # ----------------------------------------------------------------------
-VERSION = "1.2"                                   # 1.2 — ссылка «Открыть в Colab» в README.md = NOTEBOOK_FILE; 1.1 — ноутбук 5.2, сценарий е)
+VERSION = "1.3"                                   # 1.3 — неделя макета MOCK_WEEK задаётся в ноутбуке (REPORT_WEEK); 1.2 — ссылка «Открыть в Colab»
 STAND_MAJOR = 5                                   # стенд для мажора 5: ноутбук, модуль и шаблон — 5.x
-NOTEBOOK_FILE = "RepSSPR_v5.2.ipynb"              # проверяемый ноутбук; вышел новый номер — поправить здесь (стенд напомнит)
+NOTEBOOK_FILE = "RepSSPR_v5.3.ipynb"              # проверяемый ноутбук; вышел новый номер — поправить здесь (стенд напомнит)
 MODULE_FILE = "src/report_v5.py"
 TEMPLATE_FILE = "template_v5.html"
 MOCKUP_FILE = "examples/mockup_report_v2.html"    # эталон отчёта: макет собирает тот же модуль (build_mockup_v2.py)
 AI_FILE = "examples/mockup_v2_ai.json"            # ответы подставной модели — разметка макета
+# ЧТО ИЗМЕНЕНО: неделя макета задана явно и подставляется в ноутбук (NB_WEEK) и прямую сборку
+# ПОЧЕМУ: модуль 5.6 сменил неделю по умолчанию (прошл. завершённая, W38), а макет и разметка mockup_v2_ai.json
+#         собраны под W39 — без фиксации отчёт ноутбука «уезжает» от макета, а разметка не находит свои строки
+MOCK_WEEK = 39                                    # ISO-неделя макета = REPORT_WEEK в build_mockup_v2.py
 DEMO_DUMP = "examples/sppr_dump_20260929_180748_842rec_demo_tab.json"
 REAL_DUMP = "data/sppr_dump_20260929_180748_842rec.json"
 
@@ -115,7 +119,7 @@ def run_nb(tag, dump, upload, drive="never", fail="", debug=False, seed=None, dr
         seed(work)
     env = dict(os.environ, NB_UPLOAD=";".join(os.path.abspath(p) for p in [dump] + upload), NB_DRIVE=drive,
                NB_DEBUG="1" if debug else "0", NB_AI_FILE=os.path.abspath(AI_FILE), FAIL_MODE=fail,
-               NB_CODE=code, NB_GITHUB=github,
+               NB_CODE=code, NB_GITHUB=github, NB_WEEK=str(MOCK_WEEK),
                PYTHONIOENCODING="utf-8", PYTHONDONTWRITEBYTECODE="1")
     p = subprocess.run([sys.executable, os.path.join(HERE, "exec_notebook.py"), os.path.abspath(NOTEBOOK_FILE), work],
                        env=env, capture_output=True, timeout=900)
@@ -158,7 +162,7 @@ def scen_a():
 def direct_html():
     """Отчёт по боевой выгрузке, собранный модулем напрямую, — эталон для «б» и «е»."""
     rv5 = load_module()
-    R = rv5.load(json.load(open(REAL_DUMP, encoding="utf-8-sig")), os.path.basename(REAL_DUMP), None, [],
+    R = rv5.load(json.load(open(REAL_DUMP, encoding="utf-8-sig")), os.path.basename(REAL_DUMP), MOCK_WEEK, [],
                  demo=False, say=lambda *a, **k: None)
     rv5.attach_ai(R, json.load(open(AI_FILE, encoding="utf-8")))
     return rv5.render(R, read(TEMPLATE_FILE))

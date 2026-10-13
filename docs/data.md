@@ -1,12 +1,13 @@
 # data.md — ReportSPPR: конфигурация, схемы данных, контракты с LLM
 
-**Версия документа: 3.7** · 05.10.2026
-Соответствует: `RepSSPR_v5.2.ipynb` + `src/report_v5.py` 5.3 + `template_v5.html` 5.1 + выгрузка 1С формата от 29.09.2026 (`sppr_dump_*.json`).
+**Версия документа: 3.8** · 13.10.2026
+Соответствует: `RepSSPR_v5.3.ipynb` + `src/report_v5.py` 5.3 + `template_v5.html` 5.1 + выгрузка 1С формата от 29.09.2026 (`sppr_dump_*.json`).
 Разделы 1.1–1.5, 3–5, 7, 8 описывают v4.x (`RepSSPR_v4.2` + `template_v4.html`); файлов v4 в `main` нет с 02.10 (коммит `e81f023`), разделы оставлены справочно: на 1.1–1.2 ссылается конфигурация v5 («как в v4.2»), лист и колонки лога в Sheets (разд. 7) — те же в v5. v5: конфигурация — 1.6, история — 6, контракты ИИ — 11, модуль и шаблон — 12.
 Источник фактов: код v4.0 (прочитан), дамп `sppr_dump_20260922_120419_330rec.json` (прочитан скриптом, агрегаты), отчёт `Отчет по качеству W38 (14.09.2026).html` (прочитан скриптом); для v5 — код `src/report_v5.py`, ноутбука v5.0 и прогон на подставной модели 02.10.
 
 | Версия | Что изменилось |
 |---|---|
+| 3.8 | 1.6: ноутбук 5.3 — третий провайдер `opencoder` (по умолчанию): локальный OpenAI-совместимый прокси OpenCoder `OC_BASE_URL`, модели `OC_BATCH_MODEL`/`OC_SUMMARY_MODEL` (`flash`/`pro`); секрет Colab провайдеру не нужен. |
 | 3.7 | 2.5: поля модуля 5.3 — `desc_raw`/`sol_raw` (clean_text), `name`, `hold_days`; выгрузка v1.8 — `name`; шаблон 5.1 — раскрытие описания (12.2). |
 | 3.6 | 1.6: ноутбук 5.2 — `CODE_SOURCE`, `GITHUB_RAW`, `MODULE_REPO_PATH` / `TEMPLATE_REPO_PATH`, секрет `GITHUB_TOKEN`; порядок поиска модуля и шаблона; `VERSION` модуля — 5.2. |
 | 3.5 | Модуль 5.2 читает и показывает `tab_sla`, `tab_rate`, `parent`: правила 7–9 разд. 10, метрики `sla1c_*`, `rate_*`, `par_*`, `a_<код>_rate` (11.4), заголовок 12.1. |
@@ -103,19 +104,23 @@
 
 ### 1.6 Конфигурация v5
 
-Ноутбук `RepSSPR_v5.2.ipynb`, ячейка 1 (лог — ячейка 8):
+Ноутбук `RepSSPR_v5.3.ipynb`, ячейка 1 (лог — ячейка 8):
 
 | Параметр | Значение | Назначение |
 |---|---|---|
-| `NOTEBOOK_VERSION` | `"5.2"` | Мажор ноутбука = мажор модуля и шаблона; несовпадение — остановка в ячейке 1, до вызовов ИИ |
+| `NOTEBOOK_VERSION` | `"5.3"` | Мажор ноутбука = мажор модуля и шаблона; несовпадение — остановка в ячейке 1, до вызовов ИИ |
 | `MODULE_FILE` / `TEMPLATE_FILE` | `'report_v5.py'` / `'template_v5.html'` | Модуль расчёта и вёрстки, оболочка отчёта. Ищутся по точному имени (с 5.2): выбраны в окне загрузки этого прогона → GitHub (`CODE_SOURCE = "github"`, скачивается поверх кэша сессии) → запасной путь: кэш сессии → Диск `DRIVE_ROOT` с подпапками, первая найденная копия, корень — раньше подпапок (spec.md 7.5), с предупреждением. Откуда взят файл — в строке «🧩». «Самый свежий template*.html» больше не берётся |
 | `CODE_SOURCE` | `"github"` (`#@param`: github / drive) | `drive` — без GitHub, как в 5.1: кэш сессии → Диск |
 | `GITHUB_RAW` | `https://raw.githubusercontent.com/soldatovde1979-ai/ReportSPPRv1/main` | Корень репозитория для скачивания; продуктив = `main` (my-FT Р-10). На стенде — `file://` папки репозитория |
 | `MODULE_REPO_PATH` / `TEMPLATE_REPO_PATH` | `'src/' + MODULE_FILE` / `TEMPLATE_FILE` | Пути модуля и шаблона в репозитории |
 | секрет `GITHUB_TOKEN` | необязательный | Нужен, только если репозиторий закрыт; нет секрета — скачивание без него |
-| `AI_PROVIDER`, `*_BATCH_MODEL`, `*_SUMMARY_MODEL` | как в v4.2 | DeepSeek: `deepseek-chat` — разметка, группы, открытые, планшеты; `deepseek-reasoner` — разборы слайдов и скрытые повторы |
+| `AI_PROVIDER` | `"opencoder"` (`#@param`: opencoder / google / deepseek) | Переключатель провайдера LLM; по умолчанию opencoder (с 5.3) |
+| `OC_BASE_URL` | `http://127.0.0.1:8787/v1` | Локальный прокси OpenCoder (gw-proxy, `C:\OpenCoder\ZOO\gw-proxy-setup.md`): OpenAI-совместимый API шлюза, авторизация — устройственным ключом внутри прокси, секрет Colab не нужен. Работает только на машине с запущенным прокси |
+| `OC_BATCH_MODEL` / `OC_SUMMARY_MODEL` | `flash` / `pro` | Модели OpenCoder: разметка — быстрая; разборы — тяжёлая (с рассуждением, как reasoner) |
+| `*_BATCH_MODEL`, `*_SUMMARY_MODEL` (GEMINI_/DEEPSEEK_) | как в v4.2 | DeepSeek: `deepseek-chat` — разметка, группы, открытые, планшеты; `deepseek-reasoner` — разборы слайдов и скрытые повторы |
+| `BATCH_MODEL` / `SUMMARY_MODEL` | вычисляются по `AI_PROVIDER` | Словарь `_MODELS`: opencoder → (flash, pro), google → Gemini, deepseek → DeepSeek |
 | `BATCH_SIZE` / `MAX_CONCURRENCY` / `SLEEP_TIME` / `MAX_OUTPUT_TOKENS` / `PROMPT_TEXT_LIMIT` | 15 / 4 / 2 / 8192 / 1500 | Как в v4.2; пауза перед повтором ждёт вне слота параллельности |
-| `API_TIMEOUT` | 900 | Таймаут клиента DeepSeek, сек: под нагрузкой сервер держит соединение до 10 минут (прогон 01.10 — пачки по 600 с) |
+| `API_TIMEOUT` | 900 | Таймаут клиента (DeepSeek и OpenCoder), сек: под нагрузкой сервер держит соединение до 10 минут (прогон 01.10 — пачки по 600 с) |
 | `REPORT_WEEK` | 0 (`#@param`) | ISO-неделя отчёта; 0 — неделя максимальной даты решения (Т-12) |
 | `REUSE_AI` | `True` (`#@param`) | Повторный прогон той же выгрузки берёт ответы ИИ из кэша (разд. 11.6) |
 | `TEST_SAMPLE_SIZE` | 0 | >0 — размечаются первые N решённых и N старых открытых; история не пишется; в лог — `TEST` |
@@ -294,7 +299,7 @@ ID: {id} | Инициатор: {cli} | Аналитик: {anl}
 | `planshet` | bool | Только слово «планшет» и его формы |
 | `planshet_argument` | str | Цитата со словом «планшет» или пусто |
 
-Транспорт: Gemini — `response_schema=BatchResponse`, `response_mime_type=application/json`, `temperature=0.1`, `max_output_tokens=8192`. DeepSeek — `response_format={"type":"json_object"}`, JSON Schema дописывается текстом в системный промпт, `temperature=0.1`, `max_tokens=8192`; принимается `{"results":[...]}` или голый список.
+Транспорт: Gemini — `response_schema=BatchResponse`, `response_mime_type=application/json`, `temperature=0.1`, `max_output_tokens=8192`. DeepSeek и OpenCoder — OpenAI-совместимый клиент: `response_format={"type":"json_object"}`, JSON Schema дописывается текстом в системный промпт, `temperature=0.1`, `max_tokens=8192`; принимается `{"results":[...]}` или голый список. OpenCoder: base_url `OC_BASE_URL`, ключ-плейсхолдер `local` (реальная авторизация — внутри gw-proxy), клиент выбирается по `AI_PROVIDER`; модель `pro` ведёт себя как reasoner (без `temperature`/`response_format`, JSON — по инструкции в промпте).
 
 ### 3.3 Повторы и заглушки
 

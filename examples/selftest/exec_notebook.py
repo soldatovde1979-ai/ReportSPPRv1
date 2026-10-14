@@ -10,7 +10,8 @@
 #      NB_CODE (drive / github — откуда модуль и шаблон), NB_GITHUB (адрес вместо GITHUB_API, на стенде — file://),
 #      NB_WEEK (неделя макета → REPORT_WEEK; модуль 5.6 по умолчанию берёт прошл. завершённую, а макет — W39),
 #      NB_ENV (local — локальный запуск: google.colab недоступен, рабочая папка = папка проекта),
-#      NB_OC_URL (адрес «прокси OpenCoder» → OC_BASE_URL), NB_PROVIDER (→ AI_PROVIDER).
+#      NB_OC_URL (адрес «прокси OpenCoder» → OC_BASE_URL), NB_PROVIDER (→ AI_PROVIDER),
+#      NB_ROOT (1 — рабочая копия в run/, папка проекта — REPORTSPPR_ROOT, как run_local.bat).
 # ----------------------------------------------------------------------
 import sys
 sys.dont_write_bytecode = True                      # стенд не оставляет __pycache__ в проекте
@@ -68,6 +69,11 @@ LOCAL = os.environ.get("NB_ENV") == "local"
 if LOCAL:
     sys.modules["google.colab"] = None          # import google.colab → ImportError, как на ПК без Colab
     os.chdir(WORK)
+    # ЧТО ИЗМЕНЕНО (стенд 2.2): NB_ROOT=1 — как run_local.bat 6.2: рабочая копия в run/, папку проекта даёт REPORTSPPR_ROOT
+    if os.environ.get("NB_ROOT") == "1":
+        os.environ["REPORTSPPR_ROOT"] = WORK
+        os.makedirs(os.path.join(WORK, "run"), exist_ok=True)
+        os.chdir(os.path.join(WORK, "run"))
 cells = [s.replace("/content", work) for s in cells]
 
 result = {"ok": False, "cell": None, "error": ""}

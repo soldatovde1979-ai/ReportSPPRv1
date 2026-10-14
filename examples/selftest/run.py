@@ -17,7 +17,7 @@
 # Нужно: Python 3.10+ и jinja2. В проект ничего не пишет: работа — во временной папке, при успехе она удаляется.
 # Итог: «ИТОГ: ОК» и код возврата 0; иначе — что разошлось, код 1 и путь к рабочей папке (вывод ноутбука — stdout.txt).
 # ----------------------------------------------------------------------
-VERSION = "2.1"                                   # 2.1 — лог CSV вместо Sheets (сценарий «а»); 2.0 — папка без номера, ноутбук RepSSPR.ipynb, модуль и шаблон — по мажору ноутбука; сценарий «ж» — локальный запуск; 1.3 — неделя макета MOCK_WEEK задаётся в ноутбуке (REPORT_WEEK); 1.2 — ссылка «Открыть в Colab»
+VERSION = "2.2"                                   # 2.2 — «ж»: параметр из .env, рабочая копия run/, строки прогресса; 2.1 — лог CSV вместо Sheets (сценарий «а»); 2.0 — папка без номера, ноутбук RepSSPR.ipynb, модуль и шаблон — по мажору ноутбука; сценарий «ж» — локальный запуск; 1.3 — неделя макета MOCK_WEEK задаётся в ноутбуке (REPORT_WEEK); 1.2 — ссылка «Открыть в Colab»
 # ----------------------------------------------------------------------
 # ЧТО ИЗМЕНЕНО (2.0): имя ноутбука постоянное; модуль и шаблон — по мажору NOTEBOOK_VERSION (вычисляет preflight)
 # ПОЧЕМУ: my-FT Р-12 — смена версии не требует правки стенда
@@ -127,7 +127,8 @@ def run_nb(tag, dump, upload, drive="never", fail="", debug=False, seed=None, dr
                NB_DEBUG="1" if debug else "0", NB_AI_FILE=os.path.abspath(AI_FILE), FAIL_MODE=fail,
                NB_CODE=code, NB_GITHUB=github, NB_WEEK=str(MOCK_WEEK),
                PYTHONIOENCODING="utf-8", PYTHONDONTWRITEBYTECODE="1", **(extra or {}))
-    for k in ("DEEPSEEK_API_KEY", "GEMINI_API_KEY", "GITHUB_TOKEN"):
+    for k in ("DEEPSEEK_API_KEY", "GEMINI_API_KEY", "GITHUB_TOKEN", "REPORTSPPR_ROOT",
+              "AI_PROVIDER", "REPORT_WEEK", "REUSE_AI", "TEST_SAMPLE_SIZE", "IS_DEBUG", "OC_BASE_URL"):
         env.pop(k, None)                          # ключи машины стенда не должны подменять .env и секреты прогона
     p = subprocess.run([sys.executable, os.path.join(HERE, "exec_notebook.py"), os.path.abspath(NOTEBOOK_FILE), work],
                        env=env, capture_output=True, timeout=900)
@@ -321,8 +322,14 @@ def scen_zh():
     dead.close()
     try:
         local = {"NB_ENV": "local", "NB_OC_URL": up}
-        r = run_nb("zh1", REAL_DUMP, [], drive="never", debug=True, seed=lambda w: seed_local(w, REAL_DUMP), extra=local)
+        # как run_local.bat: рабочая копия в run/, параметр IS_DEBUG — из .env (строка с комментарием), не из кода
+        r = run_nb("zh1", REAL_DUMP, [], drive="never", seed=lambda w: seed_local(w, REAL_DUMP, "IS_DEBUG=1   # лог в CSV"),
+                   extra=dict(local, NB_ROOT="1"))
         need_ok(r, "локальный запуск")
+        if "⚙️ Параметр из .env: IS_DEBUG = 1" not in r["out"]:
+            probs.append("параметр IS_DEBUG из .env не подхвачен (нет строки «⚙️ Параметр из .env»)")
+        if not re.search(r"▶️ \[\d\d:\d\d\] Разметка решённых — начат", r["out"]) or not re.search(r"ответов \d+ из \d+", r["out"]):
+            probs.append("нет строк прогресса: начало этапа «▶️ [мм:сс]» и счётчик разметки «ответов N из M»")
         if "Провайдер: OPENCODER" not in r["out"] or "(папка проекта)" not in r["out"]:
             probs.append("локально ждали провайдер OPENCODER и модуль из папки проекта")
         if r["downloads"]:

@@ -1,5 +1,6 @@
-# selftest.yml v1.0 (05.10.2026) — стенд самопроверки на каждом коммите релиза (my-FT Т-73)
-# ЧТО: при push и pull_request в main, если менялись файлы релиза, запускает examples/selftest_v5/run.py.
+# selftest.yml v1.1 (14.10.2026) — стенд самопроверки на каждом коммите релиза (my-FT Т-73)
+# 1.1 — маски вместо имён с версией: смена мажора не требует правки этого файла (my-FT Р-12)
+# ЧТО: при push и pull_request в main, если менялись файлы релиза, запускает examples/selftest/run.py.
 #      Код возврата 1 — красный крест у коммита. Токенов 0, ключи не нужны, около минуты.
 # ПОЧЕМУ: «тест перед продом — каждый коммит релиза» (чат 05.10); правки только документов стенд не гоняют.
 name: selftest
@@ -8,10 +9,10 @@ on:
   push:
     branches: [main]
     paths:
-      - "src/report_v5.py"
-      - "template_v5.html"
-      - "RepSSPR_v*.ipynb"
-      - "examples/selftest_v5/**"
+      - "src/report_v*.py"
+      - "template_v*.html"
+      - "RepSSPR*.ipynb"
+      - "examples/selftest/**"
       - "examples/build_mockup_v2.py"
       - "examples/make_demo_tab.py"
       - "examples/mockup_v2_ai.json"
@@ -21,10 +22,10 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "src/report_v5.py"
-      - "template_v5.html"
-      - "RepSSPR_v*.ipynb"
-      - "examples/selftest_v5/**"
+      - "src/report_v*.py"
+      - "template_v*.html"
+      - "RepSSPR*.ipynb"
+      - "examples/selftest/**"
       - "examples/build_mockup_v2.py"
       - "examples/make_demo_tab.py"
       - "examples/mockup_v2_ai.json"
@@ -43,4 +44,4 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install jinja2
-      - run: python examples/selftest_v5/run.py
+      - run: python examples/selftest/run.py

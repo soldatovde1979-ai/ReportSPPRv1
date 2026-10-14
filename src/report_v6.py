@@ -1,9 +1,9 @@
 # ----------------------------------------------------------------------
-# report_v5.py — расчёт и вёрстка еженедельного отчёта ReportSPPR v5
+# report_v6.py — расчёт и вёрстка еженедельного отчёта ReportSPPR v6
 # ЧТО: общий модуль: из выгрузки 1С, разметки ИИ и истории недель считает все цифры
 #      и собирает HTML отчёта в формате макета v2 (11 слайдов). Оболочка страницы
-#      (CSS, навигация, скрипт) — шаблон template_v5.html.
-# ПОЧЕМУ: my-FT Р-6, В-18 = а — один модуль вызывают и ноутбук RepSSPR_v5.x, и сборка
+#      (CSS, навигация, скрипт) — шаблон template_v6.html.
+# ПОЧЕМУ: my-FT Р-6, В-18 = а — один модуль вызывают и ноутбук RepSSPR_v6.x, и сборка
 #         макета examples/build_mockup_v2.py: макет и боевой отчёт не могут разойтись.
 #         Код перенесён из build_mockup_v2.py 2.4; отличия помечены «ЧТО ИЗМЕНЕНО».
 # Как вызывать:
@@ -12,7 +12,13 @@
 #   R.AI["slides"] = разборы                                # разборы слайдов (s1…s11)
 #   html = render(R, текст_шаблона, title=...)
 # ----------------------------------------------------------------------
-VERSION = "5.7"                 # 5.7 — ksr (крайний срок решения, выгрузка v1.9), светофор на s1, слайд s12 «Поток и динамика»
+VERSION = "6.0"                 # 6.0 — мажор вровень с ноутбуком 6.0 (два режима запуска, my-FT Т-99); расчёт и вёрстка как в 5.7
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО (6.0): файл переименован report_v5.py → report_v6.py; TEMPLATE_MAJOR берётся из VERSION; имена модуля
+#               и шаблона в паспорте и в ошибках — из мажора; ноутбук в паспорте — RepSSPR.ipynb. Расчёт не менялся
+# ПОЧЕМУ: ноутбук 6.0 (Colab и локальный запуск, my-FT Т-99); смена версии — одна константа, а не правка кода (Р-12)
+# ----------------------------------------------------------------------
+# 5.7 — ksr (крайний срок решения, выгрузка v1.9), светофор на s1, слайд s12 «Поток и динамика»
 # Изменения 5.7 относительно 5.6 (vygruzka-1c.md п. 2.9):
 #   load()    — читает ksr; на строке ksr_dt (крайний срок решения; заполнен у инцидентов, ЗИ отфильтрованы отбором «Поддержка»);
 #   _metrics  — ksr_open / ksr_over / ksr_late для каталога ИИ (только если поле есть);
@@ -38,7 +44,7 @@ VERSION = "5.7"                 # 5.7 — ksr (крайний срок реше�
 #   s9        — колонка «Оценка польз.» и панель «Оценки пользователей»;
 #   s5        — панель «Связи из 1С: главное — дочернее»;
 #   s10       — tab_sla, tab_rate и parent в паспорте; «Чего нет в выгрузке» — только то, чего правда нет.
-TEMPLATE_MAJOR = 5              # мажор template_v5.html, с которым работает модуль (контроль — check_template)
+TEMPLATE_MAJOR = int(VERSION.split(".")[0])   # мажор шаблона = мажор модуля (template_v<МАЖОР>.html, контроль — check_template); v6.0: из VERSION, не руками
 
 OLD_BOARD_PREFIX = "Выполнено - "   # статусы старой доски — игнорируются при загрузке (Т-21)
 L1_ANALYST = "Попова Анна"          # первая линия (Т-10)
@@ -265,9 +271,9 @@ def check_template(text):
     """Контроль мажора шаблона (CLAUDE.md, правило версий): версия — строка TEMPLATE_VERSION в начале файла."""
     m = re.search(r'TEMPLATE_VERSION\s*=\s*"(\d+)\.(\d+)"', text[:2000])
     if not m:
-        raise ValueError("В шаблоне нет строки TEMPLATE_VERSION = \"5.x\" — это не template_v5.html")
+        raise ValueError(f"В шаблоне нет строки TEMPLATE_VERSION = \"{TEMPLATE_MAJOR}.x\" — это не template_v{TEMPLATE_MAJOR}.html")
     if int(m.group(1)) != TEMPLATE_MAJOR:
-        raise ValueError(f"Шаблон версии {m.group(1)}.{m.group(2)}, модуль report_v5 {VERSION} работает с мажором {TEMPLATE_MAJOR}: "
+        raise ValueError(f"Шаблон версии {m.group(1)}.{m.group(2)}, модуль report_v{TEMPLATE_MAJOR} {VERSION} работает с мажором {TEMPLATE_MAJOR}: "
                          f"возьмите template_v{TEMPLATE_MAJOR}.html")
     return f"{m.group(1)}.{m.group(2)}"
 
@@ -2557,9 +2563,9 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         # ----------------------------------------------------------------------
         tpl_v = check_template(template_text) if template_text else "?"
         p8 = panel("Сборка отчёта", "", f'<div class="tw"><table class="num"><tbody>'
-                   f'<tr><td><b>Генератор (расчёт и вёрстка)</b></td><td>report_v5.py <b>{VERSION}</b></td></tr>'
-                   f'<tr><td><b>Оболочка (стили, навигация, скрипт)</b></td><td>template_v5.html <b>{tpl_v}</b></td>'
-                   f'<tr><td><b>Ноутбук-оболочка прогона</b></td><td>RepSSPR_v5.2 (Colab)</td></tr>'
+                   f'<tr><td><b>Генератор (расчёт и вёрстка)</b></td><td>report_v{TEMPLATE_MAJOR}.py <b>{VERSION}</b></td></tr>'
+                   f'<tr><td><b>Оболочка (стили, навигация, скрипт)</b></td><td>template_v{TEMPLATE_MAJOR}.html <b>{tpl_v}</b></td>'
+                   f'<tr><td><b>Ноутбук-оболочка прогона</b></td><td>RepSSPR.ipynb (Colab или локально)</td></tr>'
                    f'<tr><td><b>Выгрузка 1С</b></td><td>{E(R.dump_name)}<br><span class="mut">формат v1.8: поля name, url, части tab_trud, tab_status, tab_sla, tab_rate</span></td></tr>'
                    f'</tbody></table></div>',
                    "Файлы и версии, из которых собран этот отчёт; мажор модуля и шаблона сверялся с ноутбуком в ячейке 1, до вызовов ИИ.",
@@ -2580,7 +2586,7 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
 
 
 def render(R, template_text, title=None, banner=None, run_log=None, strict=False):
-    """Готовый HTML отчёта: слайды модуля в оболочке template_v5.html (Jinja2, autoescape)."""
+    """Готовый HTML отчёта: слайды модуля в оболочке template_v6.html (Jinja2, autoescape)."""
     from jinja2 import Environment
     check_template(template_text)
     R.warnings = []

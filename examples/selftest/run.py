@@ -1,25 +1,29 @@
 # ----------------------------------------------------------------------
-# run.py — стенд самопроверки ReportSPPR v5: ноутбук целиком на подставной модели — без ключей, сети и токенов
-# ЧТО: прогоняет ноутбук (ячейки как есть, exec_notebook.py) в шести сценариях и сверяет отчёт:
+# run.py — стенд самопроверки ReportSPPR: ноутбук целиком на подставной модели — без ключей, сети и токенов
+# ЧТО: прогоняет ноутбук (ячейки как есть, exec_notebook.py) в семи сценариях и сверяет отчёт:
 #      а) демо-выгрузка → отчёт = макет examples/mockup_report_v2.html, кроме известных отличий; лог в Sheets пишется;
 #      б) боевая выгрузка → отчёт ноутбука = прямая сборка модулем, кроме журнала ИИ;
 #      в) сбои модели (обрыв JSON, негодная строка, чужой номер, неизвестный ключ, не-JSON) → отчёт собирается, повторы есть;
 #      г) Диск: модуль и шаблон найдены в папке проекта (src/), история записана; повтор → 0 вызовов, тот же отчёт;
 #      д) шаблон чужого мажора, нет модуля → остановка в ячейке 1, до вызовов модели;
 #      е) модуль и шаблон «с GitHub» (file:// этой папки) → отчёт = прямая сборка; GitHub недоступен → запасная копия
-#         с Диска с предупреждением, без копии — остановка в ячейке 1.
+#         с Диска с предупреждением, без копии — остановка в ячейке 1;
+#      ж) локальный запуск (без Colab): ИИ — opencoder, файлы — папка проекта, лог — CSV → отчёт = прямая сборка;
+#         прокси не запущен → остановка в ячейке 1; DeepSeek с ключом из .env → прогон проходит.
 # ПОЧЕМУ: my-FT Т-72 — «единый тест сэкономит деньги и время»: правка проверяется за секунды, а не боевым прогоном
 #         (02.10 — 608 тыс. токенов). Качество ответов настоящей модели стенд не проверяет — только боевой прогон.
-# Запуск из любой папки:  Linux / Bash — python3 examples/selftest_v5/run.py
-#                         Windows / PowerShell — py examples\selftest_v5\run.py
+# Запуск из любой папки:  Linux / Bash — python3 examples/selftest/run.py
+#                         Windows / PowerShell — py examples\selftest\run.py
 # Нужно: Python 3.10+ и jinja2. В проект ничего не пишет: работа — во временной папке, при успехе она удаляется.
 # Итог: «ИТОГ: ОК» и код возврата 0; иначе — что разошлось, код 1 и путь к рабочей папке (вывод ноутбука — stdout.txt).
 # ----------------------------------------------------------------------
-VERSION = "1.3"                                   # 1.3 — неделя макета MOCK_WEEK задаётся в ноутбуке (REPORT_WEEK); 1.2 — ссылка «Открыть в Colab»
-STAND_MAJOR = 5                                   # стенд для мажора 5: ноутбук, модуль и шаблон — 5.x
-NOTEBOOK_FILE = "RepSSPR_v5.3.ipynb"              # проверяемый ноутбук; вышел новый номер — поправить здесь (стенд напомнит)
-MODULE_FILE = "src/report_v5.py"
-TEMPLATE_FILE = "template_v5.html"
+VERSION = "2.0"                                   # 2.0 — папка без номера, ноутбук RepSSPR.ipynb, модуль и шаблон — по мажору ноутбука; сценарий «ж» — локальный запуск; 1.3 — неделя макета MOCK_WEEK задаётся в ноутбуке (REPORT_WEEK); 1.2 — ссылка «Открыть в Colab»
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО (2.0): имя ноутбука постоянное; модуль и шаблон — по мажору NOTEBOOK_VERSION (вычисляет preflight)
+# ПОЧЕМУ: my-FT Р-12 — смена версии не требует правки стенда
+# ----------------------------------------------------------------------
+NOTEBOOK_FILE = "RepSSPR.ipynb"                   # проверяемый ноутбук: имя постоянное, версия — внутри
+MAJOR = MODULE_FILE = TEMPLATE_FILE = None        # src/report_v<МАЖОР>.py и template_v<МАЖОР>.html — задаёт preflight()
 MOCKUP_FILE = "examples/mockup_report_v2.html"    # эталон отчёта: макет собирает тот же модуль (build_mockup_v2.py)
 AI_FILE = "examples/mockup_v2_ai.json"            # ответы подставной модели — разметка макета
 # ЧТО ИЗМЕНЕНО: неделя макета задана явно и подставляется в ноутбук (NB_WEEK) и прямую сборку
@@ -41,7 +45,7 @@ RUN_LOG_DIFFS = ["сноска паспорта о расходе ИИ", "таб
 
 import sys
 sys.dont_write_bytecode = True                    # стенд не оставляет __pycache__ в проекте
-import difflib, glob, importlib.util, json, os, pathlib, re, shutil, subprocess, tempfile, time
+import difflib, glob, importlib.util, json, os, pathlib, re, shutil, socket, subprocess, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 os.chdir(os.path.dirname(os.path.dirname(HERE)))  # корень репозитория
@@ -65,7 +69,7 @@ def short(s, n=160):
 
 
 def load_module():
-    spec = importlib.util.spec_from_file_location("report_v5", MODULE_FILE)
+    spec = importlib.util.spec_from_file_location(f"report_v{MAJOR}", MODULE_FILE)
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
     return m
@@ -108,9 +112,11 @@ def notebook_param(name):
     return m.group(1)
 
 
-def run_nb(tag, dump, upload, drive="never", fail="", debug=False, seed=None, drive_from=None, code="drive", github=""):
+def run_nb(tag, dump, upload, drive="never", fail="", debug=False, seed=None, drive_from=None, code="drive", github="",
+           extra=None):
     """Один прогон ноутбука в папке TMP/tag. upload — файлы окна загрузки кроме выгрузки; seed(work) — подготовить Диск;
-    drive_from — взять Диск из рабочей папки прошлого прогона (повтор недели); code, github — CODE_SOURCE и GITHUB_RAW."""
+    drive_from — взять Диск из рабочей папки прошлого прогона (повтор недели); code, github — CODE_SOURCE и GITHUB_RAW;
+    extra — доп. переменные окружения прогона (NB_ENV, NB_OC_URL, NB_PROVIDER)."""
     work = os.path.join(TMP, tag)
     os.makedirs(work)
     if drive_from:
@@ -120,7 +126,9 @@ def run_nb(tag, dump, upload, drive="never", fail="", debug=False, seed=None, dr
     env = dict(os.environ, NB_UPLOAD=";".join(os.path.abspath(p) for p in [dump] + upload), NB_DRIVE=drive,
                NB_DEBUG="1" if debug else "0", NB_AI_FILE=os.path.abspath(AI_FILE), FAIL_MODE=fail,
                NB_CODE=code, NB_GITHUB=github, NB_WEEK=str(MOCK_WEEK),
-               PYTHONIOENCODING="utf-8", PYTHONDONTWRITEBYTECODE="1")
+               PYTHONIOENCODING="utf-8", PYTHONDONTWRITEBYTECODE="1", **(extra or {}))
+    for k in ("DEEPSEEK_API_KEY", "GEMINI_API_KEY", "GITHUB_TOKEN"):
+        env.pop(k, None)                          # ключи машины стенда не должны подменять .env и секреты прогона
     p = subprocess.run([sys.executable, os.path.join(HERE, "exec_notebook.py"), os.path.abspath(NOTEBOOK_FILE), work],
                        env=env, capture_output=True, timeout=900)
     out = p.stdout.decode("utf-8", "replace") + p.stderr.decode("utf-8", "replace")
@@ -142,11 +150,13 @@ def need_ok(r, what):
         raise Fail(f"{what}: отчёт не найден в {r['work']}/result")
 
 
-TOOLS = [TEMPLATE_FILE, MODULE_FILE]              # «выбраны в окне загрузки» вместе с выгрузкой
+def tools():
+    """Модуль и шаблон, «выбранные в окне загрузки» вместе с выгрузкой."""
+    return [TEMPLATE_FILE, MODULE_FILE]
 
 
 def scen_a():
-    r = run_nb("a", DEMO_DUMP, TOOLS, debug=True)
+    r = run_nb("a", DEMO_DUMP, tools(), debug=True)
     need_ok(r, "прогон")
     try:
         expect_diffs(read(MOCKUP_FILE), r["html"], list(KNOWN_DIFFS), "отчёт против макета")
@@ -161,15 +171,15 @@ def scen_a():
 
 def direct_html():
     """Отчёт по боевой выгрузке, собранный модулем напрямую, — эталон для «б» и «е»."""
-    rv5 = load_module()
-    R = rv5.load(json.load(open(REAL_DUMP, encoding="utf-8-sig")), os.path.basename(REAL_DUMP), MOCK_WEEK, [],
+    rv = load_module()
+    R = rv.load(json.load(open(REAL_DUMP, encoding="utf-8-sig")), os.path.basename(REAL_DUMP), MOCK_WEEK, [],
                  demo=False, say=lambda *a, **k: None)
-    rv5.attach_ai(R, json.load(open(AI_FILE, encoding="utf-8")))
-    return rv5.render(R, read(TEMPLATE_FILE))
+    rv.attach_ai(R, json.load(open(AI_FILE, encoding="utf-8")))
+    return rv.render(R, read(TEMPLATE_FILE))
 
 
 def scen_b():
-    r = run_nb("b", REAL_DUMP, TOOLS)
+    r = run_nb("b", REAL_DUMP, tools())
     need_ok(r, "прогон")
     expect_diffs(direct_html(), r["html"], RUN_LOG_DIFFS, "отчёт ноутбука против прямой сборки модулем")
     STATE["b"] = r
@@ -180,7 +190,7 @@ def scen_v():
     base = STATE.get("b")
     if not base:
         raise Fail("нет базы для сравнения вызовов — сценарий «б» не прошёл")
-    r = run_nb("v", REAL_DUMP, TOOLS, fail="errors")
+    r = run_nb("v", REAL_DUMP, tools(), fail="errors")
     need_ok(r, "прогон со сбоями модели")
     probs = []
     m = re.search(r"размечено (\d+) из (\d+)", r["out"])
@@ -241,7 +251,7 @@ def scen_d():
     probs = []
     bad_dir = os.path.join(TMP, "d_template")
     os.makedirs(bad_dir)
-    text, n = re.subn(r'TEMPLATE_VERSION = "\d+\.\d+"', f'TEMPLATE_VERSION = "{STAND_MAJOR - 1}.9"', read(TEMPLATE_FILE), count=1)
+    text, n = re.subn(r'TEMPLATE_VERSION = "\d+\.\d+"', f'TEMPLATE_VERSION = "{MAJOR - 1}.9"', read(TEMPLATE_FILE), count=1)
     if not n:
         raise Fail(f"в {TEMPLATE_FILE} нет строки TEMPLATE_VERSION")
     with open(os.path.join(bad_dir, os.path.basename(TEMPLATE_FILE)), "w", encoding="utf-8") as f:
@@ -283,38 +293,91 @@ def scen_e():
     return "с GitHub — отчёт = прямая сборка; GitHub недоступен — запасная копия с Диска с предупреждением, без неё — остановка"
 
 
+def seed_local(work, dump, env_line=""):
+    """Папка проекта на ПК — как репозиторий: модуль в src/, шаблон в корне, выгрузка в source/, ключ — в .env."""
+    os.makedirs(os.path.join(work, "src"))
+    os.makedirs(os.path.join(work, "source"))
+    shutil.copy(TEMPLATE_FILE, work)
+    shutil.copy(MODULE_FILE, os.path.join(work, "src"))
+    shutil.copy(dump, os.path.join(work, "source"))
+    if env_line:
+        with open(os.path.join(work, ".env"), "w", encoding="utf-8") as f:
+            f.write(env_line + "\n")
+
+
+def scen_zh():
+    probs = []
+    proxy = socket.socket()                       # «прокси OpenCoder»: порт слушается — проверка ячейки 1 проходит
+    proxy.bind(("127.0.0.1", 0))
+    proxy.listen(8)
+    up = f"http://127.0.0.1:{proxy.getsockname()[1]}/v1"
+    dead = socket.socket()                        # «прокси не запущен»: порт был занят и освобождён
+    dead.bind(("127.0.0.1", 0))
+    down = f"http://127.0.0.1:{dead.getsockname()[1]}/v1"
+    dead.close()
+    try:
+        local = {"NB_ENV": "local", "NB_OC_URL": up}
+        r = run_nb("zh1", REAL_DUMP, [], drive="never", debug=True, seed=lambda w: seed_local(w, REAL_DUMP), extra=local)
+        need_ok(r, "локальный запуск")
+        if "Провайдер: OPENCODER" not in r["out"] or "(папка проекта)" not in r["out"]:
+            probs.append("локально ждали провайдер OPENCODER и модуль из папки проекта")
+        if r["downloads"]:
+            probs.append(f"локально ноутбук вызвал скачивание браузером: {r['downloads']}")
+        expect_diffs(direct_html(), r["html"], RUN_LOG_DIFFS, "локальный отчёт против прямой сборки")
+        logs = [os.path.join(r["work"], "result", "logs", f) for f in ("Logs.csv", "Token.csv")]
+        rows = [len(read(p).strip().splitlines()) if os.path.exists(p) else 0 for p in logs]
+        if rows != [2, 2]:
+            probs.append(f"лог CSV (IS_DEBUG = 1): строк в Logs.csv и Token.csv {rows} — ждали заголовок и одну строку")
+        if not glob.glob(os.path.join(r["work"], "result", "history", "week_*.json")):
+            probs.append("история недель не записана в result/history папки проекта")
+        r = run_nb("zh2", REAL_DUMP, [], seed=lambda w: seed_local(w, REAL_DUMP), extra=dict(local, NB_OC_URL=down))
+        if r["ok"] or r["cell"] != 1 or "Прокси OpenCoder не отвечает" not in r["error"]:
+            probs.append("прокси не запущен: ждали остановку в ячейке 1, вышло: "
+                         + ("прогон прошёл" if r["ok"] else f"ячейка {r['cell']}, {short(r['error'])}"))
+        if sum(r["calls"].values()):
+            probs.append(f"прокси не запущен: модель вызвана {sum(r['calls'].values())} раз до остановки")
+        r = run_nb("zh3", REAL_DUMP, [], seed=lambda w: seed_local(w, REAL_DUMP, "DEEPSEEK_API_KEY=stand-key"),
+                   extra=dict(local, NB_PROVIDER="deepseek"))
+        need_ok(r, "локально DeepSeek с ключом из .env")
+        if "Провайдер: DEEPSEEK" not in r["out"]:
+            probs.append("локально с AI_PROVIDER = deepseek провайдер не DEEPSEEK")
+    finally:
+        proxy.close()
+    if probs:
+        raise Fail("; ".join(probs))
+    return "локально: opencoder, файлы из папки проекта, лог в CSV, отчёт = прямая сборка; без прокси — остановка; ключ из .env"
+
+
 def preflight():
-    """Контроль версий до прогонов: стенд мажора STAND_MAJOR, ноутбук — последний, модуль и шаблон того же мажора."""
-    found = []
-    for p in glob.glob("RepSSPR_v*.ipynb"):
-        m = re.fullmatch(r"RepSSPR_v(\d+)\.(\d+)\.ipynb", os.path.basename(p))
-        if m:
-            found.append(((int(m.group(1)), int(m.group(2))), os.path.basename(p)))
+    """Контроль версий до прогонов: ноутбук RepSSPR.ipynb, по его мажору — модуль и шаблон того же мажора, ссылка README."""
+    global MAJOR, MODULE_FILE, TEMPLATE_FILE
     if not os.path.exists(NOTEBOOK_FILE):
-        raise Fail(f"нет {NOTEBOOK_FILE}" + (f"; в репозитории: {', '.join(n for _, n in sorted(found))}" if found else ""))
-    newest = max(found)[1]
-    if newest != NOTEBOOK_FILE:
-        raise Fail(f"в репозитории есть {newest}, а стенд проверяет {NOTEBOOK_FILE}: поправьте NOTEBOOK_FILE в run.py"
-                   + (f" или сделайте стенд selftest_v{max(found)[0][0]}" if max(found)[0][0] != STAND_MAJOR else ""))
+        raise Fail(f"нет {NOTEBOOK_FILE}")
+    old = sorted(glob.glob("RepSSPR_v*.ipynb"))
+    if old:
+        raise Fail(f"в корне лежат ноутбуки со старым именем {', '.join(old)}: ноутбук один — {NOTEBOOK_FILE}, версия внутри")
     nb_ver = notebook_param("NOTEBOOK_VERSION")
-    rv5 = load_module()
-    tpl_ver = rv5.check_template(read(TEMPLATE_FILE))
-    majors = {"ноутбук": nb_ver, "модуль": rv5.VERSION, "шаблон": tpl_ver}
-    bad = [f"{k} {v}" for k, v in majors.items() if int(v.split(".")[0]) != STAND_MAJOR]
+    MAJOR = int(nb_ver.split(".")[0])
+    MODULE_FILE, TEMPLATE_FILE = f"src/report_v{MAJOR}.py", f"template_v{MAJOR}.html"
+    for path in (MODULE_FILE, TEMPLATE_FILE):
+        if not os.path.exists(path):
+            raise Fail(f"ноутбук {nb_ver} ищет {path} — файла нет (сменили мажор — переименуйте модуль и шаблон: git mv)")
+    majors = sorted(int(m.group(1)) for p in glob.glob("src/report_v*.py") for m in [re.search(r"report_v(\d+)\.py$", p)] if m)
+    if majors[-1] != MAJOR:
+        raise Fail(f"в src/ есть report_v{majors[-1]}.py, а ноутбук {nb_ver} — мажор {MAJOR}: поднимите NOTEBOOK_VERSION")
+    rv = load_module()
+    tpl_ver = rv.check_template(read(TEMPLATE_FILE))
+    bad = [f"{k} {v}" for k, v in {"модуль": rv.VERSION, "шаблон": tpl_ver}.items() if int(v.split(".")[0]) != MAJOR]
     if bad:
-        raise Fail(f"стенд для мажора {STAND_MAJOR}, а {', '.join(bad)}")
-    for name, path in (("MODULE_FILE", MODULE_FILE), ("TEMPLATE_FILE", TEMPLATE_FILE)):
-        if notebook_param(name) != os.path.basename(path):
-            raise Fail(f"ноутбук ищет {name} = {notebook_param(name)}, стенд подкладывает {os.path.basename(path)}")
+        raise Fail(f"ноутбук {nb_ver}, а {', '.join(bad)}: мажоры должны совпадать")
     # ----------------------------------------------------------------------
     # ЧТО ИЗМЕНЕНО (1.2): README.md — единый вход; его кнопка «Открыть в Colab» должна вести на проверяемый ноутбук
-    # ПОЧЕМУ: my-FT Р-10 — продуктив = main; вышел новый номер ноутбука, а ссылка старая — пользователь запустит старую версию
+    # ПОЧЕМУ: my-FT Р-10 — продуктив = main; ссылка на другой файл — пользователь запустит не то
     # ----------------------------------------------------------------------
-    links = set(re.findall(r"blob/main/(RepSSPR_v[\d.]+\.ipynb)", read("README.md"))) if os.path.exists("README.md") else set()
+    links = set(re.findall(r"blob/main/(RepSSPR[\w.]*\.ipynb)", read("README.md"))) if os.path.exists("README.md") else set()
     if links != {NOTEBOOK_FILE}:
         raise Fail(f"README.md ведёт на {', '.join(sorted(links)) or 'ничего'}, а ноутбук — {NOTEBOOK_FILE}: поправьте ссылки в README.md")
-    return f"{NOTEBOOK_FILE} ({nb_ver}) + {MODULE_FILE} {rv5.VERSION} + {TEMPLATE_FILE} {tpl_ver}"
-
+    return f"{NOTEBOOK_FILE} ({nb_ver}) + {MODULE_FILE} {rv.VERSION} + {TEMPLATE_FILE} {tpl_ver}"
 
 SCENARIOS = [
     ("а", "демо-выгрузка → отчёт совпадает с макетом", scen_a),
@@ -323,14 +386,15 @@ SCENARIOS = [
     ("г", "Диск и повтор недели из кэша → 0 вызовов, тот же отчёт", scen_g),
     ("д", "чужой мажор шаблона, нет модуля → остановка в ячейке 1", scen_d),
     ("е", "модуль и шаблон с GitHub, GitHub недоступен → запасная копия или остановка", scen_e),
+    ("ж", "локальный запуск без Colab → отчёт; нет прокси → остановка; ключ из .env", scen_zh),
 ]
 
 
 def main():
     global TMP
-    TMP = tempfile.mkdtemp(prefix="selftest_v5_")
+    TMP = tempfile.mkdtemp(prefix="selftest_")
     t_all = time.time()
-    print(f"Стенд самопроверки v5 ({VERSION}): ноутбук на подставной модели, токенов 0")
+    print(f"Стенд самопроверки ({VERSION}): ноутбук на подставной модели, токенов 0")
     try:
         print("Проверяется: " + preflight())
     except Exception as e:                        # Fail — расхождение версий; прочее — модуль или шаблон не читаются

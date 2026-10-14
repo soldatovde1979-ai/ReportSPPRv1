@@ -8,7 +8,9 @@
 #      NB_UPLOAD (файлы окна загрузки через «;»), NB_DRIVE (never / always), NB_DEBUG (1 — включить лог в Sheets),
 #      NB_AI_FILE (ответы подставной модели), FAIL_MODE (errors — сбои модели),
 #      NB_CODE (drive / github — откуда модуль и шаблон), NB_GITHUB (адрес вместо GITHUB_API, на стенде — file://),
-#      NB_WEEK (неделя макета → REPORT_WEEK; модуль 5.6 по умолчанию берёт прошл. завершённую, а макет — W39).
+#      NB_WEEK (неделя макета → REPORT_WEEK; модуль 5.6 по умолчанию берёт прошл. завершённую, а макет — W39),
+#      NB_ENV (local — локальный запуск: google.colab недоступен, рабочая папка = папка проекта),
+#      NB_OC_URL (адрес «прокси OpenCoder» → OC_BASE_URL), NB_PROVIDER (→ AI_PROVIDER).
 # ----------------------------------------------------------------------
 import sys
 sys.dont_write_bytecode = True                      # стенд не оставляет __pycache__ в проекте
@@ -53,6 +55,19 @@ if os.environ.get("NB_GITHUB"):
           'url = f"{GITHUB_API}/{repo_path}"', "URL Contents API")
 if os.environ.get("NB_DEBUG") == "1":
     patch(r'^IS_DEBUG = \d+', 'IS_DEBUG = 1', "IS_DEBUG")
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО: локальный запуск (ноутбук 5.4, my-FT Т-99) — google.colab «не установлен», папка проекта = рабочая папка
+#               прогона (ноутбук берёт её из os.getcwd()); адрес прокси OpenCoder и провайдер задаёт стенд
+# ПОЧЕМУ: стенд проверяет оба режима ноутбука; прокси — сокет стенда, сеть не нужна
+# ----------------------------------------------------------------------
+if os.environ.get("NB_OC_URL"):
+    patch(r"^OC_BASE_URL = '[^']*'", f"OC_BASE_URL = '{os.environ['NB_OC_URL']}'", "OC_BASE_URL")
+if os.environ.get("NB_PROVIDER"):
+    patch(r'^AI_PROVIDER = "\w+"', f'AI_PROVIDER = "{os.environ["NB_PROVIDER"]}"', "AI_PROVIDER")
+LOCAL = os.environ.get("NB_ENV") == "local"
+if LOCAL:
+    sys.modules["google.colab"] = None          # import google.colab → ImportError, как на ПК без Colab
+    os.chdir(WORK)
 cells = [s.replace("/content", work) for s in cells]
 
 result = {"ok": False, "cell": None, "error": ""}
@@ -73,6 +88,7 @@ except Exception as e:
     traceback.print_exc()
 finally:
     import fake_model, gspread
+    sys.modules.pop("google.colab", None)
     from google.colab import files
     result["calls"] = dict(Counter(stage for stage, *_ in fake_model.LOG))
     result["downloads"] = [os.path.basename(p) for p in files.downloaded]

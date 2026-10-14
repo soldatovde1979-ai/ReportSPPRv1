@@ -1,0 +1,6 @@
+# requirements.txt — библиотеки для локального запуска RepSSPR.ipynb (my-FT Т-99); в Colab они уже есть
+# Установка (Windows): py -m pip install -r requirements.txt
+jupyterlab        # среда, в которой открывается ноутбук (run_local.bat)
+jinja2            # вёрстка отчёта (модуль report_v<МАЖОР>.py)
+openai            # клиент OpenCoder и DeepSeek (OpenAI-совместимый протокол)
+google-genai      # клиент Gemini — нужен, только если AI_PROVIDER = "google"

@@ -6,7 +6,7 @@
 #         один модуль, разойтись они не могут. До 2.5 расчёт и вёрстка жили в этом файле (1500 строк).
 # Запуск (Linux / Bash):  python3 examples/build_mockup_v2.py
 # ----------------------------------------------------------------------
-VERSION = "2.8"      # 2.8 — модуль — старший src/report_v*.py, шаблон — того же мажора (смена мажора без правки файла); 2.7 — неделя макета зафиксирована (REPORT_WEEK = 39); 2.6 — тонкая обёртка над модулем 5.x
+VERSION = "2.9"      # 2.9 — цели и поручения из plan.csv; 2.8 — модуль — старший src/report_v*.py, шаблон — того же мажора (смена мажора без правки файла); 2.7 — неделя макета зафиксирована (REPORT_WEEK = 39); 2.6 — тонкая обёртка над модулем 5.x
 # выгрузка; демо-копия с табличными частями — examples/sppr_dump_20260929_180748_842rec_demo_tab.json
 DUMP_FILE = "examples/sppr_dump_20260929_180748_842rec_demo_tab.json"
 AI_FILE = "examples/mockup_v2_ai.json"
@@ -44,6 +44,9 @@ raw = json.load(open(DUMP_FILE, encoding="utf-8"))
 AI = json.load(open(AI_FILE, encoding="utf-8"))
 R = rv.load(raw, DUMP_FILE, REPORT_WEEK, history=None, demo="_demo_tab" in DUMP_FILE)
 rv.attach_ai(R, AI)
+# ЧТО ИЗМЕНЕНО (2.9): цели и поручения — из plan.csv в корне проекта, как в ноутбуке (my-FT Р-14); нет файла — без целей
+plan = rv.attach_plan(R, rv.read_plan(rv.PLAN_FILE))
+print(f"План {rv.PLAN_FILE}: целей {len(plan['goals'])}, поручений {len(plan['tasks'])}" + (f", ошибок {len(plan['errors'])}: {plan['errors']}" if plan["errors"] else ""))
 
 # проверка разметки кодом — та же, что в ноутбуке: неизвестный ключ метрики или номер не из выгрузки — сборка останавливается
 errs = [f"slides.{k}: {rv.errors_text(e)}" for k, s in AI["slides"].items() for e in [rv.validate(R, "slide", s, k)] if e]

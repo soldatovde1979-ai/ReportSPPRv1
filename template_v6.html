@@ -1,4 +1,4 @@
-{#- template_v6.html · TEMPLATE_VERSION = "6.0" · 14.10.2026
+{#- template_v6.html · TEMPLATE_VERSION = "6.1" · 15.10.2026
     Оболочка отчёта ReportSPPR v6: стили, верхняя панель, меню слайдов, переключение слайдов.
     Слайды и меню собирает модуль src/report_v6.py (render) — он же проверяет мажор этого шаблона.
     Переменные: title — заголовок вкладки; banner — плашка над отчётом (только макет), текст;
@@ -9,7 +9,10 @@
     мини-полоса долей .phb (собирает модуль); без скриптов.
     5.3: вывод ИИ на панели — .ai-note (иконка ✦ слева в фиолетовом чипе, акцентная кромка);
     плитка без скруглений .kpi-sharp и строка μ/Σ .kpi-m для плитки «Сейчас в ожидании».
-    6.0: мажор вровень с ноутбуком 6.0 и модулем 6.0 (два режима запуска, my-FT Т-99); вёрстка как в 5.3. -#}
+    6.0: мажор вровень с ноутбуком 6.0 и модулем 6.0 (два режима запуска, my-FT Т-99); вёрстка как в 5.3.
+    6.1: цели и поручения plan.csv (my-FT Р-14) — строка цели .goalrow (плитка .gt с цветной кромкой --gc,
+    bullet-полоса .bullet, динамика .trend), табло .board/.bd, поручения .tasks (просрочка tr.late),
+    свёрнутый подвал слайда details.cellar. Без скриптов: плитка табло — ссылка #sN (переключает слайд). -#}
 <!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }}</title><style>
 :root{--page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
 --ph-wait:#8A94A6;--ph-clar:#C9A227;--ph-solve:#5D86B0;
@@ -134,6 +137,20 @@ tr.grp th{background:var(--wash);padding:6px 8px;border-bottom:1px solid var(--i
 @media (max-width:1100px){.wrap{grid-template-columns:1fr}.rail{display:none}.g4{grid-template-columns:1fr 1fr}.itiles{grid-template-columns:repeat(3,1fr)}.eqbar{grid-template-columns:1fr 1fr}.eqbar em{display:none}.g21{grid-template-columns:1fr}}
 @media (max-width:760px){.g2,.g4{grid-template-columns:1fr}.itiles{grid-template-columns:1fr 1fr}.own{grid-template-columns:1fr}.top .per,.top h1{display:none}.top{gap:10px;padding:10px 16px}.ph{flex-direction:column}.stamps{justify-content:flex-start}main{padding:16px}}
 @media print{.top,.rail,.mock{display:none}.wrap{display:block}.slide{display:block;break-after:page}}
+.goalrow .gr{display:grid;grid-template-columns:300px 1fr;gap:20px;align-items:center}.gr-t{min-width:0}
+.gt{border:1px solid var(--rule);border-left:6px solid var(--gc);border-radius:8px;padding:10px 14px;background:var(--paper);min-width:0}
+.gt-h{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink2)}.gt-h i{width:12px;height:12px;border-radius:50%;background:var(--gc);flex:0 0 12px}
+.gt-h a{color:inherit;text-decoration:none}.gt-h a:hover{text-decoration:underline}
+.gt-v{font:600 34px/1.15 var(--num);margin:4px 0 2px}.gt-c .gt-v{font-size:26px}
+.gt-s{font-size:12.5px;color:var(--muted);margin-bottom:6px}.gt-w{font-size:12px;font-weight:600;color:var(--gc);margin-top:4px}
+.gt-run{display:block;font-size:12px;color:#0F6E3A;margin-top:2px}
+.bullet{display:block;max-width:100%}.trend{width:100%;height:130px;display:block}.trend .tl{font-size:11px;fill:var(--muted)}.trend .tv{font-size:11px;fill:var(--ink2);font-weight:600}
+.board .bd-g{margin-bottom:10px}.board .act{font-size:12px;color:var(--muted);margin:6px 0}.bd{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+table.tasks tr.late td{background:#FBE7E5}table.tasks td.c{white-space:nowrap}
+details.cellar{margin:8px 0 16px;border:1px dashed var(--rule);border-radius:10px;padding:10px 14px;background:var(--wash)}
+details.cellar>summary{cursor:pointer;font-size:14px;color:var(--ink2);font-weight:600}details.cellar[open]>summary{margin-bottom:12px}
+@media (max-width:900px){.goalrow .gr{grid-template-columns:1fr}}
+@media print{details.cellar{display:none}}
 </style></head><body>{% if banner %}<div class="mock">{{ banner }}</div>{% endif %}<div class="top"><h1>Качество 1С-поддержки</h1><span class="per">{{ period }}</span><span class="sp"></span><button id="prev">←</button><span id="cnt"></span><button id="next">→</button><button id="all">Все слайды</button></div><div class="wrap"><nav class="rail" aria-label="Слайды">{{ rail|safe }}</nav><main>{{ slides|safe }}</main></div><script>
 const slides=[...document.querySelectorAll('.slide')],links=[...document.querySelectorAll('.rail a')];let cur=0;const cnt=document.getElementById('cnt');
 function show(i){cur=Math.max(0,Math.min(slides.length-1,i));slides.forEach((s,k)=>s.classList.toggle('on',k===cur));links.forEach((a,k)=>a.classList.toggle('on',k===cur));cnt.textContent=(cur+1)+' / '+slides.length;window.scrollTo(0,0)}

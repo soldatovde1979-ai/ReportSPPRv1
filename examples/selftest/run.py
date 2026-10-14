@@ -17,13 +17,14 @@
 # Нужно: Python 3.10+ и jinja2. В проект ничего не пишет: работа — во временной папке, при успехе она удаляется.
 # Итог: «ИТОГ: ОК» и код возврата 0; иначе — что разошлось, код 1 и путь к рабочей папке (вывод ноутбука — stdout.txt).
 # ----------------------------------------------------------------------
-VERSION = "2.2"                                   # 2.2 — «ж»: параметр из .env, рабочая копия run/, строки прогресса; 2.1 — лог CSV вместо Sheets (сценарий «а»); 2.0 — папка без номера, ноутбук RepSSPR.ipynb, модуль и шаблон — по мажору ноутбука; сценарий «ж» — локальный запуск; 1.3 — неделя макета MOCK_WEEK задаётся в ноутбуке (REPORT_WEEK); 1.2 — ссылка «Открыть в Colab»
+VERSION = "2.3"                                   # 2.3 — plan.csv: цели и поручения в отчёте, предложения ИИ в план (сценарии «а», «ж»); 2.2 — «ж»: параметр из .env, рабочая копия run/, строки прогресса; 2.1 — лог CSV вместо Sheets (сценарий «а»); 2.0 — папка без номера, ноутбук RepSSPR.ipynb, модуль и шаблон — по мажору ноутбука; сценарий «ж» — локальный запуск; 1.3 — неделя макета MOCK_WEEK задаётся в ноутбуке (REPORT_WEEK); 1.2 — ссылка «Открыть в Colab»
 # ----------------------------------------------------------------------
 # ЧТО ИЗМЕНЕНО (2.0): имя ноутбука постоянное; модуль и шаблон — по мажору NOTEBOOK_VERSION (вычисляет preflight)
 # ПОЧЕМУ: my-FT Р-12 — смена версии не требует правки стенда
 # ----------------------------------------------------------------------
 NOTEBOOK_FILE = "RepSSPR.ipynb"                   # проверяемый ноутбук: имя постоянное, версия — внутри
 MAJOR = MODULE_FILE = TEMPLATE_FILE = None        # src/report_v<МАЖОР>.py и template_v<МАЖОР>.html — задаёт preflight()
+PLAN_FILE = "plan.csv"                            # цели и поручения (my-FT Р-14) — подкладывается ноутбуку вместе с модулем и шаблоном
 MOCKUP_FILE = "examples/mockup_report_v2.html"    # эталон отчёта: макет собирает тот же модуль (build_mockup_v2.py)
 AI_FILE = "examples/mockup_v2_ai.json"            # ответы подставной модели — разметка макета
 # ЧТО ИЗМЕНЕНО: неделя макета задана явно и подставляется в ноутбук (NB_WEEK) и прямую сборку
@@ -153,7 +154,7 @@ def need_ok(r, what):
 
 def tools():
     """Модуль и шаблон, «выбранные в окне загрузки» вместе с выгрузкой."""
-    return [TEMPLATE_FILE, MODULE_FILE]
+    return [TEMPLATE_FILE, MODULE_FILE, PLAN_FILE]
 
 
 def scen_a():
@@ -180,6 +181,7 @@ def direct_html():
     R = rv.load(json.load(open(REAL_DUMP, encoding="utf-8-sig")), os.path.basename(REAL_DUMP), MOCK_WEEK, [],
                  demo=False, say=lambda *a, **k: None)
     rv.attach_ai(R, json.load(open(AI_FILE, encoding="utf-8")))
+    rv.attach_plan(R, rv.read_plan(PLAN_FILE))
     return rv.render(R, read(TEMPLATE_FILE))
 
 
@@ -226,6 +228,7 @@ def seed_drive(work):
     root = on_disk(work, notebook_param("DRIVE_ROOT"))
     os.makedirs(os.path.join(root, "src"))
     shutil.copy(TEMPLATE_FILE, root)
+    shutil.copy(PLAN_FILE, root)
     shutil.copy(MODULE_FILE, os.path.join(root, "src"))
 
 
@@ -303,6 +306,7 @@ def seed_local(work, dump, env_line=""):
     os.makedirs(os.path.join(work, "src"))
     os.makedirs(os.path.join(work, "source"))
     shutil.copy(TEMPLATE_FILE, work)
+    shutil.copy(PLAN_FILE, work)
     shutil.copy(MODULE_FILE, os.path.join(work, "src"))
     shutil.copy(dump, os.path.join(work, "source"))
     if env_line:
@@ -339,6 +343,11 @@ def scen_zh():
         rows = [len(read(p).strip().splitlines()) if os.path.exists(p) else 0 for p in logs]
         if rows != [2, 2]:
             probs.append(f"лог CSV (IS_DEBUG = 1): строк в Logs.csv и Token.csv {rows} — ждали заголовок и одну строку")
+        plan_rows = read(os.path.join(r["work"], PLAN_FILE)).count(";предложено;")
+        if not plan_rows:
+            probs.append("предложения ИИ не дописаны в plan.csv папки проекта (нет строк «предложено»)")
+        if not os.path.exists(os.path.join(r["work"], "result", "metrics.csv")):
+            probs.append("нет result/metrics.csv — каталога метрик для целей")
         if not glob.glob(os.path.join(r["work"], "result", "history", "week_*.json")):
             probs.append("история недель не записана в result/history папки проекта")
         r = run_nb("zh2", REAL_DUMP, [], seed=lambda w: seed_local(w, REAL_DUMP), extra=dict(local, NB_OC_URL=down))

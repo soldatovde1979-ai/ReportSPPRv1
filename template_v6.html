@@ -1,4 +1,4 @@
-{#- template_v6.html · TEMPLATE_VERSION = "6.2" · 15.10.2026
+{#- template_v6.html · TEMPLATE_VERSION = "6.3" · 15.10.2026
     Оболочка отчёта ReportSPPR v6: стили, верхняя панель, меню слайдов, переключение слайдов.
     Слайды и меню собирает модуль src/report_v6.py (render) — он же проверяет мажор этого шаблона.
     Переменные: title — заголовок вкладки; banner — плашка над отчётом (только макет), текст;
@@ -14,7 +14,9 @@
     bullet-полоса .bullet, динамика .trend), табло .board/.bd, поручения .tasks (просрочка tr.late),
     свёрнутый подвал слайда details.cellar. Без скриптов: плитка табло — ссылка #sN (переключает слайд).
     6.2: цели в стиле плиток KPI (my-FT Т-108) — панель .goals, плитка .gt (акцентная кромка --gc, колонка
-    цель/порог/до цели .gt-c цветом статуса, срок .gt-d), график без заливок; .gt-run и пастельные зоны убраны. -#}
+    цель/порог/до цели .gt-c цветом статуса, срок .gt-d), график без заливок; .gt-run и пастельные зоны убраны.
+    6.3: расшифровка обращения — значок .tx у номера и окно <dialog id="xdlg"> (описание и решение из 1С целиком);
+    вставка строки в таблицу (.tname/.tmore/.xtrow/.xfull) убрана. -#}
 <!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }}</title><style>
 :root{--page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
 --ph-wait:#8A94A6;--ph-clar:#C9A227;--ph-solve:#5D86B0;
@@ -86,18 +88,18 @@ th{text-align:left;font-weight:600;color:var(--ink2);border-bottom:1px solid var
 td{border-bottom:1px solid var(--rule);padding:8px 10px 8px 0;vertical-align:top}tbody th{font-weight:600;border-bottom:1px solid var(--rule);vertical-align:top}
 table.num td,td.c{text-align:center}table.num th{text-align:center}table.num tbody th{text-align:left}
 .tk{display:inline-flex;flex-direction:column;margin:0 8px 6px 0;vertical-align:top}.tk small{font-size:11.5px;color:var(--muted);white-space:nowrap}
-/* З-3/З-4 (5.1): краткое описание в ячейке «Обращение» и раскрытие описания/решения по клику.
-   Полный текст живёт один раз в скрытом реестре #xtreg (hidden; правил display у него и его детей нет —
-   атрибут работает), клик вставляет строку <tr class=xtrow><td> с копией текста из реестра */
-.tname{font:12.5px var(--text);color:var(--ink2);background:none;border:none;border-top:1px dotted var(--rule);padding:4px 0 0;cursor:pointer;max-width:420px;text-align:left}
-.tname:hover{color:#1A56DB}
-.tmore{font:11.5px var(--num);color:#1A56DB;background:var(--wash);border:1px solid var(--rule);border-radius:3px;padding:0 4px;cursor:pointer;vertical-align:1px;margin-left:3px;line-height:1.4;white-space:nowrap;flex:0 0 auto}
-.tmore:hover{border-color:#1A56DB;background:#EBF1FA}
-tr.xtrow td{background:var(--wash);border-bottom:1px solid var(--rule)}
-div.xtrow{margin:4px 0 8px}
-.xfull{margin:2px 0;border-left:3px solid var(--rule);padding:4px 0 4px 10px;max-width:900px}
-.xfull b{font:600 11.5px var(--text);color:var(--muted);display:block;margin-top:4px}
-.xfull .xt{font-size:12.5px;line-height:1.45;white-space:pre-wrap;color:var(--ink);margin-bottom:4px;overflow-wrap:anywhere}
+/* 6.3 (шаблон): расшифровка обращения — значок .tx сразу после номера (у всех обращений); клик открывает окно
+   #xdlg с описанием и решением из 1С без сокращений (полный текст — один раз в скрытом реестре #xtreg) */
+.tx{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-left:4px;padding:0;vertical-align:middle;border:1px solid var(--rule);border-radius:4px;background:var(--paper);color:#1A56DB;cursor:pointer;flex:0 0 auto}
+.tx:hover{border-color:#1A56DB;background:#EBF1FA}.tx svg{width:12px;height:12px;display:block}
+.tkn{display:inline-flex;align-items:center}
+dialog#xdlg{margin:auto;width:min(860px,94vw);max-height:86vh;overflow:auto;border:0;border-radius:12px;padding:0;box-shadow:0 20px 60px rgba(16,24,40,.35)}
+dialog#xdlg::backdrop{background:rgba(24,34,45,.45)}
+#xdlg .xw{padding:20px 24px 22px;position:relative}#xdlg .xc{position:absolute;top:12px;right:14px;font:18px var(--text);background:none;border:0;color:var(--muted);cursor:pointer}#xdlg .xc:hover{color:var(--ink)}#xdlg .xc:focus{outline:none}#xdlg .xc:focus-visible{outline:2px solid #1A56DB;border-radius:4px}
+#xdlg .xt.xd{max-height:32vh;overflow:auto}
+#xdlg .xh{padding-right:30px;margin-bottom:10px}#xdlg .xh h3{font:600 18px/1.3 var(--text);margin:4px 0}#xdlg .xh small{color:var(--muted);font-size:12.5px}
+#xdlg b.xl{display:block;font:600 12px var(--text);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 4px}
+#xdlg .xt{font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink);background:var(--wash);border-left:3px solid var(--rule);padding:8px 12px;border-radius:4px}
 a.tid{color:#1A56DB;text-decoration:none}a.tid:hover{text-decoration:underline}
 .tid{font:13px var(--num);white-space:nowrap;background:var(--wash);border:1px solid var(--rule);border-radius:3px;padding:1px 5px;display:inline-block;width:max-content}
 .ids{margin-top:6px}
@@ -138,7 +140,7 @@ tr.grp th{background:var(--wash);padding:6px 8px;border-bottom:1px solid var(--i
 .cmp{margin-top:10px;font-size:14px}@media screen{tr.hid{display:none}}.more{margin-top:8px;font:13px var(--text);color:var(--ink2);background:var(--wash);border:1px solid var(--rule);border-radius:6px;padding:5px 12px;cursor:pointer}@media print{.more{display:none}}td.rank{width:28px}
 @media (max-width:1100px){.wrap{grid-template-columns:1fr}.rail{display:none}.g4{grid-template-columns:1fr 1fr}.itiles{grid-template-columns:repeat(3,1fr)}.eqbar{grid-template-columns:1fr 1fr}.eqbar em{display:none}.g21{grid-template-columns:1fr}}
 @media (max-width:760px){.g2,.g4{grid-template-columns:1fr}.itiles{grid-template-columns:1fr 1fr}.own{grid-template-columns:1fr}.top .per,.top h1{display:none}.top{gap:10px;padding:10px 16px}.ph{flex-direction:column}.stamps{justify-content:flex-start}main{padding:16px}}
-@media print{.top,.rail,.mock{display:none}.wrap{display:block}.slide{display:block;break-after:page}}
+@media print{.top,.rail,.mock,dialog{display:none}.wrap{display:block}.slide{display:block;break-after:page}}
 .goals .gr{display:grid;grid-template-columns:330px 1fr;gap:20px;align-items:center;padding:12px 0;border-top:1px solid var(--rule)}.goals .gr:first-child{border-top:0;padding-top:2px}.gr-t{min-width:0}
 .gt{background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:12px 16px;box-shadow:inset 4px 0 0 var(--gc);min-width:0}
 .gt.gt-bad{border-color:var(--gc)}.gt h4{font-size:14px;font-weight:600;color:var(--ink2);line-height:1.3}.gt h4 a{color:inherit;text-decoration:none}.gt h4 a:hover{text-decoration:underline}
@@ -152,33 +154,20 @@ details.cellar{margin:8px 0 16px;border:1px dashed var(--rule);border-radius:10p
 details.cellar>summary{cursor:pointer;font-size:14px;color:var(--ink2);font-weight:600}details.cellar[open]>summary{margin-bottom:12px}
 @media (max-width:900px){.goals .gr{grid-template-columns:1fr}}
 @media print{details.cellar{display:none}}
-</style></head><body>{% if banner %}<div class="mock">{{ banner }}</div>{% endif %}<div class="top"><h1>Качество 1С-поддержки</h1><span class="per">{{ period }}</span><span class="sp"></span><button id="prev">←</button><span id="cnt"></span><button id="next">→</button><button id="all">Все слайды</button></div><div class="wrap"><nav class="rail" aria-label="Слайды">{{ rail|safe }}</nav><main>{{ slides|safe }}</main></div><script>
+</style></head><body>{% if banner %}<div class="mock">{{ banner }}</div>{% endif %}<div class="top"><h1>Качество 1С-поддержки</h1><span class="per">{{ period }}</span><span class="sp"></span><button id="prev">←</button><span id="cnt"></span><button id="next">→</button><button id="all">Все слайды</button></div><div class="wrap"><nav class="rail" aria-label="Слайды">{{ rail|safe }}</nav><main>{{ slides|safe }}</main></div><dialog id="xdlg" aria-label="Описание и решение обращения"><div class="xw"><button class="xc" aria-label="Закрыть">✕</button><div class="xb"></div></div></dialog><script>
 const slides=[...document.querySelectorAll('.slide')],links=[...document.querySelectorAll('.rail a')];let cur=0;const cnt=document.getElementById('cnt');
 function show(i){cur=Math.max(0,Math.min(slides.length-1,i));slides.forEach((s,k)=>s.classList.toggle('on',k===cur));links.forEach((a,k)=>a.classList.toggle('on',k===cur));cnt.textContent=(cur+1)+' / '+slides.length;window.scrollTo(0,0)}
 links.forEach((a,k)=>a.addEventListener('click',e=>{e.preventDefault();document.body.classList.remove('all');show(k)}));
 document.getElementById('prev').onclick=()=>show(cur-1);document.getElementById('next').onclick=()=>show(cur+1);
 document.getElementById('all').onclick=()=>document.body.classList.toggle('all');
-document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')show(cur+1);if(e.key==='ArrowLeft')show(cur-1)});
-// З-4 (5.1): раскрытие описания и решения — клик по краткому описанию (.tname) или «▸» (.tmore).
-// Полный текст берётся из реестра #xtreg (хранится один раз на обращение), в таблицу вставляется
-// строка <tr class=xtrow><td colspan> с копией; повторный клик строку убирает, реестр не трогает —
-// раскрыть можно снова. Вне таблицы (плитка «Самый долгий») — блок под ячейкой. Без сети и библиотек.
-document.querySelectorAll('.tname,.tmore').forEach(b=>{b.addEventListener('click',()=>{
-const tk=b.closest('.tk'),reg=document.getElementById('xtf-'+tk.dataset.tid);
-const html=reg?'<div class="xfull">'+reg.innerHTML+'</div>':'<small class="mut">Текст недоступен.</small>';
-const tr=b.closest('tr');
-if(tr){ // в таблице: строка <tr class=xtrow><td colspan>; открытый блок в таблице — один
-if(tr._xrow){tr._xrow.remove();tr._xrow=null;if(b.classList.contains('tmore'))b.textContent='▸';return;}
-const tbl=tr.closest('table');
-tbl.querySelectorAll('tr.xtrow').forEach(o=>o.remove());
-tbl.querySelectorAll('.tmore').forEach(o=>{if(o!==b)o.textContent='▸'});
-const x=document.createElement('tr');x.className='xtrow';const c=document.createElement('td');c.colSpan=99;
-c.innerHTML=html;x.appendChild(c);tr.after(x);tr._xrow=x;
-}else{ // вне таблицы (плитка): блок после ячейки, повторный клик — свернуть
-const old=tk.nextElementSibling;
-if(old&&old.classList.contains('xtrow')){old.remove();if(b.classList.contains('tmore'))b.textContent='▸';return;}
-tk.insertAdjacentHTML('afterend',html);}
-if(b.classList.contains('tmore'))b.textContent='▾';})});
+document.addEventListener('keydown',e=>{if(xdlg&&xdlg.open)return;if(e.key==='ArrowRight')show(cur+1);if(e.key==='ArrowLeft')show(cur-1)});
+// 6.3: расшифровка обращения — окно поверх отчёта: значок .tx у номера → содержимое из реестра #xtreg;
+// закрыть — ✕, Esc или клик мимо окна; таблица не меняется. Стрелки слайдов при открытом окне не работают.
+const xdlg=document.getElementById('xdlg');
+document.addEventListener('click',e=>{const b=e.target.closest('.tx');if(!b)return;e.preventDefault();
+const reg=document.getElementById('xtf-'+b.dataset.x);xdlg.querySelector('.xb').innerHTML=reg?reg.innerHTML:'<p class="mut">Текст недоступен.</p>';
+xdlg.showModal();xdlg.scrollTop=0});
+xdlg.addEventListener('click',e=>{if(e.target===xdlg)xdlg.close()});xdlg.querySelector('.xc').onclick=()=>xdlg.close();
 // длинные таблицы: видны первые 10 строк, остальное — по кнопке (печать показывает всё)
 document.querySelectorAll('table:not(.heat) > tbody').forEach(tb=>{const rs=[...tb.rows];if(rs.length<=12||tb.querySelector('tr.grp'))return;
 rs.slice(10).forEach(r=>r.classList.add('hid'));const b=document.createElement('button');b.className='more';b.textContent='Показать все строки: '+rs.length;

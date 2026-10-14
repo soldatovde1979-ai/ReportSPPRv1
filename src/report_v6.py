@@ -12,7 +12,7 @@
 #   R.AI["slides"] = разборы                                # разборы слайдов (s1…s11)
 #   html = render(R, текст_шаблона, title=...)
 # ----------------------------------------------------------------------
-VERSION = "6.4"                 # 6.4 — основной срок решения — из 1С (tab_sla), расчётный — общий срок с уточнениями (my-FT Т-106); 6.3 — вид целей: плитка в стиле KPI, цель/порог/до цели колонкой, срок цели, график — квартал, акцентные цвета (my-FT Т-108); 6.2 — цели и поручения из plan.csv: табло, строки «плитка + динамика», поручения, подвал (my-FT Р-14); 6.1 — первый слайд возвращён к виду 5.6, s12 и светофор убраны (ksr остался); 6.0 — мажор вровень с ноутбуком 6.0 (два режима запуска, my-FT Т-99); расчёт и вёрстка как в 5.7
+VERSION = "6.5"                 # 6.5 — расшифровка обращения: значок у номера у всех, окно с текстом из 1С без сокращений; 6.4 — основной срок решения — из 1С (tab_sla), расчётный — общий срок с уточнениями (my-FT Т-106); 6.3 — вид целей: плитка в стиле KPI, цель/порог/до цели колонкой, срок цели, график — квартал, акцентные цвета (my-FT Т-108); 6.2 — цели и поручения из plan.csv: табло, строки «плитка + динамика», поручения, подвал (my-FT Р-14); 6.1 — первый слайд возвращён к виду 5.6, s12 и светофор убраны (ksr остался); 6.0 — мажор вровень с ноутбуком 6.0 (два режима запуска, my-FT Т-99); расчёт и вёрстка как в 5.7
 # ----------------------------------------------------------------------
 # ЧТО ИЗМЕНЕНО (6.0): файл переименован report_v5.py → report_v6.py; TEMPLATE_MAJOR берётся из VERSION; имена модуля
 #               и шаблона в паспорте и в ошибках — из мажора; ноутбук в паспорте — RepSSPR.ipynb. Расчёт не менялся
@@ -1511,7 +1511,7 @@ def _trend_svg(g, w=620, h=112):
               f'<title>{E(lab)}: {_fmtn(v)}</title></circle>'
               f'<text x="{x:.1f}" y="{y - 9:.1f}" text-anchor="middle" class="tv">{_fmtn(v)}</text>')
     if len(pts) < 2:
-        s += f'<text x="{(pl + w - pr) / 2:.0f}" y="{pt + 10}" text-anchor="middle" class="tl">прошлых недель квартала в истории пока нет</text>'
+        s += f'<text x="{pl + 4}" y="{h - pb - 6}" class="tl">прошлых недель квартала в истории пока нет — точки появятся со следующих прогонов</text>'
     return f'<svg class="trend" viewBox="0 0 {w} {h}" preserveAspectRatio="none" role="img">{s}</svg>'
 
 
@@ -1745,50 +1745,53 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         tid = f'<a class="tid" href="{E(url)}">{E(i)}</a>' if url else f'<span class="tid">{E(i)}</span>'
         cli = short(r.get("cli", "")) if isinstance(r.get("cli"), str) else ""
         # ----------------------------------------------------------------------
-        # ЧТО ИЗМЕНЕНО (5.3): описание и решение — по клику; полный текст живёт один раз в реестре
-        # XTEXT внизу отчёта, в ячейке — только кнопка (З-4, З-6)
-        # ПОЧЕМУ: без реестра полный текст повторялся в разметке при каждом упоминании обращения
-        #         (отчёт ×3–3,6 раза); клик вставляет строку <tr><td> с копией из реестра и
-        #         сворачивается без потери текста — раскрыть можно снова
+        # ЧТО ИЗМЕНЕНО (6.5): расшифровка — значок сразу после номера у каждого обращения (полный и компактный вид);
+        #               клик открывает окно с описанием и решением из 1С без сокращений (шаблон 6.3, #xdlg)
+        # ПОЧЕМУ: значок был не у всех, вставка строки ломала таблицу, решение обрезалось чисткой и 3000 символами
         # ----------------------------------------------------------------------
-        more = ""
-        if r.get("desc") or r.get("sol"):
-            XTEXT.setdefault(i, (r.get("desc") or "", r.get("sol") or ""))
-            # ЧТО ИЗМЕНЕНО (5.4): кнопка раскрытия — компактный значок «⤵»; в полном виде
-            # (revью 06.10, п. 10) — только в компактном виде и в колонке «Суть (ИИ)» — ai_btn
-            more = '<button class="tmore" title="Описание и решение — по клику">⤵</button>'
+        num = f'<span class="tkn">{tid}{xbtn(r)}</span>'
         # ЧТО ИЗМЕНЕНО (5.4, ревью 07.10): строка 1 — «рег ДД · инициатор», строка 2 — «реш ДД · аналитик»
         ln1 = f"рег {DD(reg)} · {E(cli)}" if cli else f"рег {DD(reg)}"
-        if full:
-            return f'<span class="tk" data-tid="{E(i)}">{tid}<small>{ln1}</small><small>{d}</small></span>'
-        # компактный вид — как раньше, плюс «⤵» с раскрытием (З-3.3)
-        return f'<span class="tk" data-tid="{E(i)}">{tid}{more}<small>{ln1}</small><small>{d}</small></span>'
+        return f'<span class="tk" data-tid="{E(i)}">{num}<small>{ln1}</small><small>{d}</small></span>'
+
+    XICON = ('<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2.5h8M2 5h8M2 7.5h5.5M2 10h4" '
+             'stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/></svg>')
+
+    def xbtn(r):
+        """Значок расшифровки у номера: описание и решение из выгрузки как есть (desc_raw/sol_raw) — в реестр, кнопка — в ячейку."""
+        desc, sol_ = r.get("desc_raw") or r.get("desc") or "", r.get("sol_raw") or r.get("sol") or ""
+        if not (desc or sol_):
+            return ""
+        if r["id"] not in XTEXT:
+            reg = P(r["reg"]) if isinstance(r.get("reg"), str) else r.get("reg_dt")
+            head = r.get("name") or (r.get("ai") if isinstance(r.get("ai"), dict) else {}).get("s") or short_name(r)
+            meta = " · ".join(x for x in (f"рег {reg:%d.%m.%Y}" if reg else "", E(r.get("cli", "")) and f"инициатор {E(short(r.get('cli', '')))}",
+                                          E(r.get("anl", "")) and f"аналитик {E(short(r.get('anl', '')))}", E(r.get("st", "")), E(r.get("sec", ""))) if x)
+            url = r.get("url")
+            num = f'<a class="tid" href="{E(url)}">{E(r["id"])}</a>' if url else f'<span class="tid">{E(r["id"])}</span>'
+            XTEXT[r["id"]] = (f'<div class="xh">{num} <small>{meta}</small><h3>{E(head)}</h3></div>', desc, sol_)
+        return f'<button class="tx" data-x="{E(r["id"])}" title="Описание и решение — как в 1С" aria-label="Описание и решение {E(r["id"])}">{XICON}</button>'
 
     def xtext_registry():
-        """Скрытый реестр полных текстов (id → описание и решение ≤ 3000 симв.) —
-        заполняется вызовами tk(); в отчёте один экземпляр, читается скриптом раскрытия."""
+        """Скрытый реестр расшифровок (id → шапка, описание и решение из 1С целиком) — заполняется xbtn();
+        в отчёте один экземпляр, окно #xdlg шаблона берёт содержимое отсюда."""
         if not XTEXT:
             return ""
         parts = "".join(
-            f'<div class="xtf" id="xtf-{E(k)}">'
-            + (f'<b>Описание</b><div class="xt">{E(_clip(v[0]))}</div>' if v[0] else "")
-            + (f'<b>Решение</b><div class="xt">{E(_clip(v[1]))}</div>' if v[1] else "")
+            f'<div class="xtf" id="xtf-{E(k)}">{h}'
+            + (f'<b class="xl">Описание</b><div class="xt xd">{E(d)}</div>' if d else "")      # длинное — своей прокруткой, решение видно сразу
+            + (f'<b class="xl">Решение</b><div class="xt">{E(sl)}</div>' if sl else "")
             + "</div>"
-            for k, v in XTEXT.items())
+            for k, (h, d, sl) in XTEXT.items())
         return f'<div id="xtreg" hidden>{parts}</div>'
 
     def tks(ids):
         return "".join(tk(i) for i in ids)
 
     def ai_cell(r):
-        """Последняя колонка «Суть (ИИ)» (ревью 06.10, п. 10): наименование или суть + кнопка раскрытия
-        описания и решения — кнопка живёт здесь, а не в первой колонке (Т-78: наименование обязано быть)."""
-        more = ""
-        if r.get("desc") or r.get("sol"):
-            XTEXT.setdefault(r["id"], (r.get("desc") or "", r.get("sol") or ""))
-            more = '<button class="tmore" title="Описание и решение — по клику">⤵</button>'
+        """Последняя колонка «Суть (ИИ)»: наименование или суть; расшифровка — значком у номера (6.5)."""
         s = r["ai"].get("s", "") or short_name(r)          # нет сути ИИ — краткое описание из выгрузки (З-3.1)
-        return f'<span class="tk" data-tid="{E(r["id"])}">{E(s)}{more}</span>'
+        return f'<span class="tk" data-tid="{E(r["id"])}">{E(s)}</span>'
 
     def panel(title, st, body, what, use, cls=""):
         return (f'<section class="panel {cls}"><header class="ph"><h3>{title}</h3>{st}</header><div class="pb">{body}</div>'

@@ -4,7 +4,11 @@
       "Bash(git -C /c/Projects/ReportSPPRv1 remote -v)",
       "Bash(git -C /c/Projects/ReportSPPRv1 status -sb)",
       "Bash(git -C /c/Projects/ReportSPPRv1 ls-files)",
-      "MultiEdit"
+      "MultiEdit",
+      "WebSearch",
+      "WebFetch(domain:kod.ru)",
+      "WebFetch(domain:madrobot.blog)",
+      "WebFetch(domain:www.securitylab.ru)"
     ]
   }
 }

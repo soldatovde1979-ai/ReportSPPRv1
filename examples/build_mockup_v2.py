@@ -54,7 +54,7 @@ print("Разметка ИИ проверена: ключи метрик и но
 
 html = rv.render(R, open(TEMPLATE_FILE, encoding="utf-8").read(), strict=True,
                   title=f"Макет v2 — Качество 1С-поддержки · Неделя {R.WEEK}",
-                  banner=f"Макет v{VERSION} на выгрузке {R.NOW:%d.%m.%Y}: цифры и вёрстку делает модуль {MODULE_FILE} (тот же, что в ноутбуке v5), "
+                  banner=f"Макет v{VERSION} на выгрузке {R.NOW:%d.%m.%Y}: цифры и вёрстку делает модуль {MODULE_FILE} (тот же, что в ноутбуке RepSSPR.ipynb), "
                          f"разметку ИИ для макета сделал Claude по правилам промпта ноутбука. Это не боевой отчёт.")
 open(OUT_FILE, "w", encoding="utf-8").write(html)
 print(f"Записан {OUT_FILE}: {len(html)//1024} КБ, слайдов {len(rv.ORDER)}")

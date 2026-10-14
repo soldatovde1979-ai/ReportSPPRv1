@@ -1,4 +1,4 @@
-# Handoff: ReportSPPR — 14.10.2026 (ноутбук, модуль и шаблон 6.0)
+# Handoff: ReportSPPR — 14.10.2026 (ноутбук 6.1, модуль и шаблон 6.0)
 
 Еженедельный HTML-отчёт о качестве 1С-поддержки. Ноутбук `RepSSPR.ipynb` (в Colab или локально на ПК) берёт JSON-выгрузку из 1С, размечает обращения через ИИ (OpenCoder, DeepSeek или Gemini) и рендерит презентацию. Требования пользователя — `docs/my-FT.md` (источник истины).
 
@@ -11,9 +11,10 @@
 - Модуль `src/report_v6.py` 6.0 и шаблон `template_v6.html` 6.0 — переименованы, расчёт и вёрстка как в 5.7 / 5.3; `TEMPLATE_MAJOR` — из `VERSION`; в паспорте — `RepSSPR.ipynb`.
 - Версии из одного места: ноутбук вычисляет `MODULE_FILE`/`TEMPLATE_FILE` из `NOTEBOOK_VERSION`; стенд — тоже; `build_mockup_v2.py` 2.8 и `make_demo_tab.py` берут старший `src/report_v*.py`; CI — маски. Проверено: в копии репозитория мажор 7 — `git mv` двух файлов + три версии + пересборка макета → стенд «7 из 7».
 - Стенд `examples/selftest/` 2.0 (был `selftest_v5`): сценарий «ж» — локальный запуск (opencoder, файлы из папки, лог CSV, отчёт = прямая сборка), прокси не запущен → остановка в ячейке 1, DeepSeek с ключом из `.env`. «ИТОГ: ОК — 7 из 7».
-- Новые файлы: `run_local.bat` (Jupyter в папке проекта), `requirements.txt`, `.env` в `.gitignore`; `colab.bat` открывает `RepSSPR.ipynb`.
+- 6.1 (тот же день): лог `IS_DEBUG` — CSV и в Colab, Google Sheets убран (В-27 закрыт: «шит убрать»); `run_local.bat` перед запуском делает `git pull --ff-only` (рацпредложение принято). Стенд 2.1: в «а» — проверка CSV и скачивания; исправлена ошибка стенда 2.0 — список скачиваний терялся, проверка «локально без скачивания» была пустой.
+- Новые файлы: `run_local.bat` (git pull + Jupyter в папке проекта), `requirements.txt`, `.env` в `.gitignore`; `colab.bat` открывает `RepSSPR.ipynb`.
 - **Не проверено:** локальный запуск на ПК пользователя с настоящим прокси и Jupyter (стенд — подставная модель); первый прогон в Colab с DeepSeek после 6.0.
-- **Ждёт пользователя:** `git pull`, `py -m pip install -r requirements.txt`, выгрузку — в `source/`, запустить прокси и `run_local.bat`; закладки на старый `RepSSPR_v5.x.ipynb` в Colab заменить на кнопку в README. В-27: Google Sheets в Colab оставлен — убрать, если «все локально» значит и в Colab.
+- **Ждёт пользователя:** `git pull`, `py -m pip install -r requirements.txt`, выгрузку — в `source/`, запустить прокси и `run_local.bat`; закладки на старый `RepSSPR_v5.x.ipynb` в Colab заменить на кнопку в README.
 
 ## 0а. 13.10.2026 — третий провайдер ИИ `opencoder` (по умолчанию), ноутбук 5.3
 

@@ -1,11 +1,11 @@
 # ----------------------------------------------------------------------
 # exec_notebook.py — один прогон ноутбука на стенде самопроверки; вызывает run.py, отдельно запускать не нужно
 # ЧТО: ячейки кода .ipynb исполняются как есть, по порядку, в одном пространстве имён (как в Colab); /content → рабочая
-#      папка прогона; Colab, openai, gspread — заглушки (stubs/), модель — подставная (stubs/fake_model.py).
+#      папка прогона; Colab, openai — заглушки (stubs/), модель — подставная (stubs/fake_model.py).
 #      Итог — <рабочая папка>/stand_result.json: дошёл ли прогон до конца, на какой ячейке упал, вызовы модели по этапам,
-#      скачанные файлы, строки лога в Sheets.
+#      скачанные файлы.
 # Вход: python exec_notebook.py <ноутбук.ipynb> <рабочая папка>; параметры — переменные окружения от run.py:
-#      NB_UPLOAD (файлы окна загрузки через «;»), NB_DRIVE (never / always), NB_DEBUG (1 — включить лог в Sheets),
+#      NB_UPLOAD (файлы окна загрузки через «;»), NB_DRIVE (never / always), NB_DEBUG (1 — включить лог CSV),
 #      NB_AI_FILE (ответы подставной модели), FAIL_MODE (errors — сбои модели),
 #      NB_CODE (drive / github — откуда модуль и шаблон), NB_GITHUB (адрес вместо GITHUB_API, на стенде — file://),
 #      NB_WEEK (неделя макета → REPORT_WEEK; модуль 5.6 по умолчанию берёт прошл. завершённую, а макет — W39),
@@ -87,12 +87,12 @@ except Exception as e:
     result["error"] = f"{type(e).__name__}: {e}"
     traceback.print_exc()
 finally:
-    import fake_model, gspread
-    sys.modules.pop("google.colab", None)
+    import fake_model
+    if sys.modules.get("google.colab", 0) is None:   # снять только блокировку локального режима — заглушку со списком скачиваний не трогать
+        del sys.modules["google.colab"]
     from google.colab import files
     result["calls"] = dict(Counter(stage for stage, *_ in fake_model.LOG))
     result["downloads"] = [os.path.basename(p) for p in files.downloaded]
-    result["sheets"] = {title: ws.rows for title, ws in gspread.BOOK.sheets.items()}
     result["sec"] = round(time.time() - t0, 1)
     with open(os.path.join(WORK, "stand_result.json"), "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=1, default=str)

@@ -1,12 +1,13 @@
 # data.md — ReportSPPR: конфигурация, схемы данных, контракты с LLM
 
-**Версия документа: 4.0** · 14.10.2026
-Соответствует: `RepSSPR.ipynb` 6.0 + `src/report_v6.py` 6.0 + `template_v6.html` 6.0 + выгрузка 1С формата от 29.09.2026 (`sppr_dump_*.json`).
+**Версия документа: 4.1** · 14.10.2026
+Соответствует: `RepSSPR.ipynb` 6.1 + `src/report_v6.py` 6.0 + `template_v6.html` 6.0 + выгрузка 1С формата от 29.09.2026 (`sppr_dump_*.json`).
 Разделы 1.1–1.5, 3–5, 7, 8 описывают v4.x (`RepSSPR_v4.2` + `template_v4.html`); файлов v4 в `main` нет с 02.10 (коммит `e81f023`), разделы оставлены справочно: на 1.1–1.2 ссылается конфигурация v5 («как в v4.2»), лист и колонки лога в Sheets (разд. 7) — те же в v5. v5: конфигурация — 1.6, история — 6, контракты ИИ — 11, модуль и шаблон — 12.
 Источник фактов: код v4.0 (прочитан), дамп `sppr_dump_20260922_120419_330rec.json` (прочитан скриптом, агрегаты), отчёт `Отчет по качеству W38 (14.09.2026).html` (прочитан скриптом); для v5 — код `src/report_v5.py`, ноутбука v5.0 и прогон на подставной модели 02.10.
 
 | Версия | Что изменилось |
 |---|---|
+| 4.1 | 1.6, 7: лог `IS_DEBUG` — только CSV (ноутбук 6.1, my-FT В-27), Google Sheets убран. |
 | 4.0 | 1.6: версия 6.0 — два режима (Colab / локально, my-FT Т-99): `RUN_ENV`, `LOCAL_ROOT`, `MAJOR`, `AI_PROVIDER = "auto"`, ключи — `get_secret` (В-25), локальные пути; `MODULE_FILE`/`TEMPLATE_FILE` вычисляются из мажора (Р-12); 7: лог локально — CSV `result/logs/`; 12: модуль и шаблон 6.0, `TEMPLATE_MAJOR` из `VERSION`. |
 | 3.9 | 2.1, 2.5: поле `ksr` — крайний срок решения (выгрузка v1.9, `vygruzka-1c.md` п. 2.9) и производное `ksr_dt`; модуль 5.7 — светофор на s1, слайд s12 «Поток и динамика», метрики `ksr_*` в каталоге ИИ (12.1). |
 | 3.8 | 1.6: ноутбук 5.3 — третий провайдер `opencoder` (по умолчанию): локальный OpenAI-совместимый прокси OpenCoder `OC_BASE_URL`, модели `OC_BATCH_MODEL`/`OC_SUMMARY_MODEL` (`flash`/`pro`); секрет Colab провайдеру не нужен. |
@@ -135,7 +136,7 @@
 | `HISTORY_DIR` / `TARGET_DIR` | `DRIVE_ROOT/result/history` / `/content/result` (при `USE_FILE_PICKER = False` — `DRIVE_ROOT/result`); локально — `LOCAL_ROOT/result/history` / `LOCAL_ROOT/result` | История недель; куда пишется отчёт |
 | `SOURCE_DIR_VARIANTS` | Диск: `…/source`, `…/reports/sppr/source`; локально — `LOCAL_ROOT/source`, `LOCAL_ROOT/data` | Откуда берётся выгрузка без окна загрузки: первая непустая папка, самый свежий `*.json`/`*.csv` |
 | `AI_CACHE_FILE` | `CACHE_DIR/markup_cache_v5.json` | Кэш ответов ИИ; копия в `HISTORY_DIR` при `DRIVE_MODE = always` |
-| `IS_DEBUG` | 0 (ячейка 8; с 02.10, `e81f023`) | 1 — лог: Colab — Google Sheets `Logs` / `Token` (как в v4.2); локально — `TARGET_DIR/logs/Logs.csv`, `Token.csv` (те же столбцы, `;`, UTF-8 с BOM; В-27). 0 — лог не пишется |
+| `IS_DEBUG` | 0 (ячейка 8; с 02.10, `e81f023`) | 1 — лог в CSV: `<папка истории>/../logs/Logs.csv`, `Token.csv` — локально `result/logs/`, в Colab — на Диске; без Диска — `TARGET_DIR/logs` и скачивание (`;`, UTF-8 с BOM; столбцы — разд. 7; В-27, с 6.1 Sheets не используется). 0 — лог не пишется |
 
 Модуль `src/report_v6.py` — константы в начале файла:
 
@@ -457,7 +458,7 @@ ID: {id} | Инициатор: {cli} | Аналитик: {anl}
 
 ---
 
-## 7. Google Sheets `Logs` (v4, ячейка 6; в v5–v6 — ячейка 8, те же лист и колонки; локально с 6.0 — CSV `result/logs/Logs.csv`, `Token.csv` с теми же колонками)
+## 7. Лог запуска: столбцы `Logs` / `Token` (v4–6.0 — Google Sheets; с 6.1 — CSV `result/logs/Logs.csv`, `Token.csv` с теми же столбцами, ячейка 8)
 
 Пишется **только при `IS_DEBUG == 1`**. Таблица открывается по имени `Logs`; не найдена → `FileNotFoundError`, прогон останавливается.
 

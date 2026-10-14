@@ -1,7 +1,7 @@
 # ----------------------------------------------------------------------
 # run.py — стенд самопроверки ReportSPPR: ноутбук целиком на подставной модели — без ключей, сети и токенов
 # ЧТО: прогоняет ноутбук (ячейки как есть, exec_notebook.py) в семи сценариях и сверяет отчёт:
-#      а) демо-выгрузка → отчёт = макет examples/mockup_report_v2.html, кроме известных отличий; лог в Sheets пишется;
+#      а) демо-выгрузка → отчёт = макет examples/mockup_report_v2.html, кроме известных отличий; лог CSV пишется;
 #      б) боевая выгрузка → отчёт ноутбука = прямая сборка модулем, кроме журнала ИИ;
 #      в) сбои модели (обрыв JSON, негодная строка, чужой номер, неизвестный ключ, не-JSON) → отчёт собирается, повторы есть;
 #      г) Диск: модуль и шаблон найдены в папке проекта (src/), история записана; повтор → 0 вызовов, тот же отчёт;
@@ -17,7 +17,7 @@
 # Нужно: Python 3.10+ и jinja2. В проект ничего не пишет: работа — во временной папке, при успехе она удаляется.
 # Итог: «ИТОГ: ОК» и код возврата 0; иначе — что разошлось, код 1 и путь к рабочей папке (вывод ноутбука — stdout.txt).
 # ----------------------------------------------------------------------
-VERSION = "2.0"                                   # 2.0 — папка без номера, ноутбук RepSSPR.ipynb, модуль и шаблон — по мажору ноутбука; сценарий «ж» — локальный запуск; 1.3 — неделя макета MOCK_WEEK задаётся в ноутбуке (REPORT_WEEK); 1.2 — ссылка «Открыть в Colab»
+VERSION = "2.1"                                   # 2.1 — лог CSV вместо Sheets (сценарий «а»); 2.0 — папка без номера, ноутбук RepSSPR.ipynb, модуль и шаблон — по мажору ноутбука; сценарий «ж» — локальный запуск; 1.3 — неделя макета MOCK_WEEK задаётся в ноутбуке (REPORT_WEEK); 1.2 — ссылка «Открыть в Colab»
 # ----------------------------------------------------------------------
 # ЧТО ИЗМЕНЕНО (2.0): имя ноутбука постоянное; модуль и шаблон — по мажору NOTEBOOK_VERSION (вычисляет preflight)
 # ПОЧЕМУ: my-FT Р-12 — смена версии не требует правки стенда
@@ -136,7 +136,7 @@ def run_nb(tag, dump, upload, drive="never", fail="", debug=False, seed=None, dr
         f.write(out)
     res_file = os.path.join(work, "stand_result.json")
     r = json.load(open(res_file, encoding="utf-8")) if os.path.exists(res_file) else \
-        {"ok": False, "cell": None, "error": "прогон оборвался до итога", "calls": {}, "downloads": [], "sheets": {}}
+        {"ok": False, "cell": None, "error": "прогон оборвался до итога", "calls": {}, "downloads": []}
     reports = glob.glob(os.path.join(work, "result", "*.html"))
     r.update(out=out, work=work, html=read(reports[0]) if len(reports) == 1 else None)
     return r
@@ -163,10 +163,14 @@ def scen_a():
     except Fail as e:
         raise Fail(f"{e}\n        изменение задумано — пересоберите макет (python3 examples/build_mockup_v2.py), "
                    f"проверьте его diff и закоммитьте вместе с правкой; не задумано — ищите ошибку")
-    logs, token = r["sheets"].get("Logs", []), r["sheets"].get("Token", [])
-    if len(logs) != 2 or len(token) != 2 or len(token[1]) != len(token[0]):
-        raise Fail(f"лог в Sheets (IS_DEBUG = 1): строк в Logs {len(logs)}, в Token {len(token)} — ждали заголовок и одну строку")
-    return f"отчёт = макет, кроме {len(KNOWN_DIFFS)} известных отличий; лог в Sheets записан"
+    # ЧТО ИЗМЕНЕНО (2.1): лог IS_DEBUG — CSV и в Colab (Sheets убран, my-FT В-27); без Диска — /content/result/logs + скачивание
+    rows = [[ln.split(";") for ln in read(p).lstrip("\ufeff").strip().splitlines()] if os.path.exists(p) else []
+            for p in (os.path.join(r["work"], "result", "logs", f) for f in ("Logs.csv", "Token.csv"))]
+    if [len(x) for x in rows] != [2, 2] or len(rows[1][1]) != len(rows[1][0]):
+        raise Fail(f"лог CSV (IS_DEBUG = 1): строк в Logs.csv и Token.csv {[len(x) for x in rows]} — ждали заголовок и одну строку")
+    if not {"Logs.csv", "Token.csv"} <= set(r["downloads"]):
+        raise Fail(f"Colab без Диска: лог не отдан на скачивание, скачано {r['downloads']}")
+    return f"отчёт = макет, кроме {len(KNOWN_DIFFS)} известных отличий; лог CSV записан и скачан"
 
 
 def direct_html():

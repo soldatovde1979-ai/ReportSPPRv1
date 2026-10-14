@@ -12,7 +12,7 @@
 #   R.AI["slides"] = разборы                                # разборы слайдов (s1…s11)
 #   html = render(R, текст_шаблона, title=...)
 # ----------------------------------------------------------------------
-VERSION = "6.2"                 # 6.2 — цели и поручения из plan.csv: табло, строки «плитка + динамика», поручения, подвал (my-FT Р-14); 6.1 — первый слайд возвращён к виду 5.6, s12 и светофор убраны (ksr остался); 6.0 — мажор вровень с ноутбуком 6.0 (два режима запуска, my-FT Т-99); расчёт и вёрстка как в 5.7
+VERSION = "6.3"                 # 6.3 — вид целей: плитка в стиле KPI, цель/порог/до цели колонкой, срок цели, график — квартал, акцентные цвета (my-FT Т-108); 6.2 — цели и поручения из plan.csv: табло, строки «плитка + динамика», поручения, подвал (my-FT Р-14); 6.1 — первый слайд возвращён к виду 5.6, s12 и светофор убраны (ksr остался); 6.0 — мажор вровень с ноутбуком 6.0 (два режима запуска, my-FT Т-99); расчёт и вёрстка как в 5.7
 # ----------------------------------------------------------------------
 # ЧТО ИЗМЕНЕНО (6.0): файл переименован report_v5.py → report_v6.py; TEMPLATE_MAJOR берётся из VERSION; имена модуля
 #               и шаблона в паспорте и в ошибках — из мажора; ноутбук в паспорте — RepSSPR.ipynb. Расчёт не менялся
@@ -1196,8 +1196,11 @@ PLAN_OPEN = ("предложено", "в работе")          # такие п
 ACHIEVED_WEEKS = 2                               # цель держится столько недель подряд — «достигнуто, закрыть?»
 TREND_WEEKS = 8                                  # недель на графике динамики (Amazon WBR — 6 недель; у нас 8)
 MIN_WEEK_SOL = 10                                # неделя истории с меньшим числом решённых в динамику не идёт
-GOAL_COLOR = {"ok": ("#1E8E3E", "в цели"), "warn": ("#C98A00", "между целью и тревогой"),
-              "bad": ("#C5221F", "тревога"), "na": ("#9AA5B1", "нет данных")}
+# ЧТО ИЗМЕНЕНО (6.3): цвета — акцентные из палитры отчёта (как плитки KPI и «Инциденты в цифрах»), без пастели;
+#               «тревога» в отчёте называется «порог» (my-FT Т-108)
+GOAL_COLOR = {"ok": ("#0F6E3A", "в цели"), "warn": ("#B7800F", "между целью и порогом"),
+              "bad": ("#D93025", "хуже порога"), "na": ("#9AA5B1", "нет данных")}
+MON_FULL_GEN = ["", "янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
 # слайд метрики по умолчанию — если в plan.csv колонка «слайд» пуста
 METRIC_SLIDE = {"dq": "s1", "m_in": "s1", "m_sol": "s1", "med_all": "s11", "day_pct": "s11", "lng_share": "s11",
                 "long_all": "s11", "long_l2": "s11", "open_gt30": "s2", "zombie": "s2", "quick_close": "s2",
@@ -1305,10 +1308,51 @@ def _week_metrics(R, w):
             "inc_in": sum(r["type"] == "Инцидент" for r in w["i"])}
 
 
+def quarter_of(d):
+    """Квартал даты: (год, номер 1–4, первый день, первый день следующего квартала)."""
+    q = (d.month - 1) // 3 + 1
+    start = datetime(d.year, 3 * q - 2, 1)
+    end = datetime(d.year + (q == 4), 1 if q == 4 else 3 * q + 1, 1)
+    return d.year, q, start, end
+
+
+def report_quarter(R):
+    """Квартал отчётной недели — по её четвергу (как ISO-неделя)."""
+    return quarter_of(R.WS + timedelta(days=3))
+
+
+def quarter_weeks(R):
+    """ISO-недели текущего квартала [(год, неделя)]: неделя в квартале, если её четверг в квартале."""
+    _, _, a, b = report_quarter(R)
+    d = a - timedelta(days=a.weekday())
+    out = []
+    while d < b:
+        th = d + timedelta(days=3)
+        if a <= th < b:
+            out.append(tuple(d.isocalendar()[:2]))
+        d += timedelta(days=7)
+    return out
+
+
+def _goal_due(R, raw):
+    """Срок цели из plan.csv: дата, «4 кв 2026», «IV кв. 2026», «Q4 2026», «2026-Q4»; пусто — конец квартала отчёта."""
+    d = _pdate(raw)
+    if d:
+        return d
+    t = str(raw or "").lower().replace("кв.", "кв")
+    m = re.search(r"(?:q\s*([1-4])|([1-4]|iv|iii|ii|i)\s*кв)\D*(\d{4})|(\d{4})\D*q\s*([1-4])", t)
+    if m:
+        rom = {"i": 1, "ii": 2, "iii": 3, "iv": 4}
+        q = int(m.group(1) or m.group(5) or 0) or rom.get(m.group(2), 0) or int(m.group(2) or 0)
+        y = int(m.group(3) or m.group(4))
+        return quarter_of(datetime(y, 3 * q - 2, 1))[3] - timedelta(days=1)
+    return report_quarter(R)[3] - timedelta(days=1)
+
+
 def metric_series(R, key):
-    """Динамика метрики: [(«W38», значение)] за TREND_WEEKS недель, последняя — отчётная (R.M).
-    Недели, которые покрывает выгрузка (R.wk), считаются из неё — повтор той же выгрузки даёт тот же отчёт;
-    более ранние — из истории недель (week["metrics"], для старых записей — med_hour, open_gt30 и т. п.)."""
+    """Динамика метрики по неделям текущего квартала (my-FT Т-108): [(«W38», значение или None, будущая?)].
+    Прошлые недели окна выгрузки (R.wk) — из выгрузки (повтор той же выгрузки даёт тот же отчёт); более ранние недели
+    квартала — из истории (week["metrics"], для старых записей — med_hour, open_gt30 и т. п.); недели после отчётной — пустые."""
     pts = {}
     for w in R.history:
         k = (w.get("year"), w.get("week_num"))
@@ -1323,14 +1367,12 @@ def metric_series(R, key):
         if isinstance(v, (int, float)):
             pts[k] = float(v)
     for w in R.wk[:-1]:                              # прошлые недели окна выгрузки — главнее истории
-        y, n = w["a"].isocalendar()[:2]
         v = _week_metrics(R, w).get(key)
         if v is not None:
-            pts[(y, n)] = float(v)
-    out = [(f"W{k[1]}", pts[k]) for k in sorted(pts)][-(TREND_WEEKS - 1):]
+            pts[tuple(w["a"].isocalendar()[:2])] = float(v)
     cur = R.M.get(key)
-    out.append((f"W{R.WEEK}", float(cur) if isinstance(cur, (int, float)) else None))
-    return out
+    pts[(R.YEAR, R.WEEK)] = float(cur) if isinstance(cur, (int, float)) else None
+    return [(f"W{k[1]}", pts.get(k) if k <= (R.YEAR, R.WEEK) else None, k > (R.YEAR, R.WEEK)) for k in quarter_weeks(R)]
 
 
 def attach_plan(R, rows):
@@ -1343,7 +1385,7 @@ def attach_plan(R, rows):
         if slide not in ORDER:
             errors.append(f"строка {n}: слайд «{slide}» — нет такого (s1…s11)"); continue
         lower = not r.get("направление", "").lower().startswith(("бол", ">", "≥", "max"))
-        goal, alarm = _pnum(r.get("цель")), _pnum(r.get("тревога"))
+        goal, alarm = _pnum(r.get("цель")), _pnum(r.get("тревога") or r.get("порог"))   # «порог» — то же, что «тревога»
         val = R.M.get(key) if key else None
         if key and not isinstance(val, (int, float)) and val is not None:
             val = _pnum(val)
@@ -1353,14 +1395,16 @@ def attach_plan(R, rows):
             if not key or goal is None:
                 errors.append(f"строка {n}: у цели нужны метрика и число в «цель»"); continue
             ser = metric_series(R, key)
-            cols = [goal_color(v, goal, alarm, lower) for _, v in ser]
+            cols = [goal_color(v, goal, alarm, lower) for _, v, _ in ser]
             run = 0
-            for c in reversed(cols):
+            for (_, v, fut), c in reversed(list(zip(ser, cols))):
+                if fut: continue
                 if c != "ok": break
                 run += 1
             goals.append(dict(id=r.get("id", ""), slide=slide, name=r.get("что") or metric_info(R, key), key=key, lower=lower,
                               goal=goal, alarm=alarm, value=val, color=goal_color(val, goal, alarm, lower), series=ser, colors=cols,
                               ok_run=run, board=r.get("на табло", "").lower().startswith(("да", "1", "y", "+")), status=r.get("статус", ""),
+                              due=_goal_due(R, r.get("срок")),
                               note=r.get("заметка", "")))
         elif kind.startswith("пор"):
             st = r.get("статус", "").lower() or "предложено"
@@ -1385,7 +1429,7 @@ def plan_text(R, key):
     for g in P_.get("goals", []):
         if g["slide"] == key:
             lines.append(f"- цель «{g['name']}» ({{{g['key']}}}): сейчас {_fmtn(g['value'])}, цель {'≤' if g['lower'] else '≥'} {_fmtn(g['goal'])}, "
-                         f"тревога {'>' if g['lower'] else '<'} {_fmtn(g['alarm'])} — {GOAL_COLOR[g['color']][1]}")
+                         f"порог {'>' if g['lower'] else '<'} {_fmtn(g['alarm'])}, срок цели {g['due']:%m.%Y} — {GOAL_COLOR[g['color']][1]}")
     for t in P_.get("tasks", []):
         if t["slide"] == key:
             lines.append(f"- поручение «{t['what']}» — {t['who'] or 'кому не указано'}, срок {t['due']:%d.%m.%Y}" if t["due"] else
@@ -1425,80 +1469,72 @@ def metrics_table(R):
              "слайд по умолчанию": METRIC_SLIDE.get(k, "")} for k, v in R.M.items()]
 
 
-def _bullet_svg(g, w=230, h=16):
-    """Bullet graph (Stephen Few): зоны «тревога / между / цель», засечка цели, полоса значения."""
-    v, goal, alarm = g["value"], g["goal"], g["alarm"] if g["alarm"] is not None else g["goal"]
-    top = max(x for x in (v or 0, goal, alarm, 1e-9) if x is not None) * 1.25
-    X = lambda x: max(0.0, min(w, w * x / top))
-    G, Y, Rd = "#D7EEDC", "#FBEFCC", "#F6D5D3"
-    if g["lower"]:
-        zones = [(0, goal, G), (goal, max(goal, alarm), Y), (max(goal, alarm), top, Rd)]
-    else:
-        zones = [(0, min(goal, alarm), Rd), (min(goal, alarm), goal, Y), (goal, top, G)]
-    s = "".join(f'<rect x="{X(a):.1f}" y="0" width="{max(0, X(b) - X(a)):.1f}" height="{h}" fill="{c}"/>' for a, b, c in zones)
-    if v is not None:
-        s += f'<rect x="0" y="{h * .3:.1f}" width="{X(v):.1f}" height="{h * .4:.1f}" fill="#2B3A4A"/>'
-    s += f'<rect x="{X(goal) - 1:.1f}" y="0" width="2" height="{h}" fill="#1E8E3E"/>'
-    return f'<svg class="bullet" viewBox="0 0 {w} {h}" width="{w}" height="{h}" role="img"><title>значение {_fmtn(v)}, цель {_fmtn(goal)}, тревога {_fmtn(g["alarm"])}</title>{s}</svg>'
-
-
-def _trend_svg(g, w=620, h=130):
-    """Динамика метрики по неделям: зоны цели и тревоги фоном, линия значений, точка недели цветом светофора."""
+def _trend_svg(g, w=620, h=112):
+    """Динамика цели за квартал: линия цели (сплошная), порог (пунктир), значения — линией, точки — цветом статуса;
+    будущие недели квартала пустые — видно, сколько осталось до срока цели. Без заливок (my-FT Т-108)."""
     ser = g["series"]
-    vals = [v for _, v in ser if v is not None] + [g["goal"]] + ([g["alarm"]] if g["alarm"] is not None else [])
-    lo, hi = min(0.0, min(vals)), max(vals) * 1.15 or 1.0
-    pl, pr, pt, pb = 34, 10, 16, 22
+    vals = [v for _, v, _ in ser if v is not None] + [g["goal"]] + ([g["alarm"]] if g["alarm"] is not None else [])
+    lo, hi = min(0.0, min(vals)), max(vals) * 1.18 or 1.0
+    pl, pr, pt, pb = 8, 64, 14, 20
     n = len(ser)
     X = lambda i: pl + (w - pl - pr) * (i + .5) / n
     Y = lambda v: pt + (h - pt - pb) * (1 - (v - lo) / ((hi - lo) or 1))
-    goal, alarm = g["goal"], g["alarm"] if g["alarm"] is not None else g["goal"]
-    G, Yc, Rd = "#E9F5EC", "#FDF5DE", "#FBE7E5"
-    if g["lower"]:
-        bands = [(lo, goal, G), (goal, max(goal, alarm), Yc), (max(goal, alarm), hi, Rd)]
-    else:
-        bands = [(lo, min(goal, alarm), Rd), (min(goal, alarm), goal, Yc), (goal, hi, G)]
-    s = "".join(f'<rect x="{pl}" y="{Y(b):.1f}" width="{w - pl - pr}" height="{max(0, Y(a) - Y(b)):.1f}" fill="{c}"/>' for a, b, c in bands)
-    s += (f'<line x1="{pl}" x2="{w - pr}" y1="{Y(goal):.1f}" y2="{Y(goal):.1f}" stroke="#1E8E3E" stroke-dasharray="4 3"/>'
-          f'<text x="{pl - 4}" y="{Y(goal) + 4:.1f}" text-anchor="end" class="tl">цель</text>')
-    pts = [(X(i), Y(v), v, lab, c) for i, ((lab, v), c) in enumerate(zip(ser, g["colors"])) if v is not None]
+    ok, bad, ink, mut = GOAL_COLOR["ok"][0], GOAL_COLOR["bad"][0], "#2B3A4A", "#9AA5B1"
+    s = (f'<line x1="{pl}" x2="{w - pr}" y1="{Y(g["goal"]):.1f}" y2="{Y(g["goal"]):.1f}" stroke="{ok}" stroke-width="1.6"/>'
+         f'<text x="{w - pr + 6}" y="{Y(g["goal"]) + 4:.1f}" class="tg" fill="{ok}">цель {_fmtn(g["goal"])}</text>')
+    if g["alarm"] is not None:
+        s += (f'<line x1="{pl}" x2="{w - pr}" y1="{Y(g["alarm"]):.1f}" y2="{Y(g["alarm"]):.1f}" stroke="{bad}" stroke-width="1.2" stroke-dasharray="5 4"/>'
+              f'<text x="{w - pr + 6}" y="{Y(g["alarm"]) + 4:.1f}" class="tg" fill="{bad}">порог {_fmtn(g["alarm"])}</text>')
+    pts = [(X(i), Y(v), v, lab, c, i == max(j for j, (_, _, f) in enumerate(ser) if not f))
+           for i, ((lab, v, fut), c) in enumerate(zip(ser, g["colors"])) if v is not None]
     if len(pts) > 1:
-        s += '<polyline fill="none" stroke="#2B3A4A" stroke-width="1.6" points="' + " ".join(f"{x:.1f},{y:.1f}" for x, y, *_ in pts) + '"/>'
-    for i, (lab, v) in enumerate(ser):
-        s += f'<text x="{X(i):.1f}" y="{h - 6}" text-anchor="middle" class="tl">{E(lab)}</text>'
-    for x, y, v, lab, c in pts:
-        s += (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{5 if lab == ser[-1][0] else 3.5}" fill="{GOAL_COLOR[c][0]}"><title>{E(lab)}: {_fmtn(v)}</title></circle>'
-              f'<text x="{x:.1f}" y="{y - 8:.1f}" text-anchor="middle" class="tv">{_fmtn(v)}</text>')
+        s += f'<polyline fill="none" stroke="{ink}" stroke-width="1.8" points="' + " ".join(f"{x:.1f},{y:.1f}" for x, y, *_ in pts) + '"/>'
+    for i, (lab, v, fut) in enumerate(ser):
+        s += f'<text x="{X(i):.1f}" y="{h - 5}" text-anchor="middle" class="tl"{" fill=" + chr(34) + mut + chr(34) if fut else ""}>{E(lab)}</text>'
+    for x, y, v, lab, c, cur in pts:
+        s += (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{5.5 if cur else 3.6}" fill="{GOAL_COLOR[c][0]}" stroke="#fff" stroke-width="{2 if cur else 1}">'
+              f'<title>{E(lab)}: {_fmtn(v)}</title></circle>'
+              f'<text x="{x:.1f}" y="{y - 9:.1f}" text-anchor="middle" class="tv">{_fmtn(v)}</text>')
     if len(pts) < 2:
-        s += (f'<text x="{(pl + w - pr) / 2:.0f}" y="{pt + 12}" text-anchor="middle" class="tl">'
-              f'история копится: точки прошлых недель появятся со следующих прогонов</text>')
+        s += f'<text x="{(pl + w - pr) / 2:.0f}" y="{pt + 10}" text-anchor="middle" class="tl">прошлых недель квартала в истории пока нет</text>'
     return f'<svg class="trend" viewBox="0 0 {w} {h}" preserveAspectRatio="none" role="img">{s}</svg>'
 
 
-def _goal_tile(g, compact=False, href=None):
+def _goal_tile(g, href=None):
+    """Плитка цели в стиле KPI отчёта: число; справа колонкой цветом статуса — цель, порог, до цели; ниже — срок цели."""
     col, word = GOAL_COLOR[g["color"]]
-    sign_g, sign_a = ("≤", ">") if g["lower"] else ("≥", "<")
-    gap = None if g["value"] is None else (g["value"] - g["goal"])
-    gap_txt = ("цель достигнута" if g["color"] == "ok" else f"до цели {'−' if g['lower'] else '+'}{_fmtn(abs(gap))}") if gap is not None else "нет значения"
-    run = f'<span class="gt-run">в цели {g["ok_run"]} нед. подряд — закрыть или поднять планку?</span>' if g["ok_run"] >= ACHIEVED_WEEKS else ""
+    sg, sa = ("≤", ">") if g["lower"] else ("≥", "<")
+    if g["value"] is None:
+        gap = "нет значения"
+    elif g["color"] == "ok":
+        gap = "цель достигнута"
+    else:
+        gap = f"до цели {'−' if g['lower'] else '+'}{_fmtn(abs(g['value'] - g['goal']))}"
     name = f'<a href="{href}">{E(g["name"])}</a>' if href else E(g["name"])
-    return (f'<div class="gt{" gt-c" if compact else ""}" style="--gc:{col}"><div class="gt-h"><i></i>{name}</div>'
-            f'<div class="gt-v">{_fmtn(g["value"])}</div>'
-            f'<div class="gt-s">цель {sign_g} {_fmtn(g["goal"])} · тревога {sign_a} {_fmtn(g["alarm"])} · {gap_txt}</div>'
-            + ("" if compact else _bullet_svg(g)) + f'<div class="gt-w">{word}</div>{run}</div>')
+    run = f' · в цели {g["ok_run"]} нед. — поднять планку?' if g["ok_run"] >= ACHIEVED_WEEKS else ""
+    return (f'<div class="gt gt-{g["color"]}" style="--gc:{col}"><h4>{name}</h4>'
+            f'<div class="gt-b"><div class="gt-v">{_fmtn(g["value"])}</div>'
+            f'<div class="gt-c"><span>цель {sg} {_fmtn(g["goal"])}</span><span>порог {sa} {_fmtn(g["alarm"])}</span><b>{gap}</b></div></div>'
+            f'<div class="gt-d">к {MON_FULL_GEN[g["due"].month]} {g["due"].year} · <b>{word}</b>{run}</div></div>')
+
+
+def _quarter_label(R):
+    y, q, _, _ = report_quarter(R)
+    return f"{q} кв. {y}"
 
 
 def goal_rows_html(R, key):
-    """Строки «плитка + широкая динамика» по целям слайда (my-FT Т-105): сколько целей — столько строк."""
-    out = ""
-    for g in [g for g in R.PLAN["goals"] if g["slide"] == key]:
-        hist_n = sum(v is not None for _, v in g["series"][:-1])     # недель истории с значением (без отчётной)
-        out += (f'<section class="panel goalrow"><div class="gr">{_goal_tile(g)}<div class="gr-t">'
-                f'<div class="ch">Динамика по неделям — {E(metric_info(R, g["key"]))}</div>{_trend_svg(g)}</div></div>'
-                f'<p class="why"><b>Что это.</b> Цель из plan.csv{(" (" + E(g["id"]) + ")") if g["id"] else ""}: метрика {{{E(g["key"])}}}, '
-                f'отчётная неделя {R.PER_S} и {hist_n} нед. истории. Зелёный — цель достигнута, жёлтый — между целью и тревогой, красный — хуже тревоги.</p>'
-                f'<p class="use"><b>Польза / проблема.</b> Видно, идём ли к цели и сколько осталось; панели ниже раскрывают эту плитку, '
-                f'поручения внизу слайда — что делается, чтобы она стала зелёной.</p></section>')
-    return out
+    """Цели слайда — одна панель (my-FT Т-105, Т-108): строка на цель — плитка и динамика за квартал; одна сноска на панель."""
+    gs = [g for g in R.PLAN["goals"] if g["slide"] == key]
+    if not gs:
+        return ""
+    rows = "".join(f'<div class="gr">{_goal_tile(g)}<div class="gr-t">{_trend_svg(g)}</div></div>' for g in gs)
+    return (f'<section class="panel goals"><header class="ph"><h3>Цели слайда — {_quarter_label(R)}</h3>'
+            f'<div class="stamps"><span class="stamp">plan.csv</span></div></header><div class="pb">{rows}</div>'
+            f'<p class="why"><b>Что это.</b> Цели из plan.csv: значение за {R.PER_S} (очередь — на срез), цель и порог, срок цели; '
+            f'график — недели {_quarter_label(R)}, пустые справа — сколько осталось. Цвет: зелёный — цель достигнута, '
+            f'жёлтый — между целью и порогом, красный — хуже порога.</p>'
+            f'<p class="use"><b>Польза / проблема.</b> Идём ли к цели к сроку; панели ниже раскрывают эти цели, поручения внизу слайда — что делается.</p></section>')
 
 
 def board_html(R):
@@ -1506,19 +1542,18 @@ def board_html(R):
     on = [g for g in R.PLAN["goals"] if g["board"]]
     if not on:
         return ""
-    title = {k: t for _, items in NAV for k, t in items}
     groups = ""
     for gname, items in NAV:
         gs = [g for k, _ in items for g in on if g["slide"] == k]
         if gs:
             groups += (f'<div class="bd-g"><div class="act">{E(gname)}</div><div class="bd">'
-                       + "".join(_goal_tile(g, compact=True, href=f"#{g['slide']}") for g in gs) + "</div></div>")
+                       + "".join(_goal_tile(g, href=f"#{g['slide']}") for g in gs) + "</div></div>")
     cnt = Counter(g["color"] for g in on)
     head = " · ".join(f"{GOAL_COLOR[c][1]} — {cnt[c]}" for c in ("bad", "warn", "ok", "na") if cnt[c])
-    return (f'<section class="panel board"><header class="ph"><h3>Табло целей недели</h3><div class="stamps"><span class="stamp">{E(head)}</span></div></header>'
+    return (f'<section class="panel board"><header class="ph"><h3>Табло целей — {_quarter_label(R)}</h3><div class="stamps"><span class="stamp">{E(head)}</span></div></header>'
             f'<div class="pb">{groups}</div>'
-            f'<p class="why"><b>Что это.</b> Цели из plan.csv с отметкой «на табло»: значение за {R.PER_S} (очередь — на срез), цвет — по цели и порогу тревоги. '
-            f'Клик по плитке — слайд с подробностями и поручениями.</p>'
+            f'<p class="why"><b>Что это.</b> Цели из plan.csv с отметкой «на табло»: значение за {R.PER_S} (очередь — на срез), цвет — по цели и порогу, '
+            f'срок цели — месяц и год. Клик по названию — слайд с динамикой и поручениями.</p>'
             f'<p class="use"><b>Польза / проблема.</b> Один взгляд: красное — тема совещания и поручение; зелёное держится '
             f'{ACHIEVED_WEEKS} нед. — цель можно поднять. Цели и пороги меняются в plan.csv без правки кода.</p></section>')
 

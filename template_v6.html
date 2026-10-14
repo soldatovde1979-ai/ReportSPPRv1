@@ -1,4 +1,4 @@
-{#- template_v6.html · TEMPLATE_VERSION = "6.3" · 15.10.2026
+{#- template_v6.html · TEMPLATE_VERSION = "6.4" · 15.10.2026
     Оболочка отчёта ReportSPPR v6: стили, верхняя панель, меню слайдов, переключение слайдов.
     Слайды и меню собирает модуль src/report_v6.py (render) — он же проверяет мажор этого шаблона.
     Переменные: title — заголовок вкладки; banner — плашка над отчётом (только макет), текст;
@@ -16,7 +16,9 @@
     6.2: цели в стиле плиток KPI (my-FT Т-108) — панель .goals, плитка .gt (акцентная кромка --gc, колонка
     цель/порог/до цели .gt-c цветом статуса, срок .gt-d), график без заливок; .gt-run и пастельные зоны убраны.
     6.3: расшифровка обращения — значок .tx у номера и окно <dialog id="xdlg"> (описание и решение из 1С целиком);
-    вставка строки в таблицу (.tname/.tmore/.xtrow/.xfull) убрана. -#}
+    вставка строки в таблицу (.tname/.tmore/.xtrow/.xfull) убрана.
+    6.4: плитка цели — светофор (my-FT Т-110): яркий фон цвета состояния, белые цифры; цель / порог / до цели — белые
+    плашки своими цветами (.c-goal зелёный, .c-alarm красный, .c-gap тёмный). -#}
 <!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }}</title><style>
 :root{--page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
 --ph-wait:#8A94A6;--ph-clar:#C9A227;--ph-solve:#5D86B0;
@@ -142,11 +144,12 @@ tr.grp th{background:var(--wash);padding:6px 8px;border-bottom:1px solid var(--i
 @media (max-width:760px){.g2,.g4{grid-template-columns:1fr}.itiles{grid-template-columns:1fr 1fr}.own{grid-template-columns:1fr}.top .per,.top h1{display:none}.top{gap:10px;padding:10px 16px}.ph{flex-direction:column}.stamps{justify-content:flex-start}main{padding:16px}}
 @media print{.top,.rail,.mock,dialog{display:none}.wrap{display:block}.slide{display:block;break-after:page}}
 .goals .gr{display:grid;grid-template-columns:330px 1fr;gap:20px;align-items:center;padding:12px 0;border-top:1px solid var(--rule)}.goals .gr:first-child{border-top:0;padding-top:2px}.gr-t{min-width:0}
-.gt{background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:12px 16px;box-shadow:inset 4px 0 0 var(--gc);min-width:0}
-.gt.gt-bad{border-color:var(--gc)}.gt h4{font-size:14px;font-weight:600;color:var(--ink2);line-height:1.3}.gt h4 a{color:inherit;text-decoration:none}.gt h4 a:hover{text-decoration:underline}
-.gt-b{display:flex;align-items:center;gap:16px;margin:6px 0 4px}.gt-v{font:600 44px/1 var(--num);color:var(--ink)}.gt-bad .gt-v{color:var(--gc)}
-.gt-c{display:flex;flex-direction:column;gap:1px;font:600 13px/1.35 var(--num);color:var(--gc);border-left:1px solid var(--rule);padding-left:12px}.gt-c b{font-weight:700}
-.gt-d{font-size:12.5px;color:var(--muted)}.gt-d b{color:var(--gc);font-weight:600}
+.gt{background:var(--gc);color:#fff;border-radius:10px;padding:12px 16px;min-width:0}
+.gt h4{font-size:14px;font-weight:600;color:#fff;line-height:1.3;opacity:.96}.gt h4 a{color:inherit;text-decoration:none}.gt h4 a:hover{text-decoration:underline}
+.gt-b{display:flex;align-items:center;gap:14px;margin:8px 0 6px}.gt-v{font:600 44px/1 var(--num);color:#fff}
+.gt-c{display:flex;flex-direction:column;align-items:flex-start;gap:3px;font:600 12.5px/1.3 var(--num)}
+.gt-c span{background:#fff;border-radius:4px;padding:1px 7px;white-space:nowrap}.gt-c .c-goal{color:#0F6E3A}.gt-c .c-alarm{color:#B3261E}.gt-c .c-gap{color:var(--ink)}
+.gt-d{font-size:12.5px;color:rgba(255,255,255,.88)}.gt-d b{color:#fff;font-weight:600}
 .trend{width:100%;height:112px;display:block}.trend .tl{font-size:11px;fill:var(--muted)}.trend .tv{font:600 11px var(--num);fill:var(--ink2)}.trend .tg{font:600 11px var(--num)}
 .board .bd-g{margin-bottom:12px}.board .act{font-size:12px;color:var(--muted);margin:4px 0 6px}.bd{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
 table.tasks tr.late td{background:#FBE3E1}table.tasks td.c{white-space:nowrap}

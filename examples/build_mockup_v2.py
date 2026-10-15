@@ -4,9 +4,11 @@
 #      в оболочке template_v<МАЖОР>.html. Цифры, вёрстка и проверка разметки — в модуле.
 # ПОЧЕМУ: Р-2 — цифры макета воспроизводимы; Р-6, В-18 = а — макет и боевой отчёт (RepSSPR.ipynb) собирает
 #         один модуль, разойтись они не могут. До 2.5 расчёт и вёрстка жили в этом файле (1500 строк).
-# Запуск (Linux / Bash):  python3 examples/build_mockup_v2.py
+# Запуск (Linux / Bash):  python3 examples/build_mockup_v2.py            # обычный макет
+#                         python3 examples/build_mockup_v2.py --stub 1   # заглушка ИИ 1–3 → mockup_report_v2_stub<N>.html
+# Windows (PowerShell):   py examples\build_mockup_v2.py --stub 2
 # ----------------------------------------------------------------------
-VERSION = "2.9"      # 2.9 — цели и поручения из plan.csv; 2.8 — модуль — старший src/report_v*.py, шаблон — того же мажора (смена мажора без правки файла); 2.7 — неделя макета зафиксирована (REPORT_WEEK = 39); 2.6 — тонкая обёртка над модулем 5.x
+VERSION = "2.10"     # 2.10 — заглушка ИИ (AI_STUB / --stub: 1 пусто, 2 промпт блока, 3 текст из отчёта W41); 2.9 — цели и поручения из plan.csv; 2.8 — модуль — старший src/report_v*.py, шаблон — того же мажора (смена мажора без правки файла); 2.7 — неделя макета зафиксирована (REPORT_WEEK = 39); 2.6 — тонкая обёртка над модулем 5.x
 # выгрузка; демо-копия с табличными частями — examples/sppr_dump_20260929_180748_842rec_demo_tab.json
 DUMP_FILE = "examples/sppr_dump_20260929_180748_842rec_demo_tab.json"
 AI_FILE = "examples/mockup_v2_ai.json"
@@ -15,8 +17,15 @@ OUT_FILE = "examples/mockup_report_v2.html"
 # ПОЧЕМУ: модуль 5.6 сменил неделю по умолчанию — прошл. завершённая (W38), а макет и разметка mockup_v2_ai.json
 #         собраны под W39; без фиксации макет «уезжает» от разметки и не проходит проверку ключей
 REPORT_WEEK = 39                     # номер ISO-недели; 39 — неделя макета и разметки mockup_v2_ai.json
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО (2.10): заглушка ИИ — 0 выкл (обычный макет), 1 пусто, 2 промпт блока (из RepSSPR.ipynb), 3 текст из
+#               готового отчёта (examples/ai_stub_w41.json); ключ запуска --stub N важнее константы
+# ПОЧЕМУ: my-FT Т-113 — макет без ответов ИИ: вёрстка, какой промпт за каким блоком, реалистичный текст
+# ----------------------------------------------------------------------
+AI_STUB = 0                          # 0 — выкл; 1 — пусто; 2 — промпт блока; 3 — текст из готового отчёта
+NOTEBOOK_FILE = "RepSSPR.ipynb"      # откуда брать промпты для заглушки 2
 
-import glob, json, os, re, sys, importlib.util
+import argparse, glob, json, os, re, sys, importlib.util
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
@@ -40,24 +49,38 @@ spec.loader.exec_module(rv)
 if int(rv.VERSION.split(".")[0]) != MODULE_MAJOR:
     sys.exit(f"{MODULE_FILE} версии {rv.VERSION}: мажор в имени и в VERSION расходятся")
 
+_ap = argparse.ArgumentParser(description="Сборка макета отчёта v2")
+_ap.add_argument("--stub", type=int, default=AI_STUB, help="заглушка ИИ: 0 выкл, 1 пусто, 2 промпт блока, 3 текст из готового отчёта")
+STUB = _ap.parse_args().stub
+if STUB not in rv.STUB_MODES:
+    sys.exit(f"--stub {STUB}: допустимо {sorted(rv.STUB_MODES)}")
+if STUB:
+    OUT_FILE = OUT_FILE.replace(".html", f"_stub{STUB}.html")
+    print(f"Заглушка ИИ {STUB}: {rv.STUB_MODES[STUB]} → {OUT_FILE}")
+
 raw = json.load(open(DUMP_FILE, encoding="utf-8"))
 AI = json.load(open(AI_FILE, encoding="utf-8"))
 R = rv.load(raw, DUMP_FILE, REPORT_WEEK, history=None, demo="_demo_tab" in DUMP_FILE)
-rv.attach_ai(R, AI)
+rv.attach_ai(R, AI, stub=STUB,
+             prompts=rv.notebook_prompts(NOTEBOOK_FILE) if STUB == 2 else None,
+             sample=json.load(open(rv.STUB_SAMPLE_FILE, encoding="utf-8")) if STUB == 3 else None)
 # ЧТО ИЗМЕНЕНО (2.9): цели и поручения — из plan.csv в корне проекта, как в ноутбуке (my-FT Р-14); нет файла — без целей
 plan = rv.attach_plan(R, rv.read_plan(rv.PLAN_FILE))
 print(f"План {rv.PLAN_FILE}: целей {len(plan['goals'])}, поручений {len(plan['tasks'])}" + (f", ошибок {len(plan['errors'])}: {plan['errors']}" if plan["errors"] else ""))
 
 # проверка разметки кодом — та же, что в ноутбуке: неизвестный ключ метрики или номер не из выгрузки — сборка останавливается
-errs = [f"slides.{k}: {rv.errors_text(e)}" for k, s in AI["slides"].items() for e in [rv.validate(R, "slide", s, k)] if e]
-errs += [f"{p}: {rv.errors_text(e)}" for p in ("open_crit", "planshet", "signals") for e in [rv.validate(R, p, AI[p])] if e]
+# при заглушке ответов этапов ИИ нет (или они чужой недели) — проверять нечего
+errs = [] if STUB else [f"slides.{k}: {rv.errors_text(e)}" for k, s in AI["slides"].items() for e in [rv.validate(R, "slide", s, k)] if e]
+errs += [] if STUB else [f"{p}: {rv.errors_text(e)}" for p in ("open_crit", "planshet", "signals") for e in [rv.validate(R, p, AI[p])] if e]
 if errs:
     sys.exit("Разметка ИИ не прошла проверку:\n" + "\n".join(errs))
-print("Разметка ИИ проверена: ключи метрик и номера обращений сходятся с выгрузкой")
+print("Разметка ИИ проверена: ключи метрик и номера обращений сходятся с выгрузкой" if not STUB else "Заглушка ИИ: проверка разборов пропущена")
 
 html = rv.render(R, open(TEMPLATE_FILE, encoding="utf-8").read(), strict=True,
-                  title=f"Макет v2 — Качество 1С-поддержки · Неделя {R.WEEK}",
+                  title=f"Макет v2{f' · заглушка ИИ {STUB}' if STUB else ''} — Качество 1С-поддержки · Неделя {R.WEEK}",
                   banner=f"Макет v{VERSION} на выгрузке {R.NOW:%d.%m.%Y}: цифры и вёрстку делает модуль {MODULE_FILE} (тот же, что в ноутбуке RepSSPR.ipynb), "
-                         f"разметку ИИ для макета сделал Claude по правилам промпта ноутбука. Это не боевой отчёт.")
+                         f"разметку ИИ для макета сделал Claude по правилам промпта ноутбука. Это не боевой отчёт."
+                         + (f" Заглушка ИИ {STUB}: {rv.STUB_MODES[STUB]} — ответы разборов, критичных, планшетов, повторов "
+                            f"и старых открытых заменены" if STUB else ""))
 open(OUT_FILE, "w", encoding="utf-8").write(html)
 print(f"Записан {OUT_FILE}: {len(html)//1024} КБ, слайдов {len(rv.ORDER)}")

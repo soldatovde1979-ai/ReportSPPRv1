@@ -10,9 +10,10 @@
 #   R = load(выгрузка, имя_файла, report_week, history)   # период, выборки, без ИИ
 #   attach_ai(R, разметка)                                  # разметка ИИ → все метрики R.M
 #   R.AI["slides"] = разборы                                # разборы слайдов (s1…s11)
+#   attach_ai(R, разметка, stub=N, prompts=..., sample=...)  # 6.8: заглушка ИИ вместо ответов этапов (STUB_MODES)
 #   html = render(R, текст_шаблона, title=...)
 # ----------------------------------------------------------------------
-VERSION = "6.7"                 # 6.7 — отложенное исправление: ссылка и срок во всём решении, без ksr; панель на s4 с решением целиком; доля запланированных открытых инцидентов (ksr) — inc_plan_pct (my-FT Т-107, Т-111); 6.6 — отложенное исправление в плане (ksr, my-FT Т-107); плитки целей — яркий фон, условия своими цветами (Т-110); 6.5 — расшифровка обращения: значок у номера у всех, окно с текстом из 1С без сокращений; 6.4 — основной срок решения — из 1С (tab_sla), расчётный — общий срок с уточнениями (my-FT Т-106); 6.3 — вид целей: плитка в стиле KPI, цель/порог/до цели колонкой, срок цели, график — квартал, акцентные цвета (my-FT Т-108); 6.2 — цели и поручения из plan.csv: табло, строки «плитка + динамика», поручения, подвал (my-FT Р-14); 6.1 — первый слайд возвращён к виду 5.6, s12 и светофор убраны (ksr остался); 6.0 — мажор вровень с ноутбуком 6.0 (два режима запуска, my-FT Т-99); расчёт и вёрстка как в 5.7
+VERSION = "6.8"                 # 6.8 — заглушка ИИ (AI_STUB 0–3: выкл / пусто / промпт блока / текст готового отчёта) вместо ответов этапов ИИ, без вызовов модели; 6.7 — отложенное исправление: ссылка и срок во всём решении, без ksr; панель на s4 с решением целиком; доля запланированных открытых инцидентов (ksr) — inc_plan_pct (my-FT Т-107, Т-111); 6.6 — отложенное исправление в плане (ksr, my-FT Т-107); плитки целей — яркий фон, условия своими цветами (Т-110); 6.5 — расшифровка обращения: значок у номера у всех, окно с текстом из 1С без сокращений; 6.4 — основной срок решения — из 1С (tab_sla), расчётный — общий срок с уточнениями (my-FT Т-106); 6.3 — вид целей: плитка в стиле KPI, цель/порог/до цели колонкой, срок цели, график — квартал, акцентные цвета (my-FT Т-108); 6.2 — цели и поручения из plan.csv: табло, строки «плитка + динамика», поручения, подвал (my-FT Р-14); 6.1 — первый слайд возвращён к виду 5.6, s12 и светофор убраны (ksr остался); 6.0 — мажор вровень с ноутбуком 6.0 (два режима запуска, my-FT Т-99); расчёт и вёрстка как в 5.7
 # ----------------------------------------------------------------------
 # ЧТО ИЗМЕНЕНО (6.0): файл переименован report_v5.py → report_v6.py; TEMPLATE_MAJOR берётся из VERSION; имена модуля
 #               и шаблона в паспорте и в ошибках — из мажора; ноутбук в паспорте — RepSSPR.ipynb. Расчёт не менялся
@@ -159,6 +160,70 @@ SLIDE_EXTRA = {"s1": {"decisions": ("problem", "fact", "ids", "act", "who", "eff
                "s3": {"root": ("cause", "ids", "fix", "kind"), "notsolved": ("id", "done", "why", "risk"), "fix_first": ("name", "ids", "act")},
                "s4": {"nsi_nonedit": ("id", "cls", "note")},
                "s6": {"best": ("id", "why", "kb")}}
+
+
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО (6.8): заглушка ИИ — режим сборки без ответов этапов ИИ (разборы слайдов, критичные, планшеты,
+#               повторы, старые открытые): 1 — пусто, 2 — какой промпт применяется к блоку, 3 — текст из готового отчёта
+# ПОЧЕМУ: макет и отчёт без токенов — проверить вёрстку и промпты, показать вид с реалистичным текстом (my-FT Т-113)
+# Разметка каждого решённого обращения (тема, тип, оценка) заглушкой не трогается: на ней стоят цифры и графики.
+# ----------------------------------------------------------------------
+STUB_MODES = {0: "", 1: "пусто", 2: "промпт блока", 3: "текст из готового отчёта"}
+STUB_STAGES = ("open_old", "open_crit", "planshet", "signals")      # этапы ИИ, кроме разборов слайдов
+STUB_SAMPLE_FILE = "examples/ai_stub_w41.json"                     # текст для режима 3 (взят один раз из отчёта W41)
+# панель → чей ответ в ней (ключ промпта): разборы слайдов «slide:sN» и этапы ИИ
+STUB_PANELS = (("Что требует решения руководителя", "slide:s1"), ("Первопричины недели", "slide:s1"),
+               ("Как сократить очередь", "open_old"), ("Все открытые старше 30 дней", "open_old"),
+               ("Критичные", "open_crit"), ("Общие первопричины", "slide:s3"), ("Закрыто, но не решено", "slide:s3"),
+               ("Что чинить первым", "slide:s3"), ("НСИ отдельно", "slide:s4"), ("Скрытые повторы", "signals"),
+               ("Внедрение планшетов", "planshet"), ("Лучшие решения", "slide:s6"), ("Сводная таблица и что поправить", "slide:s9"),
+               ("Случай недели", "slide:s9"))
+STUB_PROMPT_VARS = ("SYSTEM_SLIDES", "BASE_SCHEMA", "SLIDES", "SYSTEM_OPEN_OLD", "SYSTEM_OPEN_CRIT", "SYSTEM_PLANSHET", "SYSTEM_SIGNALS")
+
+
+def stub_prompts(v):
+    """Промпты этапов ИИ из переменных ноутбука (словарь имя → значение) → {ключ блока: текст промпта}.
+    Разбор слайда — общие правила + задача и схема слайда; данные обращений в запросе не показываются."""
+    out = {"open_old": v.get("SYSTEM_OPEN_OLD", ""), "open_crit": v.get("SYSTEM_OPEN_CRIT", ""),
+           "planshet": v.get("SYSTEM_PLANSHET", ""), "signals": v.get("SYSTEM_SIGNALS", "")}
+    for k, (title, task, schema) in (v.get("SLIDES") or {}).items():
+        out[f"slide:{k}"] = (f"{v.get('SYSTEM_SLIDES', '')}\n\n— запрос слайда —\nСлайд «{title}» (ключ {k})\nЧТО НУЖНО: {task}\n"
+                             f"СХЕМА ОТВЕТА (JSON): {{{v.get('BASE_SCHEMA', '')}{schema}}}\n"
+                             f"Дальше в запросе: каталог метрик, цели plan.csv, текст слайда, тексты обращений со слайда.")
+    return out
+
+
+def notebook_prompts(path):
+    """Промпты этапов ИИ прямо из ячеек ноутбука (без запуска): присваивания STUB_PROMPT_VARS — литералы Python."""
+    import ast
+    nb = json.load(open(path, encoding="utf-8"))
+    v = {}
+    for c in nb["cells"]:
+        if c.get("cell_type") != "code":
+            continue
+        src = "".join(c["source"])
+        if not any(n in src for n in STUB_PROMPT_VARS):
+            continue
+        try:
+            tree = ast.parse(src)
+        except SyntaxError:
+            continue
+        for node in tree.body:
+            if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) \
+                    and node.targets[0].id in STUB_PROMPT_VARS:
+                val = node.value
+                if isinstance(val, ast.JoinedStr):      # f-строка: вставки показываются выражением {…} — ноутбук не запускается
+                    v[node.targets[0].id] = "".join(x.value if isinstance(x, ast.Constant) else "{" + ast.unparse(x.value) + "}"
+                                                    for x in val.values)
+                    continue
+                try:
+                    v[node.targets[0].id] = ast.literal_eval(val)
+                except ValueError:
+                    pass
+    miss = [n for n in STUB_PROMPT_VARS if n not in v]
+    if miss:
+        raise ValueError(f"в {path} не найдены промпты: {miss}")
+    return stub_prompts(v)
 
 
 class Report:
@@ -574,9 +639,20 @@ def _split_open(R):
 
 
 # ================================================================ РАЗМЕТКА ИИ И МЕТРИКИ
-def attach_ai(R, ai):
-    """Разметка ИИ (схема data.md, разд. 11) → поля строк и все метрики R.M. Разборы слайдов можно добавить позже."""
-    ai = ai or {}
+def attach_ai(R, ai, stub=0, prompts=None, sample=None):
+    """Разметка ИИ (схема data.md, разд. 11) → поля строк и все метрики R.M. Разборы слайдов можно добавить позже.
+    stub (6.8, STUB_MODES): 1–3 — ответы этапов ИИ заменяются заглушкой; prompts — {ключ блока: промпт} (режим 2),
+    sample — разметка из готового отчёта (режим 3: разборы слайдов и повторы; номера — чужой недели, только текстом)."""
+    ai = dict(ai or {})
+    if stub not in STUB_MODES:
+        raise ValueError(f"AI_STUB = {stub!r}: допустимо {sorted(STUB_MODES)}")
+    R.STUB, R.STUB_PROMPTS = stub, dict(prompts or {})
+    if stub:
+        smp = sample or {}
+        ai["slides"] = dict(smp.get("slides") or {}) if stub == 3 else {}
+        ai["signals"] = list(smp.get("signals") or []) if stub == 3 else []
+        ai.update(open_old=[], open_crit=[], planshet={})
+    R.STUB_SRC = (sample or {}).get("meta", {}).get("source", "") if stub == 3 else ""
     R.AI = {"tickets": [a for a in (ai.get("tickets") or []) if isinstance(a, dict) and a.get("id")],
             "open_old": [a for a in (ai.get("open_old") or []) if isinstance(a, dict) and a.get("id")],
             "open_crit": [a for a in (ai.get("open_crit") or []) if isinstance(a, dict) and a.get("id")],
@@ -1854,7 +1930,26 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         s = r["ai"].get("s", "") or short_name(r)          # нет сути ИИ — краткое описание из выгрузки (З-3.1)
         return f'<span class="tk" data-tid="{E(r["id"])}">{E(s)}</span>'
 
+    def stub_note(pkey, short=False):
+        """Заглушка ИИ (6.8) в панели: режим и, в режиме 2, текст промпта блока; пустая строка — заглушки нет."""
+        mode = getattr(R, "STUB", 0)
+        if mode not in (1, 2):
+            return ""
+        if mode == 1:
+            return '<div class="ai-stub"><b>✦ Заглушка ИИ · пусто</b></div>'
+        if short and pkey.startswith("slide:"):
+            return (f'<div class="ai-stub"><b>✦ Заглушка ИИ · промпт</b> Часть разбора слайда {pkey[6:]} — '
+                    f'промпт целиком в блоке «Разбор ИИ по слайду» внизу слайда.</div>')
+        return (f'<div class="ai-stub"><b>✦ Заглушка ИИ · промпт</b> {E(pkey)}'
+                f'<pre>{E(R.STUB_PROMPTS.get(pkey) or "промпт не передан")}</pre></div>')
+
     def panel(title, st, body, what, use, cls=""):
+        # ЧТО ИЗМЕНЕНО (6.8): панель с ответом этапа ИИ при заглушке получает пометку (и промпт — в режиме 2)
+        # ПОЧЕМУ: Т-113 — видно, какой промпт отвечает за панель, без вызова модели
+        if getattr(R, "STUB", 0):
+            pk = next((k for t, k in STUB_PANELS if re.sub(r"<[^>]+>", "", title).startswith(t)), None)
+            if pk:
+                body = stub_note(pk, short=True) + body
         return (f'<section class="panel {cls}"><header class="ph"><h3>{title}</h3>{st}</header><div class="pb">{body}</div>'
                 f'<p class="why"><b>Что это.</b> {what}</p><p class="use"><b>Польза / проблема.</b> {use}</p></section>')
 
@@ -1865,6 +1960,10 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
     def ai_block(key, extra=""):
         if not with_ai:
             return ""
+        if getattr(R, "STUB", 0) in (1, 2):
+            return (f'<section class="panel aibox"><header class="ph"><h3>✦ Разбор ИИ по слайду</h3>{stamps("ai")}</header>'
+                    f'<div class="pb">{stub_note(f"slide:{key}")}{extra}</div>'
+                    f'<p class="why"><b>Что это.</b> {AI_WHAT}</p><p class="use"><b>Польза / проблема.</b> {AI_USE}</p></section>')
         s = AI["slides"].get(key)
         if not s:
             # ----------------------------------------------------------------------
@@ -1880,8 +1979,10 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
             for x in s.get("items", []))
         tbl = (f'<div class="tw"><table class="ai"><thead><tr><th>Факт</th><th>Вывод</th><th>Действие</th><th>Кому</th><th>Эффект</th></tr></thead>'
                f'<tbody>{rows_}</tbody></table></div>') if rows_ else ""
+        smp = (f'<div class="ai-stub"><b>✦ Заглушка ИИ · текст из готового отчёта</b> {E(getattr(R, "STUB_SRC", ""))} — '
+               f'цифры и номера обращений той недели, с этой выгрузкой не сверяются.</div>') if getattr(R, "STUB", 0) == 3 else ""
         return (f'<section class="panel aibox"><header class="ph"><h3>✦ Разбор ИИ по слайду</h3>{stamps("ai")}</header>'
-                f'<div class="pb"><p class="ai-sum">{fmt(s.get("summary"))}</p>{tbl}{extra}</div>'
+                f'<div class="pb">{smp}<p class="ai-sum">{fmt(s.get("summary"))}</p>{tbl}{extra}</div>'
                 f'<p class="why"><b>Что это.</b> {AI_WHAT}</p>'
                 f'<p class="use"><b>Польза / проблема.</b> {AI_USE}</p></section>')
 
@@ -1890,10 +1991,14 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         кромка и подложка. Текст — из разметки ИИ слайда (ключ notes); нет текста — пустая строка."""
         if not with_ai or not text:
             return ""
+        if isinstance(text, tuple):                     # 6.8: заглушка ИИ — ("stub", ключ слайда, имя врезки)
+            return stub_note(f"slide:{text[1]}", short=True)
         return f'<div class="ai-note"><i>✦</i><div>{fmt(text)}</div></div>'
 
     def ai_notes(key, name):
         """Текст встраиваемого разбора ИИ для панели: AI["slides"][key]["notes"][name]."""
+        if getattr(R, "STUB", 0) in (1, 2):
+            return ("stub", key, name)
         s = AI["slides"].get(key) or {}
         n = (s.get("notes") or {}) if isinstance(s, dict) else {}
         return n.get(name) if isinstance(n, dict) else None

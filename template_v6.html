@@ -1,4 +1,4 @@
-{#- template_v6.html · TEMPLATE_VERSION = "6.5" · 15.10.2026
+{#- template_v6.html · TEMPLATE_VERSION = "6.6" · 15.10.2026
     Оболочка отчёта ReportSPPR v6: стили, верхняя панель, меню слайдов, переключение слайдов.
     Слайды и меню собирает модуль src/report_v6.py (render) — он же проверяет мажор этого шаблона.
     Переменные: title — заголовок вкладки; banner — плашка над отчётом (только макет), текст;
@@ -20,7 +20,8 @@
     6.4: плитка цели — светофор (my-FT Т-110): яркий фон цвета состояния, белые цифры; цель / порог / до цели — белые
     плашки своими цветами (.c-goal зелёный, .c-alarm красный, .c-gap тёмный).
     6.5: цель / порог / до цели — плашки одной ширины (my-FT Т-111); .soltxt — решение из 1С целиком в ячейке таблицы
-    (панель «Отложенное исправление», Т-107), переносы строк сохранены, длинное — с прокруткой. -#}
+    (панель «Отложенное исправление», Т-107), переносы строк сохранены, длинное — с прокруткой.
+    6.6: заглушка ИИ (my-FT Т-113) — пометка .ai-stub в блоках ИИ: режим заглушки и текст промпта (pre, с переносами). -#}
 <!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }}</title><style>
 :root{--page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
 --ph-wait:#8A94A6;--ph-clar:#C9A227;--ph-solve:#5D86B0;
@@ -160,6 +161,8 @@ details.cellar{margin:8px 0 16px;border:1px dashed var(--rule);border-radius:10p
 details.cellar>summary{cursor:pointer;font-size:14px;color:var(--ink2);font-weight:600}details.cellar[open]>summary{margin-bottom:12px}
 @media (max-width:900px){.goals .gr{grid-template-columns:1fr}}
 @media print{details.cellar{display:none}}
+.ai-stub{margin:4px 0 10px;padding:8px 12px;border:1px dashed #7E57C2;border-radius:8px;background:#FBFAFE;font-size:13px;color:var(--ink2)}.ai-stub b{color:#5B3C99;font-weight:600;margin-right:6px}
+.ai-stub pre{margin-top:6px;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.45 Consolas,"Cascadia Mono",monospace;color:var(--ink);max-height:22em;overflow:auto;background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:8px 10px}
 </style></head><body>{% if banner %}<div class="mock">{{ banner }}</div>{% endif %}<div class="top"><h1>Качество 1С-поддержки</h1><span class="per">{{ period }}</span><span class="sp"></span><button id="prev">←</button><span id="cnt"></span><button id="next">→</button><button id="all">Все слайды</button></div><div class="wrap"><nav class="rail" aria-label="Слайды">{{ rail|safe }}</nav><main>{{ slides|safe }}</main></div><dialog id="xdlg" aria-label="Описание и решение обращения"><div class="xw"><button class="xc" aria-label="Закрыть">✕</button><div class="xb"></div></div></dialog><script>
 const slides=[...document.querySelectorAll('.slide')],links=[...document.querySelectorAll('.rail a')];let cur=0;const cnt=document.getElementById('cnt');
 function show(i){cur=Math.max(0,Math.min(slides.length-1,i));slides.forEach((s,k)=>s.classList.toggle('on',k===cur));links.forEach((a,k)=>a.classList.toggle('on',k===cur));cnt.textContent=(cur+1)+' / '+slides.length;window.scrollTo(0,0)}

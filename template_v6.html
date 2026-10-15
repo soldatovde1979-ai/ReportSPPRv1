@@ -1,4 +1,4 @@
-{#- template_v6.html · TEMPLATE_VERSION = "6.9" · 15.10.2026
+{#- template_v6.html · TEMPLATE_VERSION = "6.10" · 15.10.2026
     Оболочка отчёта ReportSPPR v6: стили, верхняя панель, меню слайдов, переключение слайдов.
     Слайды и меню собирает модуль src/report_v6.py (render) — он же проверяет мажор этого шаблона.
     Переменные: title — заголовок вкладки; banner — плашка над отчётом (только макет), текст;
@@ -27,7 +27,8 @@
     Экспериментальная: тени вместо рамок, градиентная линия .tc, каскадное появление, подъём .itile, заполнение полос, подсветка строки.
     6.8: цели — вертикальные боксы .gbox (my-FT Т-114): плитка .gb-t, шкала .gb-sc, график .gtr; состояние — класс .gs-ok/-warn/-bad/-na
     (переменные --s-*, --g0/--g1 у тем). Старые стили плиток .gt*, .goals .gr, .bullet больше не используются.
-    6.9: окно расшифровки — значки у заголовков: «Описание» (запрос) — облачко с вопросом, «Решение» — галочка (my-FT Т-117). -#}
+    6.9: окно расшифровки — значки у заголовков: «Описание» (запрос) — облачко с вопросом, «Решение» — галочка (my-FT Т-117).
+    6.10: только макет (banner задан) — номера элементов «слайд.номер» — маленькие серые, еле заметные (my-FT Т-118). -#}
 <!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }}</title><style>:root,html[data-theme="light"]{--page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
 --ph-wait:#8A94A6;--ph-clar:#C9A227;--ph-solve:#5D86B0;
 --top-bg:#18222D;--top-mut:#C5D0DC;--top-br:#6B7B8C;
@@ -240,7 +241,21 @@ const THEMES=[["light","☀","Светлая"],["dark","☾","Тёмная"],["e
 const THEME_KEY="sppr-theme";
 (function(){let t=null;try{t=localStorage.getItem(THEME_KEY)}catch(e){}
 if(!THEMES.some(x=>x[0]===t))t=THEMES[0][0];document.documentElement.dataset.theme=t})();
-</script></head><body>{% if banner %}<div class="mock">{{ banner }}</div>{% endif %}<div class="top"><h1>Качество 1С-поддержки</h1><span class="per">{{ period }}</span><span class="sp"></span><button id="prev">←</button><span id="cnt"></span><button id="next">→</button><button id="all">Все слайды</button><span class="thm" id="thm" role="group" aria-label="Тема оформления"></span></div><div class="wrap"><nav class="rail" aria-label="Слайды">{{ rail|safe }}</nav><main>{{ slides|safe }}</main></div><dialog id="xdlg" aria-label="Описание и решение обращения"><div class="xw"><button class="xc" aria-label="Закрыть">✕</button><div class="xb"></div></div></dialog><script>
+</script></head><body>{% if banner %}<div class="mock">{{ banner }}</div><style>
+/* 6.10: только макет — номера элементов «слайд.номер» для ссылок в обсуждении (чат 15.10); в боевом отчёте блока нет */
+.enum{position:absolute;top:-7px;left:-7px;z-index:3;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--paper);color:var(--muted);
+  border:1px solid var(--rule);font:600 9.5px/14px var(--num);text-align:center;opacity:.8;pointer-events:none;letter-spacing:.02em}
+.gbox,.tc{overflow:visible!important}.enum-w{display:block;position:relative;height:0}.enum-w .enum{top:2px;left:-6px}
+@media print{.enum{opacity:1}}
+</style><script>
+// нумерация по порядку на странице: блоки, плитки и боксы, графики, таблицы, выводы ИИ; номер — «слайд.элемент»
+document.addEventListener('DOMContentLoaded',()=>{
+const SEL='.panel,.kpi,.gbox,.tc,.itile,.ai-note,svg.chart,svg.gtr,svg.trend,table';
+document.querySelectorAll('.slide').forEach((s,k)=>{let n=0;
+  s.querySelectorAll(SEL).forEach(el=>{n++;const b=document.createElement('span');b.className='enum';b.textContent=(k+1)+'.'+n;
+    if(el.tagName==='svg'||el.tagName==='SVG'||el.tagName==='TABLE'){const w=document.createElement('span');w.className='enum-w';w.appendChild(b);el.before(w)}
+    else{if(getComputedStyle(el).position==='static')el.style.position='relative';el.prepend(b)}})})});
+</script>{% endif %}<div class="top"><h1>Качество 1С-поддержки</h1><span class="per">{{ period }}</span><span class="sp"></span><button id="prev">←</button><span id="cnt"></span><button id="next">→</button><button id="all">Все слайды</button><span class="thm" id="thm" role="group" aria-label="Тема оформления"></span></div><div class="wrap"><nav class="rail" aria-label="Слайды">{{ rail|safe }}</nav><main>{{ slides|safe }}</main></div><dialog id="xdlg" aria-label="Описание и решение обращения"><div class="xw"><button class="xc" aria-label="Закрыть">✕</button><div class="xb"></div></div></dialog><script>
 // 6.7: кнопки тем из THEMES; выбор запоминается в браузере; печать — всегда в первой (светлой) теме
 (function(){const box=document.getElementById('thm'),root=document.documentElement;
 function set(id){root.dataset.theme=id;try{localStorage.setItem(THEME_KEY,id)}catch(e){}

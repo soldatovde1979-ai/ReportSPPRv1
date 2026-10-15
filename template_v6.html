@@ -1,4 +1,4 @@
-{#- template_v6.html · TEMPLATE_VERSION = "6.11" · 15.10.2026
+{#- template_v6.html · TEMPLATE_VERSION = "6.12" · 15.10.2026
     Оболочка отчёта ReportSPPR v6: стили, верхняя панель, меню слайдов, переключение слайдов.
     Слайды и меню собирает модуль src/report_v6.py (render) — он же проверяет мажор этого шаблона.
     Переменные: title — заголовок вкладки; banner — плашка над отчётом (только макет), текст;
@@ -29,7 +29,9 @@
     (переменные --s-*, --g0/--g1 у тем). Старые стили плиток .gt*, .goals .gr, .bullet больше не используются.
     6.9: окно расшифровки — значки у заголовков: «Описание» (запрос) — облачко с вопросом, «Решение» — галочка (my-FT Т-117).
     6.10: только макет (banner задан) — номера элементов «слайд.номер» — маленькие серые, еле заметные (my-FT Т-118).
-    6.11: номера макета постоянные — список window.SPPR_ENUM кладёт сборщик (examples/element_ids.json); у элемента — data-n. -#}
+    6.11: номера макета постоянные — список window.SPPR_ENUM кладёт сборщик (examples/element_ids.json); у элемента — data-n.
+    6.12: поручения в отчёте (my-FT Т-70, Т-71, В-34): .tk-list рисует скрипт из #plan-data (plan.csv целиком), поле ввода .tk-form,
+    статус кликом, «В поручения» (.tk-add), кнопка «Сохранить поручения» — запись plan.csv (Chrome/Edge — в выбранный файл, иначе скачивание). -#}
 <!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }}</title><style>:root,html[data-theme="light"]{--page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
 --ph-wait:#8A94A6;--ph-clar:#C9A227;--ph-solve:#5D86B0;
 --top-bg:#18222D;--top-mut:#C5D0DC;--top-br:#6B7B8C;
@@ -212,6 +214,25 @@ a.gbox:hover{border-color:var(--s)}a.gbox:focus-visible{outline:2px solid var(--
 .gtr .ax{font-size:11px;fill:var(--muted)}.gtr .ax.fut{fill:var(--dim)}.gtr .tv{font-size:12px;font-weight:600;fill:var(--ink)}.gtr .lg{font-size:11px;font-weight:700}
 html[data-theme="exp"] .gbox{border-color:transparent;box-shadow:0 1px 2px rgba(16,24,40,.05),0 4px 12px rgba(16,24,40,.07)}
 @media print{.gbox{break-inside:avoid}}
+/* ===== 6.12: поручения в отчёте (my-FT Т-70, Т-71, В-34): список, поле ввода, статус кликом, «Сохранить поручения» ===== */
+.tk-list table{font-size:13.5px}.tk-list td{vertical-align:top}.tk-list .tk-id{font:12px var(--num);color:var(--muted);white-space:nowrap}
+.tk-list [contenteditable]{border-radius:4px;padding:1px 3px;margin:-1px -3px;outline:none}.tk-list [contenteditable]:hover{background:var(--wash)}
+.tk-list [contenteditable]:focus{background:var(--paper);box-shadow:0 0 0 2px var(--c-blue)}
+.tk-list tr.late td{background:var(--t-bad)}.tk-list .tk-late{color:var(--c-bad);font-weight:600}
+.tk-list input[type=date]{font:13px var(--text);border:1px solid transparent;background:transparent;color:var(--ink);padding:1px 2px;border-radius:4px}
+.tk-list input[type=date]:hover{border-color:var(--rule)}.tk-empty{color:var(--muted);font-size:13.5px;padding:4px 0}
+.tk-st{font:600 12px var(--text);padding:3px 9px;border-radius:12px;border:1px solid var(--rule);background:var(--wash);color:var(--ink2);cursor:pointer;white-space:nowrap}
+.tk-st[data-s="в работе"]{background:var(--t-blue);border-color:var(--c-blue);color:var(--c-blue)}.tk-st[data-s="выполнено"]{background:var(--t-ok);border-color:var(--c-ok);color:var(--c-ok)}
+.tk-st[data-s="предложено"]{background:var(--t-warn);border-color:var(--b-demo);color:var(--t-warn-fg)}.tk-st[data-s="отклонено"]{color:var(--muted);text-decoration:line-through}
+.tk-form{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:10px;padding-top:10px;border-top:1px dashed var(--rule)}
+.tk-form label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}.tk-form .tk-w{flex:1 1 300px}
+.tk-form input,.tk-form select{font:13.5px var(--text);padding:6px 8px;border:1px solid var(--rule);border-radius:6px;background:var(--paper);color:var(--ink);min-width:0}
+.tk-form button,.tk-add{font:600 13px var(--text);padding:7px 14px;border-radius:6px;border:1px solid var(--c-blue);background:var(--c-blue);color:#fff;cursor:pointer}
+.tk-add{margin-top:6px;padding:3px 10px;font-size:12px;border-radius:12px;background:var(--paper);color:var(--c-blue)}.tk-add[disabled]{border-color:var(--rule);color:var(--muted);cursor:default}
+.tk-how{padding-left:20px;display:grid;gap:6px;font-size:14px;max-width:95ch}.tk-how code{font-size:13px;background:var(--wash);padding:0 4px;border-radius:3px}
+.top h1{white-space:nowrap}.top .per{min-width:0}.top #tk-save{border-color:#fff}.top #tk-save b{display:inline-block;min-width:18px;margin-left:6px;padding:0 5px;border-radius:9px;background:#D93025;font:700 11px/18px var(--num)}
+.top #tk-save.clean b{display:none}.tk-msg{font-size:12.5px;color:var(--top-mut);max-width:260px}
+@media print{.tk-form,.tk-add,#tk-save,.tk-msg{display:none}}
 /* ===== 6.7: переключатель тем — кнопки в правом углу верхней панели (собирает скрипт из списка THEMES) ===== */
 .thm{display:inline-flex;gap:2px;margin-left:6px;padding:2px;border:1px solid var(--top-br);border-radius:7px}
 .top .thm button{width:26px;height:24px;padding:0;border:0;border-radius:5px;font:13px/1 var(--text);color:var(--top-mut)}
@@ -255,7 +276,8 @@ const SEL='.panel,.kpi,.gbox,.tc,.itile,.ai-note,svg.chart,svg.gtr,svg.trend,tab
 // 6.11: номера — постоянные из сборщика макета (window.SPPR_ENUM[слайд][i], examples/element_ids.json); нет списка — по порядку
 const EN=window.SPPR_ENUM||{};
 document.querySelectorAll('.slide').forEach((s,k)=>{let n=0;const L=EN[s.id]||[];
-  s.querySelectorAll(SEL).forEach(el=>{const b=document.createElement('span');b.className='enum';b.textContent=L[n]||((k+1)+'.'+(n+1));n++;el.dataset.n=b.textContent;
+  s.querySelectorAll(SEL).forEach(el=>{if(el.closest('.tk-list'))return;   // таблицы поручений рисует скрипт — не нумеруются
+    const b=document.createElement('span');b.className='enum';b.textContent=L[n]||((k+1)+'.'+(n+1));n++;el.dataset.n=b.textContent;
     if(el.tagName==='svg'||el.tagName==='SVG'||el.tagName==='TABLE'){const w=document.createElement('span');w.className='enum-w';w.appendChild(b);el.before(w)}
     else{if(getComputedStyle(el).position==='static')el.style.position='relative';el.prepend(b)}})})});
 </script>{% endif %}<div class="top"><h1>Качество 1С-поддержки</h1><span class="per">{{ period }}</span><span class="sp"></span><button id="prev">←</button><span id="cnt"></span><button id="next">→</button><button id="all">Все слайды</button><span class="thm" id="thm" role="group" aria-label="Тема оформления"></span></div><div class="wrap"><nav class="rail" aria-label="Слайды">{{ rail|safe }}</nav><main>{{ slides|safe }}</main></div><dialog id="xdlg" aria-label="Описание и решение обращения"><div class="xw"><button class="xc" aria-label="Закрыть">✕</button><div class="xb"></div></div></dialog><script>
@@ -286,4 +308,50 @@ rs.slice(10).forEach(r=>r.classList.add('hid'));const b=document.createElement('
 b.onclick=()=>{const open=b.dataset.o!=='1';rs.slice(10).forEach(r=>r.classList.toggle('hid',!open));b.dataset.o=open?'1':'';b.textContent=open?'Свернуть':'Показать все строки: '+rs.length};
 (tb.closest('.tw')||tb.parentNode).after(b)});
 const go=()=>{const h=slides.findIndex(x=>'#'+x.id===location.hash);show(h>0?h:0)};window.addEventListener('hashchange',go);go();
+// 6.12: поручения (my-FT Т-70, Т-71, В-34) — правка в отчёте и сохранение в plan.csv целиком (цели не трогаются)
+(function(){const src=document.getElementById('plan-data');if(!src)return;
+const P=JSON.parse(src.textContent),rows=P.rows,ORD=['предложено','в работе','выполнено','отклонено'];
+const pad=n=>String(n).padStart(2,'0'),dd=d=>pad(d.getDate())+'.'+pad(d.getMonth()+1)+'.'+d.getFullYear();
+const pd=s=>{let m=/^(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(s||'');if(m)return new Date(+m[3],m[2]-1,+m[1]);m=/^(\d{4})-(\d\d)-(\d\d)/.exec(s||'');return m?new Date(+m[1],m[2]-1,+m[3]):null};
+const iso=s=>{const d=pd(s);return d?d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()):''};
+const WS=pd(P.ws),WE=pd(P.we),NOW=pd(P.now),E=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+let dirty=0,handle=null;
+const isTask=r=>(r['вид']||'').toLowerCase().startsWith('пор'),st=r=>(r['статус']||'предложено').toLowerCase();
+const show=r=>{if(r._s||P.open.includes(st(r)))return true;const c=pd(r['закрыто']);return !!(c&&c>=WS&&c<WE)};
+const late=r=>{const d=pd(r['срок']);return !!(d&&d<NOW&&P.open.includes(st(r)))};
+const btn=document.createElement('button');btn.id='tk-save';btn.className='clean';btn.title='Записать поручения в plan.csv';btn.innerHTML='Сохранить поручения<b>0</b>';
+const msg=document.createElement('span');msg.className='tk-msg';const top=document.querySelector('.top');top.insertBefore(msg,document.getElementById('thm'));top.insertBefore(btn,msg);
+function touch(r){r._s=1;dirty++;btn.classList.remove('clean');btn.querySelector('b').textContent=dirty;msg.textContent=''}
+function nextId(){const n=rows.map(r=>+(/^П-(\d+)/.exec(r.id||'')||[0,0])[1]);return 'П-'+pad(Math.max(0,...n)+1)}
+function add(o){const r=Object.assign({id:nextId(),'вид':'поручение','статус':'в работе','создано':dd(new Date())},o);rows.push(r);touch(r);render()}
+function render(){document.querySelectorAll('.tk-list').forEach(box=>{const sl=box.dataset.slide,all=sl==='*';
+  const list=rows.filter(r=>isTask(r)&&show(r)&&(all||(r['слайд']||'').toLowerCase()===sl))
+    .sort((a,b)=>late(b)-late(a)||ORD.indexOf(st(a))-ORD.indexOf(st(b))||((pd(a['срок'])||9e15)-(pd(b['срок'])||9e15)));
+  if(!list.length){box.innerHTML='<p class="tk-empty">Поручений пока нет — добавьте полем ниже.</p>';return}
+  box.innerHTML='<div class="tw"><table><thead><tr><th>№</th><th>Поручение</th><th>Кому</th><th>Срок</th><th>Статус</th>'+(all?'<th>Слайд</th>':'')+'</tr></thead><tbody>'+
+   list.map(r=>{const i=rows.indexOf(r),sl2=(r['слайд']||'').toLowerCase();return '<tr data-i="'+i+'"'+(late(r)?' class="late"':'')+'><td class="tk-id">'+E(r.id)+'</td>'+
+    '<td><b contenteditable="true" data-f="что">'+E(r['что'])+'</b>'+(r['заметка']?'<br><small class="mut">'+E(r['заметка'])+'</small>':'')+'</td>'+
+    '<td><span contenteditable="true" data-f="кто">'+E(r['кто'])+'</span></td>'+
+    '<td><input type="date" data-f="срок" value="'+iso(r['срок'])+'">'+(late(r)?'<br><span class="tk-late">просрочено</span>':'')+'</td>'+
+    '<td><button type="button" class="tk-st" data-s="'+E(st(r))+'" title="Сменить статус">'+E(st(r))+'</button></td>'+
+    (all?'<td><a href="#'+E(sl2)+'">'+E(P.slides[sl2]||sl2)+'</a></td>':'')+'</tr>'}).join('')+'</tbody></table></div>'})}
+document.addEventListener('click',e=>{const b=e.target.closest('.tk-st');if(b){const r=rows[+b.closest('tr').dataset.i];const s=ORD[(ORD.indexOf(st(r))+1)%ORD.length];
+  r['статус']=s;r['закрыто']=P.open.includes(s)?'':dd(new Date());touch(r);render();return}
+ const a=e.target.closest('.tk-add');if(a&&!a.disabled){add({'слайд':'s12','что':a.dataset.what,'кто':a.dataset.who,'заметка':a.dataset.note||''});a.disabled=true;a.textContent='✓ В поручениях'}});
+document.addEventListener('focusout',e=>{const f=e.target.closest('[data-f]');if(!f||!f.closest('.tk-list'))return;const r=rows[+f.closest('tr').dataset.i];
+  const v=f.dataset.f==='срок'?(f.value?dd(pd(f.value)):''):f.textContent.trim();if((r[f.dataset.f]||'')!==v){r[f.dataset.f]=v;touch(r);render()}});
+document.addEventListener('change',e=>{if(e.target.matches('.tk-list input[type=date]'))e.target.blur()});
+document.querySelectorAll('.tk-form').forEach(f=>f.addEventListener('submit',e=>{e.preventDefault();const v=n=>(f.elements[n]?f.elements[n].value:'').trim();
+  if(!v('what'))return;add({'слайд':f.dataset.slide==='*'?v('slide'):f.dataset.slide,'что':v('what'),'кто':v('who'),'срок':v('due')?dd(pd(v('due'))):''});f.reset()}));
+function csv(){const cols=P.cols.concat([...new Set(rows.flatMap(r=>Object.keys(r)))].filter(k=>!P.cols.includes(k)&&k[0]!=='_'));
+  const q=v=>{v=String(v??'');return /[;"\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  return '﻿'+[cols.join(';')].concat(rows.map(r=>cols.map(c=>q(r[c])).join(';'))).join('\r\n')+'\r\n'}
+btn.onclick=async()=>{const text=csv();try{
+  if(window.showSaveFilePicker){if(!handle)handle=await showSaveFilePicker({suggestedName:P.file,types:[{description:'План (CSV)',accept:{'text/csv':['.csv']}}]});
+   const w=await handle.createWritable();await w.write(new Blob([text],{type:'text/csv'}));await w.close();msg.textContent='Сохранено в '+handle.name}
+  else{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'}));a.download=P.file;a.click();msg.textContent='Скачан '+P.file+' — положите в папку проекта'}
+  dirty=0;btn.classList.add('clean');btn.querySelector('b').textContent=0}
+ catch(err){if(err&&err.name==='AbortError')return;handle=null;msg.textContent='Не сохранено: '+(err&&err.message||err)+' — закройте plan.csv в Excel и повторите'}};
+addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
+render()})();
 </script></body></html>

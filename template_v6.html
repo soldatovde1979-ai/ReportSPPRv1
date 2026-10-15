@@ -1,4 +1,4 @@
-{#- template_v6.html · TEMPLATE_VERSION = "6.5" · 15.10.2026
+{#- template_v6.html · TEMPLATE_VERSION = "6.13" · 15.10.2026
     Оболочка отчёта ReportSPPR v6: стили, верхняя панель, меню слайдов, переключение слайдов.
     Слайды и меню собирает модуль src/report_v6.py (render) — он же проверяет мажор этого шаблона.
     Переменные: title — заголовок вкладки; banner — плашка над отчётом (только макет), текст;
@@ -20,17 +20,44 @@
     6.4: плитка цели — светофор (my-FT Т-110): яркий фон цвета состояния, белые цифры; цель / порог / до цели — белые
     плашки своими цветами (.c-goal зелёный, .c-alarm красный, .c-gap тёмный).
     6.5: цель / порог / до цели — плашки одной ширины (my-FT Т-111); .soltxt — решение из 1С целиком в ячейке таблицы
-    (панель «Отложенное исправление», Т-107), переносы строк сохранены, длинное — с прокруткой. -#}
-<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }}</title><style>
-:root{--page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
+    (панель «Отложенное исправление», Т-107), переносы строк сохранены, длинное — с прокруткой.
+    6.6: заглушка ИИ (my-FT Т-113) — пометка .ai-stub в блоках ИИ: режим заглушки и текст промпта (pre, с переносами).
+    6.7: темы (my-FT Т-116) — светлая, тёмная, экспериментальная; кнопки в правом углу верхней панели, выбор запоминается в браузере,
+    печать — в светлой. Цвета — переменные (:root); тема = блок html[data-theme="id"]{переменные} + строка в THEMES (скрипт в <head>).
+    Экспериментальная: тени вместо рамок, градиентная линия .tc, каскадное появление, подъём .itile, заполнение полос, подсветка строки.
+    6.8: цели — вертикальные боксы .gbox (my-FT Т-114): плитка .gb-t, шкала .gb-sc, график .gtr; состояние — класс .gs-ok/-warn/-bad/-na
+    (переменные --s-*, --g0/--g1 у тем). Старые стили плиток .gt*, .goals .gr, .bullet больше не используются.
+    6.9: окно расшифровки — значки у заголовков: «Описание» (запрос) — облачко с вопросом, «Решение» — галочка (my-FT Т-117).
+    6.10: только макет (banner задан) — номера элементов «слайд.номер» — маленькие серые, еле заметные (my-FT Т-118).
+    6.11: номера макета постоянные — список window.SPPR_ENUM кладёт сборщик (examples/element_ids.json); у элемента — data-n.
+    6.12: поручения в отчёте (my-FT Т-70, Т-71, В-34): .tk-list рисует скрипт из #plan-data (plan.csv целиком), поле ввода .tk-form,
+    статус кликом, «В поручения» (.tk-add), кнопка «Сохранить поручения» — запись plan.csv (Chrome/Edge — в выбранный файл, иначе скачивание). 
+    6.13: удалены неиспользуемые стили старых плиток целей (.gt*, .goals .gr, .gr-t, .bd, старый .trend) — их заменили боксы .gbox (6.8). -#}
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }}</title><style>:root,html[data-theme="light"]{--page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
 --ph-wait:#8A94A6;--ph-clar:#C9A227;--ph-solve:#5D86B0;
+--top-bg:#18222D;--top-mut:#C5D0DC;--top-br:#6B7B8C;
+--c-ok:#0F6E3A;--c-bad:#B3261E;--c-bad2:#D93025;--c-warn:#8A5A00;--c-warn2:#B7800F;--c-blue:#1A56DB;--c-ai:#7E57C2;--c-ai-ink:#5B3C99;
+--t-ai:#FBFAFE;--t-ai-br:#D8C8F0;--t-ai2:#EFE9F8;--t-bad:#FBE3E1;--t-bad-fg:#9B1C12;--t-warn:#FFF1CC;--t-warn-fg:#7A5A00;--t-ok:#E3F4E8;--t-blue:#EBF1FA;
+--t-mock:#FFF7DB;--t-mock-br:#E9D48A;--t-mock-fg:#5B4A0B;--b-demo:#E0C27A;--b-in:#9DB6CF;--b-sol:#8FC1A0;
+--s-ok:#0F6E3A;--s-warn:#B7800F;--s-bad:#D93025;--s-na:#6B7785;--g0:34%;--g1:10%;
+--grid:#C9D1D9;--nodata:#B8C2CC;--dim:#9AA5B1;--diag:#E8EDF2;--g-ok:#B9C6D4;--heat:#1D3350;--heat-hi:#fff;--bar:#3B4754;--bar2:#5D6B7A;
 --num:"Bahnschrift","DIN Alternate","Roboto Condensed","Arial Narrow",sans-serif;--text:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif}
+/* 6.7: тёмная тема — те же переменные, другие значения (как добавить тему — шапка шаблона) */
+html[data-theme="dark"]{color-scheme:dark;--page:#0F141A;--paper:#19212A;--ink:#E6EBF0;--ink2:#B7C1CC;--muted:#8C98A5;--rule:#2C3743;--wash:#212A34;
+--top-bg:#0A0E13;--top-mut:#9AA8B6;--top-br:#3A4756;
+--c-ok:#43B97A;--c-bad:#FF6B5E;--c-bad2:#F2574A;--c-warn:#E3AE4A;--c-warn2:#D9A12A;--c-blue:#6EA2FF;--c-ai:#A88BE0;--c-ai-ink:#C3A9F2;
+--t-ai:#1F1B2A;--t-ai-br:#4A3D6B;--t-ai2:#2E2742;--t-bad:#3A2020;--t-bad-fg:#FF9C92;--t-warn:#382D18;--t-warn-fg:#F0C66B;--t-ok:#1C3326;--t-blue:#1E2A3D;
+--t-mock:#332B17;--t-mock-br:#6B5A2A;--t-mock-fg:#F0DCA0;--b-demo:#8A7238;--b-in:#3F5A78;--b-sol:#3D6B4C;
+--s-ok:#2FA463;--s-warn:#D9A12A;--s-bad:#EC5545;--s-na:#7D8899;--g0:30%;--g1:9%;
+--grid:#34404C;--nodata:#4A5562;--dim:#6A7682;--diag:#26303B;--g-ok:#4A5868;--heat:#6FA0D8;--heat-hi:#0B1016;--bar:#8FA3B8;--bar2:#6E8297}
+/* 6.7: экспериментальная тема — светлые цвета + эффекты ниже (блок «ЭФФЕКТЫ ТЕМЫ exp») */
+html[data-theme="exp"]{--page:#E8ECF1;--rule:#E1E6EC}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font:15px/1.45 var(--text);color:var(--ink);background:var(--page);font-variant-numeric:tabular-nums}
-.mock{background:#FFF7DB;border-bottom:1px solid #E9D48A;color:#5B4A0B;font-size:13px;padding:7px 24px}
-.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:20px;padding:12px 24px;background:var(--ink);color:#fff}
-.top h1{font:600 18px/1.1 var(--num)}.top .per{font:15px/1 var(--num);color:#C5D0DC}.top .sp{flex:1}
-.top button{font:14px var(--text);color:#fff;background:transparent;border:1px solid #6B7B8C;border-radius:6px;padding:6px 12px;cursor:pointer}
+.mock{background:var(--t-mock);border-bottom:1px solid var(--t-mock-br);color:var(--t-mock-fg);font-size:13px;padding:7px 24px}
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:20px;padding:12px 24px;background:var(--top-bg);color:#fff}
+.top h1{font:600 18px/1.1 var(--num)}.top .per{font:15px/1 var(--num);color:var(--top-mut)}.top .sp{flex:1}
+.top button{font:14px var(--text);color:#fff;background:transparent;border:1px solid var(--top-br);border-radius:6px;padding:6px 12px;cursor:pointer}
 .top button:hover{border-color:#fff}
 .wrap{display:grid;grid-template-columns:240px 1fr;max-width:1560px;margin:0 auto}
 .rail{position:sticky;top:52px;align-self:start;padding:22px 14px 22px 24px;height:calc(100vh - 52px);overflow:auto}
@@ -45,46 +72,46 @@ main{padding:22px 28px 60px 10px;min-width:0}.pb{min-width:0}
 .ph{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px}.ph h3{font-size:17px;font-weight:600;line-height:1.3}
 .stamps{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
 .stamp{display:inline-flex;align-items:center;gap:5px;font-size:12px;line-height:1;padding:5px 8px;border:1px solid var(--rule);border-radius:4px;color:var(--ink2);white-space:nowrap;background:var(--wash)}
-.stamp i{font-style:normal;font-size:10px}.s-demo{background:#FFF1CC;border-color:#E0C27A;color:#7A5A00;font-weight:600}.demo{border:2px dashed #E0C27A}.s-in{border-color:#9DB6CF}.s-sol{border-color:#8FC1A0}.s-open{border-color:#E0C27A}.s-ai{background:#fff;border-style:dashed;border-color:#7E57C2;color:#5B3C99}
+.stamp i{font-style:normal;font-size:10px}.s-demo{background:var(--t-warn);border-color:var(--b-demo);color:var(--t-warn-fg);font-weight:600}.demo{border:2px dashed var(--b-demo)}.s-in{border-color:var(--b-in)}.s-sol{border-color:var(--b-sol)}.s-open{border-color:var(--b-demo)}.s-ai{background:var(--paper);border-style:dashed;border-color:var(--c-ai);color:var(--c-ai-ink)}
 .why,.use{margin-top:8px;font-size:12.5px;line-height:1.45;color:var(--muted)}.use{margin-top:3px}.why b,.use b{color:var(--ink2);font-weight:600}
 .rowwhy{margin:-8px 0 16px 4px}
 .grid{display:grid;gap:16px;margin-bottom:16px}.grid>*{min-width:0}.grid>.panel{margin-bottom:0}.g2{grid-template-columns:1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}.g21{grid-template-columns:1.3fr 1fr}
 .hero{border-color:var(--ink)}
 .eqbar{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1.4fr;gap:14px;align-items:start}
 .eqbar .k{font-size:13px;color:var(--muted)}.eqbar b{display:block;font:600 56px/1 var(--num);margin:4px 0 6px}.eqbar small{font-size:12.5px;color:var(--muted)}
-.eqbar em{font:300 44px/1 var(--num);color:var(--muted);padding-top:24px;font-style:normal}.eqbar .res b{color:#0F6E3A}.eqbar .res.up b{color:#B3261E}
+.eqbar em{font:300 44px/1 var(--num);color:var(--muted);padding-top:24px;font-style:normal}.eqbar .res b{color:var(--c-ok)}.eqbar .res.up b{color:var(--c-bad)}
 /* Т-60: баланс потока — цвет, плашки линий и разбивки не серые */
-.eqbar .in b{color:#1A56DB}.eqbar .sl b{color:#0F6E3A}.eqbar .rj b{color:#B7800F}
-.eqbar>div{border-top:4px solid var(--rule);padding-top:8px}.eqbar .in{border-top-color:#1A56DB}.eqbar .sl{border-top-color:#0F6E3A}.eqbar .rj{border-top-color:#B7800F}
-.eqbar .res{border-top-color:#0F6E3A}.eqbar .res.up{border-top-color:#B3261E}
+.eqbar .in b{color:var(--c-blue)}.eqbar .sl b{color:var(--c-ok)}.eqbar .rj b{color:var(--c-warn2)}
+.eqbar>div{border-top:4px solid var(--rule);padding-top:8px}.eqbar .in{border-top-color:var(--c-blue)}.eqbar .sl{border-top-color:var(--c-ok)}.eqbar .rj{border-top-color:var(--c-warn2)}
+.eqbar .res{border-top-color:var(--c-ok)}.eqbar .res.up{border-top-color:var(--c-bad)}
 .eqbar b{margin-bottom:8px}
 /* Т-60 (v5): плашки I / II — справа от большого числа, столбиком, как на образце «203 → I 103 / II 100» */
 .eqbar .nl{display:flex;align-items:center;gap:14px;margin:4px 0 8px}.eqbar .nl b{margin:0}.eqbar .nl .ln{flex-direction:column;gap:4px;margin:0}
 .ln{display:flex;gap:8px;margin-bottom:8px}.ln span{background:var(--wash);border-radius:6px;padding:3px 9px;font:700 16px var(--num);color:var(--ink)}.ln i{font:600 12px var(--text);font-style:normal;color:var(--ink2);margin-right:5px}
 .sub3{display:grid;gap:3px;font-size:13.5px;color:var(--ink)}.sub3 span{display:flex;justify-content:space-between;gap:10px;border-bottom:1px dotted var(--rule);padding-bottom:2px}.sub3 b{display:inline;font:700 15px var(--num);margin:0;color:var(--ink)}
-.inc-new{margin-top:6px;font-size:13px;font-weight:600;color:#B3261E}.inc-new b{font:700 34px/1 var(--num);margin-right:6px;color:#D93025}.inc-new span{display:block;font:600 13px var(--num);color:var(--ink);margin-top:2px}
+.inc-new{margin-top:6px;font-size:13px;font-weight:600;color:var(--c-bad)}.inc-new b{font:700 34px/1 var(--num);margin-right:6px;color:var(--c-bad2)}.inc-new span{display:block;font:600 13px var(--num);color:var(--ink);margin-top:2px}
 .kpi{background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:14px 16px}
 .kpi .stamps{justify-content:flex-start;margin-bottom:8px}.kpi .stamp{padding:4px 6px;font-size:11px}.kpi h4{font-size:14px;font-weight:600}
 .kpi-v{font:600 46px/1 var(--num);margin:10px 0 6px}.kpi-v span{font:14px var(--text);color:var(--muted);margin-left:6px}
 .kpi-lines{display:flex;gap:14px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--rule);padding-top:6px;margin-bottom:6px}.kpi-lines b{font:600 17px var(--num);color:var(--ink2)}
-.kpi-s{font-size:12.5px;color:var(--ink2)}.kpi-inc{border-color:#D93025;box-shadow:inset 4px 0 0 #D93025}
+.kpi-s{font-size:12.5px;color:var(--ink2)}.kpi-inc{border-color:var(--c-bad2);box-shadow:inset 4px 0 0 var(--c-bad2)}
 /* 5.3: плитка «Сейчас в ожидании» — острые углы, среднее μ и сумма Σ отдельной строкой (ревью 07.10) */
 .kpi-sharp{border-radius:0}
 .kpi-m{display:flex;gap:16px;border-top:1px solid var(--rule);padding-top:6px;margin:2px 0 6px;font-size:12.5px;color:var(--muted)}
 .kpi-m b{font:600 17px var(--num);color:var(--ink)}
-.kpi-m .mu{font:700 13px var(--num);color:#D93025}
+.kpi-m .mu{font:700 13px var(--num);color:var(--c-bad2)}
 /* 5.3: вывод ИИ на панели — единый вид для всех встраиваемых разборов (ревью 07.10): чип ✦ слева,
    фиолетовая кромка и подложка; видно, к какой панели относится, потому что блок живёт внутри панели */
-.ai-note{display:flex;gap:10px;align-items:flex-start;margin-top:10px;padding:9px 12px;background:#FBFAFE;border:1px solid #D8C8F0;border-left:4px solid #7E57C2;border-radius:8px;font-size:13.5px;line-height:1.45;color:var(--ink)}
+.ai-note{display:flex;gap:10px;align-items:flex-start;margin-top:10px;padding:9px 12px;background:var(--t-ai);border:1px solid var(--t-ai-br);border-left:4px solid var(--c-ai);border-radius:8px;font-size:13.5px;line-height:1.45;color:var(--ink)}
 .ai-note i{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:#7E57C2;color:#fff;font-style:normal;font:700 13px var(--num)}
-.ai-note b{color:#5B3C99}
+.ai-note b{color:var(--c-ai-ink)}
 .tcs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
 .tc{border:1px solid var(--rule);border-top:4px solid var(--c);border-radius:8px;padding:10px 12px}.tc span{font-size:13px;font-weight:600}.tc b{display:block;font:600 34px/1.1 var(--num);margin-top:4px}
 .tc small{font-size:11.5px;color:var(--muted)}.tc em{display:block;font-style:normal;font-size:12px;color:var(--ink2);margin-top:6px}
 .ch{font-size:13.5px;font-weight:600;color:var(--ink2);margin-bottom:4px}.sub{font-size:14.5px;margin:16px 0 6px}
-.chart{width:100%;height:auto;display:block}.chart .grid{stroke:#C9D1D9;stroke-width:1}
+.chart{width:100%;height:auto;display:block}.chart .grid{stroke:var(--grid);stroke-width:1}
 .chart .ax{font:12px var(--text);fill:var(--muted)}.chart .day{fill:var(--ink2);font-weight:600}.chart .val{font:600 13px var(--num);fill:var(--ink)}
-.chart .nodata{fill:none;stroke:#B8C2CC;stroke-dasharray:4 3}.chart .lbl{font:11px var(--num);fill:var(--ink2)}
+.chart .nodata{fill:none;stroke:var(--nodata);stroke-dasharray:4 3}.chart .lbl{font:11px var(--num);fill:var(--ink2)}
 .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;font-size:12.5px;color:var(--ink2)}.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px}
 .na-note{font-size:12.5px;color:var(--muted);border:1px dashed var(--rule);border-radius:6px;padding:6px 10px;margin-top:10px}
 .tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13.5px}
@@ -94,73 +121,166 @@ table.num td,td.c{text-align:center}table.num th{text-align:center}table.num tbo
 .tk{display:inline-flex;flex-direction:column;margin:0 8px 6px 0;vertical-align:top}.tk small{font-size:11.5px;color:var(--muted);white-space:nowrap}
 /* 6.3 (шаблон): расшифровка обращения — значок .tx сразу после номера (у всех обращений); клик открывает окно
    #xdlg с описанием и решением из 1С без сокращений (полный текст — один раз в скрытом реестре #xtreg) */
-.tx{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-left:4px;padding:0;vertical-align:middle;border:1px solid var(--rule);border-radius:4px;background:var(--paper);color:#1A56DB;cursor:pointer;flex:0 0 auto}
-.tx:hover{border-color:#1A56DB;background:#EBF1FA}.tx svg{width:12px;height:12px;display:block}
+.tx{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-left:4px;padding:0;vertical-align:middle;border:1px solid var(--rule);border-radius:4px;background:var(--paper);color:var(--c-blue);cursor:pointer;flex:0 0 auto}
+.tx:hover{border-color:var(--c-blue);background:var(--t-blue)}.tx svg{width:12px;height:12px;display:block}
 .tkn{display:inline-flex;align-items:center}
-dialog#xdlg{margin:auto;width:min(860px,94vw);max-height:86vh;overflow:auto;border:0;border-radius:12px;padding:0;box-shadow:0 20px 60px rgba(16,24,40,.35)}
+dialog#xdlg{margin:auto;width:min(860px,94vw);max-height:86vh;overflow:auto;border:0;border-radius:12px;padding:0;box-shadow:0 20px 60px rgba(16,24,40,.35);background:var(--paper);color:var(--ink)}
 dialog#xdlg::backdrop{background:rgba(24,34,45,.45)}
-#xdlg .xw{padding:20px 24px 22px;position:relative}#xdlg .xc{position:absolute;top:12px;right:14px;font:18px var(--text);background:none;border:0;color:var(--muted);cursor:pointer}#xdlg .xc:hover{color:var(--ink)}#xdlg .xc:focus{outline:none}#xdlg .xc:focus-visible{outline:2px solid #1A56DB;border-radius:4px}
+#xdlg .xw{padding:20px 24px 22px;position:relative}#xdlg .xc{position:absolute;top:12px;right:14px;font:18px var(--text);background:none;border:0;color:var(--muted);cursor:pointer}#xdlg .xc:hover{color:var(--ink)}#xdlg .xc:focus{outline:none}#xdlg .xc:focus-visible{outline:2px solid var(--c-blue);border-radius:4px}
 #xdlg .xt.xd{max-height:32vh;overflow:auto}
 #xdlg .xh{padding-right:30px;margin-bottom:10px}#xdlg .xh h3{font:600 18px/1.3 var(--text);margin:4px 0}#xdlg .xh small{color:var(--muted);font-size:12.5px}
-#xdlg b.xl{display:block;font:600 12px var(--text);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 4px}
+#xdlg b.xl{display:flex;align-items:center;gap:7px;font:600 12px var(--text);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 4px}
+/* 6.9: значки окна расшифровки (my-FT Т-117) — запрос: облачко с вопросом, решение: галочка в круге; рисунок — маска, цвет — переменные темы */
+#xdlg b.xl-q::before,#xdlg b.xl-s::before{content:"";width:16px;height:16px;flex:0 0 16px;-webkit-mask:var(--ic) center/contain no-repeat;mask:var(--ic) center/contain no-repeat}
+#xdlg b.xl-q::before{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z'/%3E%3Cpath d='M10 9.5a2.2 2.2 0 1 1 3 2c-.6.3-1 .8-1 1.5'/%3E%3Ccircle cx='12' cy='16.3' r='.6' fill='black'/%3E%3C/svg%3E");background:var(--c-blue)}#xdlg b.xl-s::before{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M8 12.5l2.7 2.7L16 9.8'/%3E%3C/svg%3E");background:var(--c-ok)}
 #xdlg .xt{font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink);background:var(--wash);border-left:3px solid var(--rule);padding:8px 12px;border-radius:4px}
-a.tid{color:#1A56DB;text-decoration:none}a.tid:hover{text-decoration:underline}
+a.tid{color:var(--c-blue);text-decoration:none}a.tid:hover{text-decoration:underline}
 .tid{font:13px var(--num);white-space:nowrap;background:var(--wash);border:1px solid var(--rule);border-radius:3px;padding:1px 5px;display:inline-block;width:max-content}
 .ids{margin-top:6px}
 table.ai td:first-child{min-width:170px}table.dec td:first-child{width:18%}
-.aibox{border:1px dashed #7E57C2;background:#FBFAFE}.ai-sum{font-size:15.5px;margin-bottom:10px}
-.tag{font-size:12px;padding:2px 7px;border-radius:3px;background:#EFE9F8;color:#5B3C99;white-space:nowrap}
+.aibox{border:1px dashed var(--c-ai);background:var(--t-ai)}.ai-sum{font-size:15.5px;margin-bottom:10px}
+.tag{font-size:12px;padding:2px 7px;border-radius:3px;background:var(--t-ai2);color:var(--c-ai-ink);white-space:nowrap}
 .tt{font-size:12px;padding:1px 6px;border-radius:3px;border-left:4px solid var(--c);background:var(--wash);white-space:nowrap}
-.risk{font-size:12px;padding:2px 7px;border-radius:3px;white-space:nowrap}.risk.hi{background:#FBE3E1;color:#9B1C12}.risk.md{background:#FFF1CC;color:#7A5A00}
-.stt{font-size:12px;padding:2px 7px;border-radius:3px}.stt.bad{background:#FBE3E1;color:#9B1C12}.stt.warn{background:#FFF1CC;color:#7A5A00}.stt.ok{background:#E3F4E8;color:#0F6E3A}
-.mut{color:var(--muted)}.ok{color:#0F6E3A;font-weight:600}.bad{color:#B3261E;font-weight:600}.warn{color:#8A5A00;font-weight:600}
+.risk{font-size:12px;padding:2px 7px;border-radius:3px;white-space:nowrap}.risk.hi{background:var(--t-bad);color:var(--t-bad-fg)}.risk.md{background:var(--t-warn);color:var(--t-warn-fg)}
+.stt{font-size:12px;padding:2px 7px;border-radius:3px}.stt.bad{background:var(--t-bad);color:var(--t-bad-fg)}.stt.warn{background:var(--t-warn);color:var(--t-warn-fg)}.stt.ok{background:var(--t-ok);color:var(--c-ok)}
+.mut{color:var(--muted)}.ok{color:var(--c-ok);font-weight:600}.bad{color:var(--c-bad);font-weight:600}.warn{color:var(--c-warn);font-weight:600}
 .own{display:grid;grid-template-columns:minmax(120px,190px) 1fr 150px;align-items:center;gap:14px;padding:9px 0;border-bottom:1px solid var(--rule)}
 .own-l b{display:block;font-size:14.5px}.own-l small{color:var(--muted);font-size:12px}
 .own-b{display:flex;height:26px;border-radius:3px;overflow:hidden;min-width:8px;gap:2px}.own-b i{display:flex;align-items:center;justify-content:center;font:600 12px var(--num);color:#fff;font-style:normal}
 .own-n{font:600 26px/1 var(--num)}.own-n small{display:block;font:12px var(--text);color:var(--muted);margin-top:3px}
 .hbars{display:grid;gap:6px}.hb{display:grid;grid-template-columns:minmax(120px,44%) 1fr 52px;gap:10px;align-items:center;font-size:13.5px}
-.hb-l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hb-t{height:14px;background:var(--wash);border-radius:2px;overflow:hidden;background-image:repeating-linear-gradient(90deg,transparent 0,transparent calc(25% - 1px),#C9D1D9 calc(25% - 1px),#C9D1D9 25%)}.hb-t i{display:block;height:100%}
+.hb-l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hb-t{height:14px;background:var(--wash);border-radius:2px;overflow:hidden;background-image:repeating-linear-gradient(90deg,transparent 0,transparent calc(25% - 1px),var(--grid) calc(25% - 1px),var(--grid) 25%)}.hb-t i{display:block;height:100%}
 .phb{display:inline-flex;height:9px;border-radius:2px;overflow:hidden;vertical-align:-1px}.phb i{display:block;height:100%}.ph-wait{color:var(--ph-wait)}.ph-clar{color:var(--ph-clar)}.ph-solve{color:var(--ph-solve)}
 .hb-v{font:600 15px var(--num);text-align:right}.hb-v small{font:12px var(--text);color:var(--muted)}
-.big-claim{display:flex;gap:22px;align-items:center}.bc-n{font:600 96px/0.9 var(--num);color:#B7800F}.bc-n span{font-size:48px}
+.big-claim{display:flex;gap:22px;align-items:center}.bc-n{font:600 96px/0.9 var(--num);color:var(--c-warn2)}.bc-n span{font-size:48px}
 .bc-t{font-size:15px;color:var(--ink2)}.bc-t b{font-size:19px;color:var(--ink)}
-.nsi-chip{display:inline-block;margin-top:8px;padding:3px 10px;border-radius:4px;background:#EFE9F8;color:#5B3C99;font-size:13.5px}
-.nsi-tag{font-size:11px;margin-left:6px;padding:1px 5px;border-radius:3px;background:#EFE9F8;color:#5B3C99}tr.nsi td{background:#FBFAFE}
-.inc-hero{border-color:#D93025}.itiles{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.nsi-chip{display:inline-block;margin-top:8px;padding:3px 10px;border-radius:4px;background:var(--t-ai2);color:var(--c-ai-ink);font-size:13.5px}
+.nsi-tag{font-size:11px;margin-left:6px;padding:1px 5px;border-radius:3px;background:var(--t-ai2);color:var(--c-ai-ink)}tr.nsi td{background:var(--t-ai)}
+.inc-hero{border-color:var(--c-bad2)}.itiles{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
 .itile{border-radius:10px;padding:12px 14px;color:#fff;background:#D93025;min-height:130px;display:flex;flex-direction:column;gap:4px}
 .itile span{font-size:13px;opacity:.95}.itile b{font:600 44px/1 var(--num)}.itile small{font-size:12px;opacity:.92;margin-top:auto}
 .itile.t-open{background:#9B1C12}.itile.t-in{background:#D93025}.itile.t-sol{background:#0F6E3A}.itile.t-ai{background:#5B3C99}
 .spark{width:120px;height:34px}
-.gbar{display:flex;height:30px;border-radius:4px;overflow:hidden;margin:4px 0 10px;gap:2px}.gbar i{display:block}.g-ex{background:#0F6E3A}.g-ok{background:#B9C6D4}.g-bad{background:#D93025}
+.gbar{display:flex;height:30px;border-radius:4px;overflow:hidden;margin:4px 0 10px;gap:2px}.gbar i{display:block}.g-ex{background:#0F6E3A}.g-ok{background:var(--g-ok)}.g-bad{background:#D93025}
 .glab{display:grid;gap:4px;font-size:13.5px;color:var(--ink2);margin-bottom:12px}.glab b{font:600 18px var(--num);color:var(--ink);display:inline-block;min-width:44px}
-table.heat td{text-align:center;font:600 14px var(--num);padding:7px 5px}table.heat td.diag{background:#E8EDF2}table.heat td.hot{color:#fff}
+table.heat td{text-align:center;font:600 14px var(--num);padding:7px 5px}table.heat td.diag{background:var(--diag)}table.heat td.hot{color:#fff}
 table.heat tr.tot td,table.heat tr.tot th{border-top:1px solid var(--ink)}
-tr.grp th{background:var(--wash);padding:6px 8px;border-bottom:1px solid var(--ink)}tr.dim td,tr.dim th{color:#9AA5B1}
+tr.grp th{background:var(--wash);padding:6px 8px;border-bottom:1px solid var(--ink)}tr.dim td,tr.dim th{color:var(--dim)}
 .pp{display:grid;grid-template-columns:130px 1fr 1fr;gap:10px;align-items:center;font-size:13px;margin-bottom:6px}.pp span{border-left:4px solid var(--c);padding-left:6px}
 .pp-b{position:relative;height:20px;background:var(--wash);border-radius:2px}.pp-b i{display:block;height:100%;border-radius:2px}.pp-b em{position:absolute;left:6px;top:2px;font-style:normal;font-size:12px;color:var(--ink)}
 .strip3{display:grid;grid-template-columns:repeat(3,1fr);margin-top:14px;border-top:1px solid var(--rule)}.strip3 div{padding:8px 0}.strip3 b{display:block;font:600 30px/1 var(--num)}.strip3 span{font-size:12.5px;color:var(--muted)}
 .case{border:1px solid var(--rule);border-radius:10px;padding:12px 14px}.case span{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);display:block;margin-bottom:6px}
-.case.good{border-left:5px solid #0F6E3A}.case.badc{border-left:5px solid #B3261E}.case p{margin:6px 0}
+.case.good{border-left:5px solid var(--c-ok)}.case.badc{border-left:5px solid var(--c-bad)}.case p{margin:6px 0}
 .cmp{margin-top:10px;font-size:14px}@media screen{tr.hid{display:none}}.more{margin-top:8px;font:13px var(--text);color:var(--ink2);background:var(--wash);border:1px solid var(--rule);border-radius:6px;padding:5px 12px;cursor:pointer}@media print{.more{display:none}}td.rank{width:28px}
 @media (max-width:1100px){.wrap{grid-template-columns:1fr}.rail{display:none}.g4{grid-template-columns:1fr 1fr}.itiles{grid-template-columns:repeat(3,1fr)}.eqbar{grid-template-columns:1fr 1fr}.eqbar em{display:none}.g21{grid-template-columns:1fr}}
 @media (max-width:760px){.g2,.g4{grid-template-columns:1fr}.itiles{grid-template-columns:1fr 1fr}.own{grid-template-columns:1fr}.top .per,.top h1{display:none}.top{gap:10px;padding:10px 16px}.ph{flex-direction:column}.stamps{justify-content:flex-start}main{padding:16px}}
 @media print{.top,.rail,.mock,dialog{display:none}.wrap{display:block}.slide{display:block;break-after:page}}
-.goals .gr{display:grid;grid-template-columns:330px 1fr;gap:20px;align-items:center;padding:12px 0;border-top:1px solid var(--rule)}.goals .gr:first-child{border-top:0;padding-top:2px}.gr-t{min-width:0}
-.gt{background:var(--gc);color:#fff;border-radius:10px;padding:12px 16px;min-width:0}
-.gt h4{font-size:14px;font-weight:600;color:#fff;line-height:1.3;opacity:.96}.gt h4 a{color:inherit;text-decoration:none}.gt h4 a:hover{text-decoration:underline}
-.gt-b{display:flex;align-items:center;gap:14px;margin:8px 0 6px}.gt-v{font:600 44px/1 var(--num);color:#fff}
-.gt-c{display:flex;flex-direction:column;align-items:stretch;gap:3px;font:600 12.5px/1.3 var(--num)}
-.gt-c span{display:block;background:#fff;border-radius:4px;padding:1px 7px;white-space:nowrap}
-.soltxt{white-space:pre-wrap;max-height:16em;overflow:auto;font-size:12.5px;line-height:1.4;min-width:22em}.gt-c .c-goal{color:#0F6E3A}.gt-c .c-alarm{color:#B3261E}.gt-c .c-gap{color:var(--ink)}
-.gt-d{font-size:12.5px;color:rgba(255,255,255,.88)}.gt-d b{color:#fff;font-weight:600}
-.trend{width:100%;height:112px;display:block}.trend .tl{font-size:11px;fill:var(--muted)}.trend .tv{font:600 11px var(--num);fill:var(--ink2)}.trend .tg{font:600 11px var(--num)}
-.board .bd-g{margin-bottom:12px}.board .act{font-size:12px;color:var(--muted);margin:4px 0 6px}.bd{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
-table.tasks tr.late td{background:#FBE3E1}table.tasks td.c{white-space:nowrap}
+.soltxt{white-space:pre-wrap;max-height:16em;overflow:auto;font-size:12.5px;line-height:1.4;min-width:22em}
+.board .bd-g{margin-bottom:12px}.board .act{font-size:12px;color:var(--muted);margin:4px 0 6px}
+table.tasks tr.late td{background:var(--t-bad)}table.tasks td.c{white-space:nowrap}
 details.cellar{margin:8px 0 16px;border:1px dashed var(--rule);border-radius:10px;padding:10px 14px;background:var(--wash)}
 details.cellar>summary{cursor:pointer;font-size:14px;color:var(--ink2);font-weight:600}details.cellar[open]>summary{margin-bottom:12px}
-@media (max-width:900px){.goals .gr{grid-template-columns:1fr}}
 @media print{details.cellar{display:none}}
-</style></head><body>{% if banner %}<div class="mock">{{ banner }}</div>{% endif %}<div class="top"><h1>Качество 1С-поддержки</h1><span class="per">{{ period }}</span><span class="sp"></span><button id="prev">←</button><span id="cnt"></span><button id="next">→</button><button id="all">Все слайды</button></div><div class="wrap"><nav class="rail" aria-label="Слайды">{{ rail|safe }}</nav><main>{{ slides|safe }}</main></div><dialog id="xdlg" aria-label="Описание и решение обращения"><div class="xw"><button class="xc" aria-label="Закрыть">✕</button><div class="xb"></div></div></dialog><script>
+.ai-stub{margin:4px 0 10px;padding:8px 12px;border:1px dashed var(--c-ai);border-radius:8px;background:var(--t-ai);font-size:13px;color:var(--ink2)}.ai-stub b{color:var(--c-ai-ink);font-weight:600;margin-right:6px}
+.ai-stub pre{margin-top:6px;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.45 Consolas,"Cascadia Mono",monospace;color:var(--ink);max-height:22em;overflow:auto;background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:8px 10px}
+
+/* ===== 6.8: цели — вертикальные боксы (my-FT Т-114): плитка сверху, график снизу; градиент цвета состояния сверху вниз
+   затухает к графику; цвета — переменные темы (--s-* заливка, --c-* текст) ===== */
+.gs-ok{--s:var(--s-ok);--st:var(--c-ok)}.gs-warn{--s:var(--s-warn);--st:var(--c-warn)}.gs-bad{--s:var(--s-bad);--st:var(--c-bad)}.gs-na{--s:var(--s-na);--st:var(--muted)}
+.gboxes{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}.gboxes-s{grid-template-columns:repeat(auto-fill,minmax(380px,1fr))}
+.gbox{display:flex;flex-direction:column;min-width:0;overflow:hidden;border-radius:12px;color:var(--ink);text-decoration:none;
+  border:1px solid color-mix(in srgb,var(--s) 32%,var(--rule));
+  background:linear-gradient(180deg,color-mix(in srgb,var(--s) var(--g0),var(--paper)) 0,color-mix(in srgb,var(--s) var(--g1),var(--paper)) 150px,var(--paper) 220px)}
+a.gbox:hover{border-color:var(--s)}a.gbox:focus-visible{outline:2px solid var(--c-blue);outline-offset:2px}
+.gb-t{padding:12px 16px 8px;display:flex;flex-direction:column;gap:6px}
+.gb-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.gb-h h4{font-size:13.5px;font-weight:600;line-height:1.3}
+.gb-w{font:700 10.5px/1.3 var(--text);text-transform:uppercase;letter-spacing:.06em;color:var(--st);white-space:nowrap;padding-top:2px}
+.gb-r{display:flex;align-items:center;gap:16px}.gb-v{font:600 44px/1 var(--num);color:var(--st)}
+.gb-c{display:grid;grid-template-columns:auto auto;gap:1px 10px;font-size:12px;color:var(--muted);border-left:2px solid color-mix(in srgb,var(--s) 35%,transparent);padding-left:12px}
+.gb-c b{font:600 14px/1.3 var(--num);color:var(--ink)}.gb-c .gp{grid-column:1/-1;font:600 12.5px/1.4 var(--text);color:var(--st)}
+.gb-sc{position:relative;height:8px;margin:2px 0}.gb-sc .z{position:absolute;top:2px;height:4px;border-radius:2px;opacity:.5}.gb-sc .z.hit{opacity:1}
+.gb-sc .z.ok{background:var(--s-ok)}.gb-sc .z.warn{background:var(--s-warn)}.gb-sc .z.bad{background:var(--s-bad)}
+.gb-sc .m{position:absolute;top:-3px;width:4px;height:14px;margin-left:-2px;border-radius:2px;background:var(--ink)}
+.gb-d{font-size:12px;color:var(--muted)}.gb-g{padding:0 10px 8px;margin-top:auto}
+.gtr{width:100%;height:auto;display:block;overflow:visible}.gtr text{font-family:var(--num)}
+.gtr .ax{font-size:11px;fill:var(--muted)}.gtr .ax.fut{fill:var(--dim)}.gtr .tv{font-size:12px;font-weight:600;fill:var(--ink)}.gtr .lg{font-size:11px;font-weight:700}
+html[data-theme="exp"] .gbox{border-color:transparent;box-shadow:0 1px 2px rgba(16,24,40,.05),0 4px 12px rgba(16,24,40,.07)}
+@media print{.gbox{break-inside:avoid}}
+/* ===== 6.12: поручения в отчёте (my-FT Т-70, Т-71, В-34): список, поле ввода, статус кликом, «Сохранить поручения» ===== */
+.tk-list table{font-size:13.5px}.tk-list td{vertical-align:top}.tk-list .tk-id{font:12px var(--num);color:var(--muted);white-space:nowrap}
+.tk-list [contenteditable]{border-radius:4px;padding:1px 3px;margin:-1px -3px;outline:none}.tk-list [contenteditable]:hover{background:var(--wash)}
+.tk-list [contenteditable]:focus{background:var(--paper);box-shadow:0 0 0 2px var(--c-blue)}
+.tk-list tr.late td{background:var(--t-bad)}.tk-list .tk-late{color:var(--c-bad);font-weight:600}
+.tk-list input[type=date]{font:13px var(--text);border:1px solid transparent;background:transparent;color:var(--ink);padding:1px 2px;border-radius:4px}
+.tk-list input[type=date]:hover{border-color:var(--rule)}.tk-empty{color:var(--muted);font-size:13.5px;padding:4px 0}
+.tk-st{font:600 12px var(--text);padding:3px 9px;border-radius:12px;border:1px solid var(--rule);background:var(--wash);color:var(--ink2);cursor:pointer;white-space:nowrap}
+.tk-st[data-s="в работе"]{background:var(--t-blue);border-color:var(--c-blue);color:var(--c-blue)}.tk-st[data-s="выполнено"]{background:var(--t-ok);border-color:var(--c-ok);color:var(--c-ok)}
+.tk-st[data-s="предложено"]{background:var(--t-warn);border-color:var(--b-demo);color:var(--t-warn-fg)}.tk-st[data-s="отклонено"]{color:var(--muted);text-decoration:line-through}
+.tk-form{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:10px;padding-top:10px;border-top:1px dashed var(--rule)}
+.tk-form label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}.tk-form .tk-w{flex:1 1 300px}
+.tk-form input,.tk-form select{font:13.5px var(--text);padding:6px 8px;border:1px solid var(--rule);border-radius:6px;background:var(--paper);color:var(--ink);min-width:0}
+.tk-form button,.tk-add{font:600 13px var(--text);padding:7px 14px;border-radius:6px;border:1px solid var(--c-blue);background:var(--c-blue);color:#fff;cursor:pointer}
+.tk-add{margin-top:6px;padding:3px 10px;font-size:12px;border-radius:12px;background:var(--paper);color:var(--c-blue)}.tk-add[disabled]{border-color:var(--rule);color:var(--muted);cursor:default}
+.tk-how{padding-left:20px;display:grid;gap:6px;font-size:14px;max-width:95ch}.tk-how code{font-size:13px;background:var(--wash);padding:0 4px;border-radius:3px}
+.top h1{white-space:nowrap}.top .per{min-width:0}.top #tk-save{border-color:#fff}.top #tk-save b{display:inline-block;min-width:18px;margin-left:6px;padding:0 5px;border-radius:9px;background:#D93025;font:700 11px/18px var(--num)}
+.top #tk-save.clean b{display:none}.tk-msg{font-size:12.5px;color:var(--top-mut);max-width:260px}
+@media print{.tk-form,.tk-add,#tk-save,.tk-msg{display:none}}
+/* ===== 6.7: переключатель тем — кнопки в правом углу верхней панели (собирает скрипт из списка THEMES) ===== */
+.thm{display:inline-flex;gap:2px;margin-left:6px;padding:2px;border:1px solid var(--top-br);border-radius:7px}
+.top .thm button{width:26px;height:24px;padding:0;border:0;border-radius:5px;font:13px/1 var(--text);color:var(--top-mut)}
+.top .thm button:hover{color:#fff;background:rgba(255,255,255,.08)}.top .thm button[aria-pressed="true"]{background:#fff;color:#18222D}
+.top .thm button:focus-visible{outline:2px solid #fff;outline-offset:1px}
+/* ===== ЭФФЕКТЫ ТЕМЫ exp (экспериментальная, my-FT Т-116): тени вместо рамок, градиентная линия, каскад, подъём плиток,
+   заполнение полос, подсветка строки. Стекло с размытием и затемнение соседних строк — не вошли (риски, чат 15.10) ===== */
+html[data-theme="exp"] .panel:not(.aibox),html[data-theme="exp"] .kpi{border-color:transparent;box-shadow:0 1px 2px rgba(16,24,40,.05),0 4px 12px rgba(16,24,40,.06),0 14px 32px rgba(16,24,40,.05)}
+html[data-theme="exp"] .tc{border-top:1px solid var(--rule);position:relative;overflow:hidden}
+html[data-theme="exp"] .tc::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--c),color-mix(in srgb,var(--c) 15%,transparent))}
+html[data-theme="exp"] .itile{transition:transform .2s ease,box-shadow .2s ease}
+html[data-theme="exp"] .itile:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(16,24,40,.22),0 0 0 3px rgba(255,255,255,.35) inset}
+html[data-theme="exp"] tbody tr{transition:background-color .2s ease}
+html[data-theme="exp"] tbody tr:hover{background:linear-gradient(90deg,var(--t-blue),transparent 85%)}
+html[data-theme="exp"] .slide.on>*{animation:sppr-up .45s ease both}
+html[data-theme="exp"] .slide.on>:nth-child(2){animation-delay:.05s}html[data-theme="exp"] .slide.on>:nth-child(3){animation-delay:.1s}
+html[data-theme="exp"] .slide.on>:nth-child(4){animation-delay:.15s}html[data-theme="exp"] .slide.on>:nth-child(5){animation-delay:.2s}
+html[data-theme="exp"] .slide.on>:nth-child(n+6){animation-delay:.25s}
+html[data-theme="exp"] .slide.on .hb-t i,html[data-theme="exp"] .slide.on .phb i{transform-origin:left;animation:sppr-grow .7s ease .15s both}
+@keyframes sppr-up{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:none}}
+@keyframes sppr-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media (prefers-reduced-motion:reduce){html[data-theme] *{animation:none!important;transition:none!important}}
+@media print{html[data-theme] *{animation:none!important;transition:none!important;box-shadow:none!important}.thm{display:none}}
+</style><script>
+// 6.7: темы отчёта (my-FT Т-116). Добавить тему: блок html[data-theme="id"]{переменные} в стилях (и, если нужно,
+// эффекты, как у exp) + строка в THEMES: [id, значок, название]. Остальное — само: кнопка, запоминание выбора, печать.
+const THEMES=[["light","☀","Светлая"],["dark","☾","Тёмная"],["exp","✦","Экспериментальная"]];
+const THEME_KEY="sppr-theme";
+(function(){let t=null;try{t=localStorage.getItem(THEME_KEY)}catch(e){}
+if(!THEMES.some(x=>x[0]===t))t=THEMES[0][0];document.documentElement.dataset.theme=t})();
+</script></head><body>{% if banner %}<div class="mock">{{ banner }}</div><style>
+/* 6.10: только макет — номера элементов «слайд.номер» для ссылок в обсуждении (чат 15.10); в боевом отчёте блока нет */
+.enum{position:absolute;top:-7px;left:-7px;z-index:3;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--paper);color:var(--muted);
+  border:1px solid var(--rule);font:600 9.5px/14px var(--num);text-align:center;opacity:.8;pointer-events:none;letter-spacing:.02em}
+.gbox,.tc{overflow:visible!important}.enum-w{display:block;position:relative;height:0}.enum-w .enum{top:2px;left:-6px}
+@media print{.enum{opacity:1}}
+</style><script>
+// нумерация по порядку на странице: блоки, плитки и боксы, графики, таблицы, выводы ИИ; номер — «слайд.элемент»
+document.addEventListener('DOMContentLoaded',()=>{
+const SEL='.panel,.kpi,.gbox,.tc,.itile,.ai-note,svg.chart,svg.gtr,svg.trend,table';
+// 6.11: номера — постоянные из сборщика макета (window.SPPR_ENUM[слайд][i], examples/element_ids.json); нет списка — по порядку
+const EN=window.SPPR_ENUM||{};
+document.querySelectorAll('.slide').forEach((s,k)=>{let n=0;const L=EN[s.id]||[];
+  s.querySelectorAll(SEL).forEach(el=>{if(el.closest('.tk-list'))return;   // таблицы поручений рисует скрипт — не нумеруются
+    const b=document.createElement('span');b.className='enum';b.textContent=L[n]||((k+1)+'.'+(n+1));n++;el.dataset.n=b.textContent;
+    if(el.tagName==='svg'||el.tagName==='SVG'||el.tagName==='TABLE'){const w=document.createElement('span');w.className='enum-w';w.appendChild(b);el.before(w)}
+    else{if(getComputedStyle(el).position==='static')el.style.position='relative';el.prepend(b)}})})});
+</script>{% endif %}<div class="top"><h1>Качество 1С-поддержки</h1><span class="per">{{ period }}</span><span class="sp"></span><button id="prev">←</button><span id="cnt"></span><button id="next">→</button><button id="all">Все слайды</button><span class="thm" id="thm" role="group" aria-label="Тема оформления"></span></div><div class="wrap"><nav class="rail" aria-label="Слайды">{{ rail|safe }}</nav><main>{{ slides|safe }}</main></div><dialog id="xdlg" aria-label="Описание и решение обращения"><div class="xw"><button class="xc" aria-label="Закрыть">✕</button><div class="xb"></div></div></dialog><script>
+// 6.7: кнопки тем из THEMES; выбор запоминается в браузере; печать — всегда в первой (светлой) теме
+(function(){const box=document.getElementById('thm'),root=document.documentElement;
+function set(id){root.dataset.theme=id;try{localStorage.setItem(THEME_KEY,id)}catch(e){}
+box.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===id))}
+THEMES.forEach(([id,ic,name])=>{const b=document.createElement('button');b.type='button';b.dataset.t=id;b.textContent=ic;b.title=name;b.setAttribute('aria-label','Тема: '+name);
+b.setAttribute('aria-pressed',root.dataset.theme===id);b.onclick=()=>set(id);box.appendChild(b)});
+let keep=null;addEventListener('beforeprint',()=>{keep=root.dataset.theme;root.dataset.theme=THEMES[0][0]});
+addEventListener('afterprint',()=>{if(keep)root.dataset.theme=keep})})();
 const slides=[...document.querySelectorAll('.slide')],links=[...document.querySelectorAll('.rail a')];let cur=0;const cnt=document.getElementById('cnt');
 function show(i){cur=Math.max(0,Math.min(slides.length-1,i));slides.forEach((s,k)=>s.classList.toggle('on',k===cur));links.forEach((a,k)=>a.classList.toggle('on',k===cur));cnt.textContent=(cur+1)+' / '+slides.length;window.scrollTo(0,0)}
 links.forEach((a,k)=>a.addEventListener('click',e=>{e.preventDefault();document.body.classList.remove('all');show(k)}));
@@ -180,4 +300,50 @@ rs.slice(10).forEach(r=>r.classList.add('hid'));const b=document.createElement('
 b.onclick=()=>{const open=b.dataset.o!=='1';rs.slice(10).forEach(r=>r.classList.toggle('hid',!open));b.dataset.o=open?'1':'';b.textContent=open?'Свернуть':'Показать все строки: '+rs.length};
 (tb.closest('.tw')||tb.parentNode).after(b)});
 const go=()=>{const h=slides.findIndex(x=>'#'+x.id===location.hash);show(h>0?h:0)};window.addEventListener('hashchange',go);go();
+// 6.12: поручения (my-FT Т-70, Т-71, В-34) — правка в отчёте и сохранение в plan.csv целиком (цели не трогаются)
+(function(){const src=document.getElementById('plan-data');if(!src)return;
+const P=JSON.parse(src.textContent),rows=P.rows,ORD=['предложено','в работе','выполнено','отклонено'];
+const pad=n=>String(n).padStart(2,'0'),dd=d=>pad(d.getDate())+'.'+pad(d.getMonth()+1)+'.'+d.getFullYear();
+const pd=s=>{let m=/^(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(s||'');if(m)return new Date(+m[3],m[2]-1,+m[1]);m=/^(\d{4})-(\d\d)-(\d\d)/.exec(s||'');return m?new Date(+m[1],m[2]-1,+m[3]):null};
+const iso=s=>{const d=pd(s);return d?d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()):''};
+const WS=pd(P.ws),WE=pd(P.we),NOW=pd(P.now),E=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+let dirty=0,handle=null;
+const isTask=r=>(r['вид']||'').toLowerCase().startsWith('пор'),st=r=>(r['статус']||'предложено').toLowerCase();
+const show=r=>{if(r._s||P.open.includes(st(r)))return true;const c=pd(r['закрыто']);return !!(c&&c>=WS&&c<WE)};
+const late=r=>{const d=pd(r['срок']);return !!(d&&d<NOW&&P.open.includes(st(r)))};
+const btn=document.createElement('button');btn.id='tk-save';btn.className='clean';btn.title='Записать поручения в plan.csv';btn.innerHTML='Сохранить поручения<b>0</b>';
+const msg=document.createElement('span');msg.className='tk-msg';const top=document.querySelector('.top');top.insertBefore(msg,document.getElementById('thm'));top.insertBefore(btn,msg);
+function touch(r){r._s=1;dirty++;btn.classList.remove('clean');btn.querySelector('b').textContent=dirty;msg.textContent=''}
+function nextId(){const n=rows.map(r=>+(/^П-(\d+)/.exec(r.id||'')||[0,0])[1]);return 'П-'+pad(Math.max(0,...n)+1)}
+function add(o){const r=Object.assign({id:nextId(),'вид':'поручение','статус':'в работе','создано':dd(new Date())},o);rows.push(r);touch(r);render()}
+function render(){document.querySelectorAll('.tk-list').forEach(box=>{const sl=box.dataset.slide,all=sl==='*';
+  const list=rows.filter(r=>isTask(r)&&show(r)&&(all||(r['слайд']||'').toLowerCase()===sl))
+    .sort((a,b)=>late(b)-late(a)||ORD.indexOf(st(a))-ORD.indexOf(st(b))||((pd(a['срок'])||9e15)-(pd(b['срок'])||9e15)));
+  if(!list.length){box.innerHTML='<p class="tk-empty">Поручений пока нет — добавьте полем ниже.</p>';return}
+  box.innerHTML='<div class="tw"><table><thead><tr><th>№</th><th>Поручение</th><th>Кому</th><th>Срок</th><th>Статус</th>'+(all?'<th>Слайд</th>':'')+'</tr></thead><tbody>'+
+   list.map(r=>{const i=rows.indexOf(r),sl2=(r['слайд']||'').toLowerCase();return '<tr data-i="'+i+'"'+(late(r)?' class="late"':'')+'><td class="tk-id">'+E(r.id)+'</td>'+
+    '<td><b contenteditable="true" data-f="что">'+E(r['что'])+'</b>'+(r['заметка']?'<br><small class="mut">'+E(r['заметка'])+'</small>':'')+'</td>'+
+    '<td><span contenteditable="true" data-f="кто">'+E(r['кто'])+'</span></td>'+
+    '<td><input type="date" data-f="срок" value="'+iso(r['срок'])+'">'+(late(r)?'<br><span class="tk-late">просрочено</span>':'')+'</td>'+
+    '<td><button type="button" class="tk-st" data-s="'+E(st(r))+'" title="Сменить статус">'+E(st(r))+'</button></td>'+
+    (all?'<td><a href="#'+E(sl2)+'">'+E(P.slides[sl2]||sl2)+'</a></td>':'')+'</tr>'}).join('')+'</tbody></table></div>'})}
+document.addEventListener('click',e=>{const b=e.target.closest('.tk-st');if(b){const r=rows[+b.closest('tr').dataset.i];const s=ORD[(ORD.indexOf(st(r))+1)%ORD.length];
+  r['статус']=s;r['закрыто']=P.open.includes(s)?'':dd(new Date());touch(r);render();return}
+ const a=e.target.closest('.tk-add');if(a&&!a.disabled){add({'слайд':'s12','что':a.dataset.what,'кто':a.dataset.who,'заметка':a.dataset.note||''});a.disabled=true;a.textContent='✓ В поручениях'}});
+document.addEventListener('focusout',e=>{const f=e.target.closest('[data-f]');if(!f||!f.closest('.tk-list'))return;const r=rows[+f.closest('tr').dataset.i];
+  const v=f.dataset.f==='срок'?(f.value?dd(pd(f.value)):''):f.textContent.trim();if((r[f.dataset.f]||'')!==v){r[f.dataset.f]=v;touch(r);render()}});
+document.addEventListener('change',e=>{if(e.target.matches('.tk-list input[type=date]'))e.target.blur()});
+document.querySelectorAll('.tk-form').forEach(f=>f.addEventListener('submit',e=>{e.preventDefault();const v=n=>(f.elements[n]?f.elements[n].value:'').trim();
+  if(!v('what'))return;add({'слайд':f.dataset.slide==='*'?v('slide'):f.dataset.slide,'что':v('what'),'кто':v('who'),'срок':v('due')?dd(pd(v('due'))):''});f.reset()}));
+function csv(){const cols=P.cols.concat([...new Set(rows.flatMap(r=>Object.keys(r)))].filter(k=>!P.cols.includes(k)&&k[0]!=='_'));
+  const q=v=>{v=String(v??'');return /[;"\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  return '﻿'+[cols.join(';')].concat(rows.map(r=>cols.map(c=>q(r[c])).join(';'))).join('\r\n')+'\r\n'}
+btn.onclick=async()=>{const text=csv();try{
+  if(window.showSaveFilePicker){if(!handle)handle=await showSaveFilePicker({suggestedName:P.file,types:[{description:'План (CSV)',accept:{'text/csv':['.csv']}}]});
+   const w=await handle.createWritable();await w.write(new Blob([text],{type:'text/csv'}));await w.close();msg.textContent='Сохранено в '+handle.name}
+  else{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'}));a.download=P.file;a.click();msg.textContent='Скачан '+P.file+' — положите в папку проекта'}
+  dirty=0;btn.classList.add('clean');btn.querySelector('b').textContent=0}
+ catch(err){if(err&&err.name==='AbortError')return;handle=null;msg.textContent='Не сохранено: '+(err&&err.message||err)+' — закройте plan.csv в Excel и повторите'}};
+addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
+render()})();
 </script></body></html>

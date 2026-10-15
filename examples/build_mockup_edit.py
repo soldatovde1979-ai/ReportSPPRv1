@@ -9,7 +9,7 @@
 # Запуск (Linux / Bash):  python3 examples/build_mockup_edit.py [выходной.html]
 # Публикация — инструментом Artifact с capabilities {db: {}, user: {}} (делает Claude).
 # ----------------------------------------------------------------------
-VERSION = "1.0"
+VERSION = "1.1"                                  # 1.1 — двигается всё пронумерованное (блоки, плитки, графики, таблицы, выводы ИИ); панель — только у элемента под мышью
 SRC_FILE = "examples/mockup_report_v2.html"     # макет, из которого делается копия (собирает build_mockup_v2.py)
 OUT_FILE = "examples/mockup_edit.html"          # по умолчанию; в git не кладётся (.gitignore)
 
@@ -30,7 +30,8 @@ EDIT_CSS = r"""<style>
 body.ed .enum{pointer-events:auto;cursor:pointer;opacity:1}
 body.ed .enum.has-c{background:#C2255C;border-color:#C2255C;color:#fff}
 .ed-bar{position:absolute;top:-12px;right:8px;z-index:4;display:none;gap:2px;padding:2px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);box-shadow:0 2px 8px rgba(0,0,0,.15)}
-.ed-u:hover>.ed-bar,.ed-u:focus-within>.ed-bar{display:flex}
+.ed-u.ed-hot>.ed-bar,.ed-u:focus-within>.ed-bar{display:flex}.ed-u.ed-hot{outline:1px dashed var(--c-blue);outline-offset:3px}
+.ed-wrap{position:relative}
 .ed-bar button,.ed-bar select{font:12px var(--text);color:var(--ink2);background:transparent;border:0;border-radius:5px;padding:3px 6px;cursor:pointer}
 .ed-bar button:hover{background:var(--wash);color:var(--ink)}.ed-bar .on{background:var(--t-blue);color:var(--c-blue)}
 .ed-bar select{border:1px solid var(--rule);background:var(--paper);max-width:120px}
@@ -54,13 +55,19 @@ body.ed .enum.has-c{background:#C2255C;border-color:#C2255C;color:#fff}
 </style>"""
 
 EDIT_JS = r"""<script>
-// копия макета для правки (build_mockup_edit.py 1.0): правки — в базе страницы, номер элемента — постоянный (data-n)
+// копия макета для правки (build_mockup_edit.py 1.1): правки — в базе страницы, номер элемента — постоянный (data-n)
 document.addEventListener('DOMContentLoaded',()=>{
 document.body.classList.add('ed');
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
-const slideOf=el=>el.closest('.slide'),units=()=>$$('.slide [data-n]').filter(el=>el.matches('.panel,.gbox,.kpi,.itile,.tc'));
+const slideOf=el=>el.closest('.slide');
+// 1.1: двигается всё пронумерованное; график и таблицу оборачиваем — панель и номер живут в обёртке
+$$('.slide svg[data-n],.slide table[data-n]').forEach(el=>{const w=document.createElement('div');w.className='ed-wrap';w.dataset.n=el.dataset.n;delete el.dataset.n;
+  const b=el.previousElementSibling&&el.previousElementSibling.classList.contains('enum-w')?el.previousElementSibling:null;
+  el.before(w);if(b)w.appendChild(b);w.appendChild(el)});
+const units=()=>$$('.slide [data-n]');
 const byN=n=>$('.slide [data-n="'+CSS.escape(n)+'"]');
-const label=el=>((el.querySelector('h3,h4,span:not(.enum)')||{}).textContent||'').replace(/\s+/g,' ').trim().slice(0,80);
+const label=el=>{const h=el.querySelector('h3,h4')||el.closest('.panel')&&el.closest('.panel').querySelector('h3');const k=el.classList.contains('ed-wrap')?(el.querySelector('table')?'таблица · ':'график · '):'';
+  return (k+((h||el.querySelector('span:not(.enum)')||{}).textContent||'')).replace(/\s+/g,' ').trim().slice(0,80)};
 const SLIDES=$$('.slide').map(s=>[s.id,(s.querySelector('.sh h2')||{}).textContent||s.id]);
 let db=null,moves=[],edits={},busy=0;
 // ---- панель внизу справа: состояние сохранения, правки, инструкция
@@ -101,7 +108,7 @@ function applyEdit(e){const el=byN(e.n);if(!el)return;
  if(e.width&&e.width!=='full')el.dataset.w=e.width;else delete el.dataset.w;
  if(e.slide){const s=document.getElementById(e.slide);if(s&&slideOf(el)!==s)s.appendChild(el)}
  if(e.cellar){const s=slideOf(el);if(s&&!el.closest('details.cellar'))cellar(s).appendChild(el)}
- const b=el.querySelector(':scope>.enum')||(el.previousElementSibling&&el.previousElementSibling.querySelector('.enum'));if(b)b.classList.toggle('has-c',!!e.comment);
+ const b=el.querySelector(':scope>.enum,:scope>.enum-w>.enum');if(b)b.classList.toggle('has-c',!!e.comment);
  bar(el)}
 // ---- панель над блоком
 function bar(el){let b=el.querySelector(':scope>.ed-bar');if(!b){b=document.createElement('div');b.className='ed-bar';el.prepend(b);el.classList.add('ed-u')}
@@ -122,7 +129,7 @@ pop.addEventListener('click',e=>{const a=e.target.closest('[data-p]');if(!a)retu
  if(a.dataset.p==='ok')setEdit(n,{comment:$('#ed-txt',pop).value.trim()}).then(()=>applyEdit(edits[n]));
  if(a.dataset.p==='del')setEdit(n,{comment:''}).then(()=>applyEdit(edits[n]));pop.hidden=true});
 document.addEventListener('click',e=>{
- const en=e.target.closest('.enum');if(en){const el=en.closest('[data-n]')||(en.closest('.enum-w')&&en.closest('.enum-w').nextElementSibling);if(el)comment(el,e.clientX,e.clientY);return}
+ const en=e.target.closest('.enum');if(en){const el=en.closest('[data-n]');if(el)comment(el,e.clientX,e.clientY);return}
  const b=e.target.closest('.ed-bar button');if(!b)return;const el=b.closest('[data-n]'),n=el.dataset.n;
  if(b.dataset.w)setEdit(n,{width:b.dataset.w==='full'?'':b.dataset.w}).then(()=>applyEdit(edits[n]));
  if(b.dataset.c==='in')setEdit(n,{cellar:true}).then(()=>applyEdit(edits[n]));
@@ -138,6 +145,8 @@ document.addEventListener('dragover',e=>{if(!drag)return;const t=e.target.closes
 document.addEventListener('drop',e=>{if(!drag||!mark)return;e.preventDefault();const m={n:drag.dataset.n,target:mark.dataset.n,pos:mark.classList.contains('ed-before')?'before':'after',ts:Date.now()};
  clr();applyMove(m);moves.push(m);saveMoves()});
 document.addEventListener('dragend',()=>{if(drag)drag.classList.remove('ed-drag');drag=null;clr()});
+// ---- панель — только у самого внутреннего элемента под мышью (вложенные блоки не перекрывают друг друга)
+let hot=null;document.addEventListener('mouseover',e=>{if(drag)return;const u=e.target.closest&&e.target.closest('.ed-u');if(u===hot)return;if(hot)hot.classList.remove('ed-hot');hot=u;if(u)u.classList.add('ed-hot')});
 // ---- старт: панели на блоки, затем правки из базы
 units().forEach(bar);
 (async()=>{try{db=await claude.use('db')}catch(err){db=null}

@@ -232,8 +232,8 @@ html[data-sppr-theme="exp"] .slide.on>:nth-child(n+6){animation-delay:.25s}
 html[data-sppr-theme="exp"] .slide.on .hb-t i,html[data-sppr-theme="exp"] .slide.on .phb i{transform-origin:left;animation:sppr-grow .7s ease .15s both}
 @keyframes sppr-up{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:none}}
 @keyframes sppr-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
-@media (prefers-reduced-motion:reduce){html[data-sppr-theme] *{animation:none!important;transition:none!important}}
-@media print{html[data-sppr-theme] *{animation:none!important;transition:none!important;box-shadow:none!important}.thm{display:none}}
+@media (prefers-reduced-motion:reduce){html[data-sppr-theme] *,html[data-sppr-theme] *::before,html[data-sppr-theme] *::after{animation:none!important;transition:none!important}}
+@media print{html[data-sppr-theme] *,html[data-sppr-theme] *::before,html[data-sppr-theme] *::after{animation:none!important;transition:none!important;box-shadow:none!important}.thm{display:none}}
 /* ===== 6.15: ЭКСПЕРИМЕНТАЛЬНАЯ ТЕМА — кардинально другая (my-FT Т-116): ни одной рамки, градиентный фон, светлая верхняя панель,
    фиолетовый акцент, карточки на тенях, штампы-таблетки, градиентные плитки, таблицы без линий ===== */
 html[data-sppr-theme="exp"] *,html[data-sppr-theme="exp"] *::before,html[data-sppr-theme="exp"] *::after{border-color:transparent!important;outline-color:transparent}
@@ -267,6 +267,19 @@ html[data-sppr-theme="exp"] .tk-form button,html[data-sppr-theme="exp"] .tk-add,
 html[data-sppr-theme="exp"] .tk-form button{background:linear-gradient(90deg,#5B4CF0,#8B5CF6)}
 html[data-sppr-theme="exp"] .tk-st{border-radius:20px}
 html[data-sppr-theme="exp"] .mock{background:#FFF8E1;color:#5B4A0B}
+/* ===== 6.16: тревога (my-FT Т-120) — красное по состоянию: цели «хуже порога» (.gbox.gs-bad) и просроченные поручения (.tk-late).
+   Все темы: пульсирующая точка. Экспериментальная: ещё один случайный эффект на открытии слайда (data-fx у слайда) — свечение,
+   вздрагивание или сигнальная лента; на слайде у всех красных один и тот же. «Уменьшить движение» и печать — неподвижно. ===== */
+@keyframes sppr-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
+.gs-bad .gb-w::before,.tk-late::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c-bad2);margin-right:5px;vertical-align:1px;animation:sppr-dot 1.6s ease-in-out infinite}
+@keyframes sppr-glow{0%,100%{box-shadow:var(--fl)}50%{box-shadow:var(--fl),0 0 0 4px rgba(242,87,74,.30),0 0 30px rgba(242,87,74,.45)}}
+@keyframes sppr-shake{0%,100%{transform:none}15%{transform:translateX(-5px) rotate(-.4deg)}35%{transform:translateX(5px) rotate(.4deg)}55%{transform:translateX(-3px)}75%{transform:translateX(2px)}}
+@keyframes sppr-tape{from{background-position:0 0}to{background-position:45px 0}}
+html[data-sppr-theme="exp"] .slide.on[data-fx="glow"] .gbox.gs-bad{animation:sppr-glow 1.3s ease-in-out .5s 3}
+html[data-sppr-theme="exp"] .slide.on[data-fx="shake"] .gbox.gs-bad{animation:sppr-shake .55s ease .6s 1}
+html[data-sppr-theme="exp"] .gbox.gs-bad{position:relative}
+html[data-sppr-theme="exp"] .slide.on[data-fx="tape"] .gbox.gs-bad::after{content:"";position:absolute;left:0;right:0;top:0;height:6px;border-radius:18px 18px 0 0;
+  background:repeating-linear-gradient(-45deg,#F2574A 0 8px,#FFD43B 8px 16px);background-size:45px 6px;animation:sppr-tape 1s linear 6;opacity:.9}
 </style><script>
 // 6.7: темы отчёта (my-FT Т-116). Добавить тему: блок html[data-sppr-theme="id"]{переменные} в стилях (и, если нужно,
 // эффекты, как у exp) + строка в THEMES: [id, значок, название]. Остальное — само: кнопка, запоминание выбора, печать.
@@ -5282,7 +5295,8 @@ b.setAttribute('aria-pressed',root.dataset.spprTheme===id);b.onclick=()=>set(id)
 let keep=null;addEventListener('beforeprint',()=>{keep=root.dataset.spprTheme;root.dataset.spprTheme=THEMES[0][0]});
 addEventListener('afterprint',()=>{if(keep)root.dataset.spprTheme=keep})})();
 const slides=[...document.querySelectorAll('.slide')],links=[...document.querySelectorAll('.rail a')];let cur=0;const cnt=document.getElementById('cnt');
-function show(i){cur=Math.max(0,Math.min(slides.length-1,i));slides.forEach((s,k)=>s.classList.toggle('on',k===cur));links.forEach((a,k)=>a.classList.toggle('on',k===cur));cnt.textContent=(cur+1)+' / '+slides.length;window.scrollTo(0,0)}
+function show(i){cur=Math.max(0,Math.min(slides.length-1,i));slides[cur].dataset.fx=['glow','shake','tape'][Math.random()*3|0];   // 6.16: случайный эффект тревоги (экспериментальная тема)
+slides.forEach((s,k)=>s.classList.toggle('on',k===cur));links.forEach((a,k)=>a.classList.toggle('on',k===cur));cnt.textContent=(cur+1)+' / '+slides.length;window.scrollTo(0,0)}
 links.forEach((a,k)=>a.addEventListener('click',e=>{e.preventDefault();document.body.classList.remove('all');show(k)}));
 document.getElementById('prev').onclick=()=>show(cur-1);document.getElementById('next').onclick=()=>show(cur+1);
 document.getElementById('all').onclick=()=>document.body.classList.toggle('all');

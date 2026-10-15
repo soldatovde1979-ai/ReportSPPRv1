@@ -13,7 +13,7 @@
 #   attach_ai(R, разметка, stub=N, prompts=..., sample=...)  # 6.8: заглушка ИИ вместо ответов этапов (STUB_MODES)
 #   html = render(R, текст_шаблона, title=...)
 # ----------------------------------------------------------------------
-VERSION = "6.9"                 # 6.9 — «Проблема» решений и «Первопричина» недели с подстановкой цифр (my-FT Т-115); 6.8 — заглушка ИИ (AI_STUB 0–3: выкл / пусто / промпт блока / текст готового отчёта) вместо ответов этапов ИИ, без вызовов модели; 6.7 — отложенное исправление: ссылка и срок во всём решении, без ksr; панель на s4 с решением целиком; доля запланированных открытых инцидентов (ksr) — inc_plan_pct (my-FT Т-107, Т-111); 6.6 — отложенное исправление в плане (ksr, my-FT Т-107); плитки целей — яркий фон, условия своими цветами (Т-110); 6.5 — расшифровка обращения: значок у номера у всех, окно с текстом из 1С без сокращений; 6.4 — основной срок решения — из 1С (tab_sla), расчётный — общий срок с уточнениями (my-FT Т-106); 6.3 — вид целей: плитка в стиле KPI, цель/порог/до цели колонкой, срок цели, график — квартал, акцентные цвета (my-FT Т-108); 6.2 — цели и поручения из plan.csv: табло, строки «плитка + динамика», поручения, подвал (my-FT Р-14); 6.1 — первый слайд возвращён к виду 5.6, s12 и светофор убраны (ksr остался); 6.0 — мажор вровень с ноутбуком 6.0 (два режима запуска, my-FT Т-99); расчёт и вёрстка как в 5.7
+VERSION = "6.10"                # 6.10 — цвета линий, полос, точек и тепловой карты — переменные шаблона (темы, my-FT Т-116); 6.9 — «Проблема» решений и «Первопричина» недели с подстановкой цифр (my-FT Т-115); 6.8 — заглушка ИИ (AI_STUB 0–3: выкл / пусто / промпт блока / текст готового отчёта) вместо ответов этапов ИИ, без вызовов модели; 6.7 — отложенное исправление: ссылка и срок во всём решении, без ksr; панель на s4 с решением целиком; доля запланированных открытых инцидентов (ksr) — inc_plan_pct (my-FT Т-107, Т-111); 6.6 — отложенное исправление в плане (ksr, my-FT Т-107); плитки целей — яркий фон, условия своими цветами (Т-110); 6.5 — расшифровка обращения: значок у номера у всех, окно с текстом из 1С без сокращений; 6.4 — основной срок решения — из 1С (tab_sla), расчётный — общий срок с уточнениями (my-FT Т-106); 6.3 — вид целей: плитка в стиле KPI, цель/порог/до цели колонкой, срок цели, график — квартал, акцентные цвета (my-FT Т-108); 6.2 — цели и поручения из plan.csv: табло, строки «плитка + динамика», поручения, подвал (my-FT Р-14); 6.1 — первый слайд возвращён к виду 5.6, s12 и светофор убраны (ksr остался); 6.0 — мажор вровень с ноутбуком 6.0 (два режима запуска, my-FT Т-99); расчёт и вёрстка как в 5.7
 # ----------------------------------------------------------------------
 # ЧТО ИЗМЕНЕНО (6.0): файл переименован report_v5.py → report_v6.py; TEMPLATE_MAJOR берётся из VERSION; имена модуля
 #               и шаблона в паспорте и в ошибках — из мажора; ноутбук в паспорте — RepSSPR.ipynb. Расчёт не менялся
@@ -1629,7 +1629,8 @@ def _trend_svg(g, w=620, h=112):
     n = len(ser)
     X = lambda i: pl + (w - pl - pr) * (i + .5) / n
     Y = lambda v: pt + (h - pt - pb) * (1 - (v - lo) / ((hi - lo) or 1))
-    ok, bad, ink, mut = GOAL_COLOR["ok"][0], GOAL_COLOR["bad"][0], "#2B3A4A", "#9AA5B1"
+    # 6.10: линия и подписи — переменные шаблона: в тёмной теме не пропадают (my-FT Т-116)
+    ok, bad, ink, mut = GOAL_COLOR["ok"][0], GOAL_COLOR["bad"][0], "var(--ink2)", "var(--dim)"
     s = (f'<line x1="{pl}" x2="{w - pr}" y1="{Y(g["goal"]):.1f}" y2="{Y(g["goal"]):.1f}" stroke="{ok}" stroke-width="1.6"/>'
          f'<text x="{w - pr + 6}" y="{Y(g["goal"]) + 4:.1f}" class="tg" fill="{ok}">цель {_fmtn(g["goal"])}</text>')
     if g["alarm"] is not None:
@@ -1642,7 +1643,7 @@ def _trend_svg(g, w=620, h=112):
     for i, (lab, v, fut) in enumerate(ser):
         s += f'<text x="{X(i):.1f}" y="{h - 5}" text-anchor="middle" class="tl"{" fill=" + chr(34) + mut + chr(34) if fut else ""}>{E(lab)}</text>'
     for x, y, v, lab, c, cur in pts:
-        s += (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{5.5 if cur else 3.6}" fill="{GOAL_COLOR[c][0]}" stroke="#fff" stroke-width="{2 if cur else 1}">'
+        s += (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{5.5 if cur else 3.6}" fill="{GOAL_COLOR[c][0]}" stroke="var(--paper)" stroke-width="{2 if cur else 1}">'
               f'<title>{E(lab)}: {_fmtn(v)}</title></circle>'
               f'<text x="{x:.1f}" y="{y - 9:.1f}" text-anchor="middle" class="tv">{_fmtn(v)}</text>')
     if len(pts) < 2:
@@ -2046,7 +2047,12 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         out.append("</svg>")
         return "".join(out)
 
-    def hbars(items, color="#3B4754", unit="", maxv=None, fmtv=lambda v: v):
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО (6.10): нейтральные полосы, оси и точки — переменные шаблона (--bar, --bar2, --ink2, --muted, --rule,
+    #               --paper, --heat), а не зашитые цвета
+    # ПОЧЕМУ: my-FT Т-116 — тёмная тема: тёмно-серые полосы и белые точки на тёмном фоне пропадали или резали глаз
+    # ----------------------------------------------------------------------
+    def hbars(items, color="var(--bar)", unit="", maxv=None, fmtv=lambda v: v):
         maxv = maxv or max([v for _, v, _ in items] + [1])
         return '<div class="hbars">' + "".join(
             f'<div class="hb"><span class="hb-l" title="{E(l)}">{E(l)}</span><span class="hb-t"><i style="width:{100*v/maxv:.0f}%;background:{c or color}"></i></span>'
@@ -2321,8 +2327,8 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         bt = Counter(r["cat"] for r in lng).most_common(); ba = Counter(short(r["anl"]) for r in lng).most_common(); bs = Counter(r["sec"] for r in lng).most_common(6)
         p3 = panel("Кто и что в долгострое", stamps("sol"),
                    f'<div class="grid g2"><div><div class="ch">По типу обращения</div>{hbars([(c, v, CAT_COLOR.get(c)) for c, v in bt])}</div>'
-                   f'<div><div class="ch">По аналитику</div>{hbars([(a, v, "#3B4754") for a, v in ba])}</div></div>'
-                   f'<div class="ch" style="margin-top:12px">По разделу (первые 6)</div>{hbars([(c, v, "#5D6B7A") for c, v in bs])}',
+                   f'<div><div class="ch">По аналитику</div>{hbars([(a, v, "var(--bar)") for a, v in ba])}</div></div>'
+                   f'<div class="ch" style="margin-top:12px">По разделу (первые 6)</div>{hbars([(c, v, "var(--bar2)") for c, v in bs])}',
                    f"Те же {n} обращений в трёх разрезах: тип при регистрации, ответственный аналитик, раздел.",
                    "Концентрация — признак системной причины: один аналитик, один раздел или один тип (консультации не должны идти неделями).")
         # ----------------------------------------------------------------------
@@ -2567,10 +2573,10 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         # ось инцидентов за период
         ii = sorted([r for r in inc if r["type"] == "Инцидент"] + [r for r in sol if r["type_ai"] == "Инцидент" and r["type"] != "Инцидент" and in_per(r["reg_dt"])], key=lambda r: r["reg_dt"])
         w, h = 1100, 200; x0, x1 = 40, w - 20; span = (WE - WS).total_seconds()
-        svg = [f'<svg class="chart" viewBox="0 0 {w} {h}"><line x1="{x0}" x2="{x1}" y1="95" y2="95" stroke="#3B4754" stroke-width="2"/>']
+        svg = [f'<svg class="chart" viewBox="0 0 {w} {h}"><line x1="{x0}" x2="{x1}" y1="95" y2="95" stroke="var(--ink2)" stroke-width="2"/>']
         for d in DAYS:
             x = x0 + (x1 - x0) * (d - WS).total_seconds() / span
-            svg.append(f'<line x1="{x:.0f}" x2="{x:.0f}" y1="85" y2="105" stroke="#9AA6B2"/><text class="ax day" x="{x+6:.0f}" y="122">{WD[d.weekday()]} {d:%d.%m}</text>')
+            svg.append(f'<line x1="{x:.0f}" x2="{x:.0f}" y1="85" y2="105" stroke="var(--muted)"/><text class="ax day" x="{x+6:.0f}" y="122">{WD[d.weekday()]} {d:%d.%m}</text>')
         # ----------------------------------------------------------------------
         # ЧТО ИЗМЕНЕНО: уровень подписи — первый свободный (не ближе 40 px к предыдущей на том же уровне); точка — ссылка, если есть url
         # ПОЧЕМУ: подписи 34989 и 34998 налезали друг на друга; Т-57 — номер открывает карточку
@@ -2582,13 +2588,13 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
             last[lv] = x; y, up = lv
             hidden = r["type"] != "Инцидент"
             crit = r.get("ai", {}).get("crit") or r["id"] in OPEN_CRIT
-            fill = "#fff" if r["is_open"] else ("#B7800F" if hidden else "#D93025")
+            fill = "var(--paper)" if r["is_open"] else ("#B7800F" if hidden else "#D93025")
             a0, a1 = (f'<a href="{E(r["url"])}">', "</a>") if r.get("url") else ("", "")
-            svg.append(f'<line x1="{x:.0f}" x2="{x:.0f}" y1="95" y2="{y:.0f}" stroke="#C3CCD5"/>'
+            svg.append(f'<line x1="{x:.0f}" x2="{x:.0f}" y1="95" y2="{y:.0f}" stroke="var(--rule)"/>'
                        f'{a0}<circle cx="{x:.0f}" cy="95" r="{9 if crit else 6}" fill="{fill}" stroke="{"#7A0F0A" if crit else "#D93025"}" stroke-width="{3 if crit else 2}"><title>{r["id"]} · {r["reg_dt"]:%d.%m %H:%M} · {E(r["st"])} · {E(short(r["anl"]))}</title></circle>{a1}'
                        f'<text class="lbl" x="{x+3:.0f}" y="{y - 4 if up else y + 12:.0f}">{r["id"][-5:]}</text>')
         svg.append("</svg>")
-        lg = ('<div class="legend"><span><i style="background:#D93025"></i>инцидент решён</span><span><i style="background:#fff;border:2px solid #D93025"></i>открыт</span>'
+        lg = ('<div class="legend"><span><i style="background:#D93025"></i>инцидент решён</span><span><i style="background:var(--paper);border:2px solid #D93025"></i>открыт</span>'
               '<span><i style="background:#B7800F"></i>скрытый: зарегистрирован другим типом</span><span><i style="background:#D93025;border:3px solid #7A0F0A"></i>критичный</span></div>')
         p3 = panel("Ось инцидентов периода", stamps("in", "ai"), "".join(svg) + lg,
                    f"Все инциденты, зарегистрированные за {PER_S}, плюс скрытые (по сути — инцидент). Точка — момент регистрации, подпись — последние цифры номера.",
@@ -2672,8 +2678,8 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         ssl = [r for r in sol if r["ai"].get("ss")]
         body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["cli"])}</td><td>{ai_cell(r)}</td><td>{E(r["ai"].get("rec") or "Право или инструкция")}</td></tr>' for r in ssl)
         p4 = panel("Кто просит · кто делает", stamps("sol"),
-                   f'<div class="grid g2"><div><div class="ch">Инициаторы</div>{hbars([(c, n, "#5D6B7A") for c, n in cli])}</div>'
-                   f'<div><div class="ch">Исполнители</div>{hbars([(short(a) + (" · 1-я линия" if a.startswith(L1_ANALYST) else ""), n, "#3B4754") for a, n in anl])}</div></div>',
+                   f'<div class="grid g2"><div><div class="ch">Инициаторы</div>{hbars([(c, n, "var(--bar2)") for c, n in cli])}</div>'
+                   f'<div><div class="ch">Исполнители</div>{hbars([(short(a) + (" · 1-я линия" if a.startswith(L1_ANALYST) else ""), n, "var(--bar)") for a, n in anl])}</div></div>',
                    "Инициаторы и исполнители ручных правок за период (без НСИ).",
                    "Слева — кому нужны права или обучение: у кого правки повторяются. Справа — нагрузка правками по людям.")
         p5 = panel(f"Мог бы сделать сам — {len(ssl)}", stamps("ai", "sol"),
@@ -2764,7 +2770,7 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         for s in secs:
             vals = [sum(1 for r in w["i"] if r["sec"] == s) for w in wk]
             body += f'<tr><th>{E(s)}</th>' + "".join(
-                f'<td style="background:rgba(29,51,80,{0.08 + 0.8 * v / mx:.2f});color:{"#fff" if v / mx > 0.5 else "var(--ink)"}">{v}</td>' for v in vals) + \
+                f'<td style="background:color-mix(in srgb,var(--heat) {8 + 80 * v / mx:.0f}%,transparent);color:{"var(--heat-hi)" if v / mx > 0.5 else "var(--ink)"}">{v}</td>' for v in vals) + \
                 f'<td class="{"bad" if vals[-1] > vals[0] else "ok"}">{vals[-1] - vals[0]:+d}</td></tr>'
         p4 = panel("Где растёт поток: раздел × неделя", stamps("in4"),
                    f'<div class="tw"><table class="num heat"><thead><tr><th>Раздел</th>' + "".join(f'<th>W{w["a"].isocalendar()[1]}</th>' for w in wk) +
@@ -2908,7 +2914,7 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
                    "Все обращения со словом «планшет» за 4 недели и все открытые; причина — по тексту обращения и решения.",
                    "Внедрение на контроле руководства: видно, падает ли поток и какая причина главная — вход, зависания, связь или массовые сбои.")
         p2 = panel("Где и на каких устройствах", stamps("w4"),
-                   f'<div class="grid g2"><div><div class="ch">Места</div>{hbars([(k, v, "#3B4754") for k, v in places.most_common()])}</div>'
+                   f'<div class="grid g2"><div><div class="ch">Места</div>{hbars([(k, v, "var(--bar)") for k, v in places.most_common()])}</div>'
                    f'<div><div class="ch">Повторы по одному устройству</div>{hbars(devs)}</div></div>',
                    "Место и номер планшета — из текста обращения (терминал, ремзона, линейка, ID).",
                    "Устройство с тремя и более обращениями — на замену; место с проблемами связи — на карту покрытия.")

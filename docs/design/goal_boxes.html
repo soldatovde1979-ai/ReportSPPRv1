@@ -1,0 +1,182 @@
+<title>Боксы целей ReportSPPR</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;600;700&display=swap">
+<style>
+/* Две страницы отчёта: боксы целей вертикальные (график снизу, градиент сверху вниз) и горизонтальные (график справа, градиент вбок). Токены — template_v6.html */
+:root{
+  --page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
+  --ok:#0F6E3A;--warn:#B7800F;--bad:#D93025;--ok-t:#0F6E3A;--warn-t:#8A5A00;--bad-t:#B3261E;
+  --g0:34%;--g1:10%;
+  --num:"Bahnschrift","DIN Alternate","Roboto Condensed","Arial Narrow",sans-serif;
+  --text:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --page:#11161C;--paper:#1A2129;--ink:#E7ECF1;--ink2:#B9C3CD;--muted:#8B97A4;--rule:#2D3742;--wash:#212A33;
+  --ok:#2FA463;--warn:#D9A12A;--bad:#EC5545;--ok-t:#5ACB8A;--warn-t:#E8B957;--bad-t:#FF8678;--g0:30%;--g1:9%;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --page:#11161C;--paper:#1A2129;--ink:#E7ECF1;--ink2:#B9C3CD;--muted:#8B97A4;--rule:#2D3742;--wash:#212A33;
+  --ok:#2FA463;--warn:#D9A12A;--bad:#EC5545;--ok-t:#5ACB8A;--warn-t:#E8B957;--bad-t:#FF8678;--g0:30%;--g1:9%;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--ink);font:15px/1.45 var(--text);font-variant-numeric:tabular-nums;margin:0}
+.page{max-width:1280px;margin:0 auto;padding-block:20px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:16px}
+.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between}
+h1{font:600 28px/1.1 var(--num);margin:0}
+.lead{color:var(--muted);margin:4px 0 0;font-size:14px;max-width:80ch}
+.tabs{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--paper)}
+.tabs button{font:600 14px var(--text);color:var(--ink2);background:transparent;border:0;border-left:1px solid var(--rule);padding:8px 14px;cursor:pointer}
+.tabs button:first-child{border-left:0}.tabs button[aria-selected="true"]{background:var(--ink);color:var(--paper)}
+.tabs button:focus-visible{outline:2px solid #1A56DB;outline-offset:-2px}
+.panel{background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:16px 20px 14px;min-width:0}
+.ph{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.ph h3{font:600 18px/1.2 var(--text);margin:0}
+.stamps{display:flex;gap:6px;flex-wrap:wrap}
+.stamp{display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:1;padding:5px 8px;border:1px solid var(--rule);border-radius:4px;color:var(--ink2);background:var(--wash);white-space:nowrap}
+.stamp i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.act{font-size:12px;color:var(--muted);margin:2px 0 6px}
+.why,.use{margin:8px 0 0;font-size:12.5px;line-height:1.45;color:var(--muted)}.use{margin-top:3px}.why b,.use b{color:var(--ink2);font-weight:600}
+.ok{--s:var(--ok);--st:var(--ok-t)}.warn{--s:var(--warn);--st:var(--warn-t)}.bad{--s:var(--bad);--st:var(--bad-t)}
+a.box{color:inherit;text-decoration:none}
+a.box:focus-visible{outline:2px solid #1A56DB;outline-offset:2px}
+
+/* ===== бокс: плитка + график ===== */
+.box{display:grid;border-radius:12px;overflow:hidden;min-width:0;border:1px solid color-mix(in srgb,var(--s) 32%,var(--rule))}
+a.box:hover{border-color:var(--s)}
+.box>*{min-width:0}
+/* горизонтальный: плитка слева, график справа; градиент вбок — над графиком его конец */
+.box.h{grid-template-columns:minmax(250px,300px) 1fr;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--s) var(--g0),var(--paper)) 0,color-mix(in srgb,var(--s) var(--g1),var(--paper)) var(--edge,300px),var(--paper) calc(var(--edge,300px) + 140px))}
+.box.h.wide{grid-template-columns:320px 1fr;--edge:320px}
+/* вертикальный: плитка сверху, график снизу; градиент сверху вниз — над графиком его конец */
+.box.v{grid-template-rows:auto 1fr;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--s) var(--g0),var(--paper)) 0,color-mix(in srgb,var(--s) var(--g1),var(--paper)) var(--edge,150px),var(--paper) calc(var(--edge,150px) + 70px))}
+
+.tile{padding:12px 16px 10px;display:flex;flex-direction:column;gap:6px}
+.tile .hd{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.tile h4{margin:0;font:600 13.5px/1.3 var(--text);color:var(--ink);text-wrap:balance}
+.tile .sw{font:700 10.5px/1.3 var(--text);text-transform:uppercase;letter-spacing:.06em;color:var(--st);white-space:nowrap;padding-top:2px}
+.tile .row{display:flex;align-items:center;gap:16px}
+.tile .v{font:600 44px/1 var(--num);color:var(--st)}
+.tile .kv{display:grid;grid-template-columns:auto auto;gap:1px 10px;font-size:12px;color:var(--muted);border-left:2px solid color-mix(in srgb,var(--s) 35%,transparent);padding-left:12px}
+.tile .kv b{font:600 14px/1.3 var(--num);color:var(--ink)}
+.tile .kv .gp{grid-column:1/-1;font:600 12.5px/1.4 var(--text);color:var(--st)}
+.tile .ft{font-size:12px;color:var(--muted)}
+.sc{position:relative;height:8px;margin:2px 0}
+.sc .z{position:absolute;top:2px;height:4px;border-radius:2px;opacity:.5}.sc .z.hit{opacity:1}
+.sc .z.ok{background:var(--ok)}.sc .z.warn{background:var(--warn)}.sc .z.bad{background:var(--bad)}
+.sc .m{position:absolute;top:-3px;width:4px;height:14px;margin-left:-2px;border-radius:2px;background:var(--ink)}
+.ch{padding:8px 12px 6px 6px;display:flex;flex-direction:column;justify-content:center}
+.box.v .ch{padding:0 10px 8px}
+.ch .cap{font-size:11.5px;color:var(--muted);margin:0 0 2px 4px}
+
+svg.trend{width:100%;height:auto;display:block;overflow:visible}
+.trend text{font-family:var(--num)}
+.trend .ax{font-size:11px;fill:var(--muted)}.trend .fut{fill:color-mix(in srgb,var(--muted) 50%,transparent)}
+.trend .tv{font-size:12px;font-weight:600;fill:var(--ink)}
+.trend .lg{font-size:11px;font-weight:700}
+
+.bdH{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,560px),1fr));gap:10px;margin-bottom:12px}
+.bdV{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,270px),1fr));gap:10px;margin-bottom:12px}
+.slH{display:grid;gap:10px}
+.slV{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,380px),1fr));gap:10px}
+.note{font-size:12.5px;color:var(--muted);border:1px dashed var(--rule);border-radius:8px;padding:8px 12px;background:var(--paper)}
+@media (max-width:700px){.box.h,.box.h.wide{grid-template-columns:1fr;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--s) var(--g0),var(--paper)) 0,color-mix(in srgb,var(--s) var(--g1),var(--paper)) 150px,var(--paper) 220px)}}
+@media (prefers-reduced-motion:no-preference){a.box{transition:border-color .15s}}
+</style>
+
+<div class="page">
+  <div class="top">
+    <div><h1>Боксы целей</h1>
+      <p class="lead">Две раскладки на цифрах табло 4 кв. 2026. Правило градиента: график справа — градиент вбок, над графиком его конец; график снизу — градиент сверху вниз.</p></div>
+    <div class="tabs" role="tablist" aria-label="Раскладка">
+      <button type="button" role="tab" id="tab-v" aria-controls="v" aria-selected="true">Вертикальные</button>
+      <button type="button" role="tab" id="tab-h" aria-controls="h" aria-selected="false">Горизонтальные</button>
+    </div>
+  </div>
+  <section id="v" role="tabpanel" aria-labelledby="tab-v"></section>
+  <section id="h" role="tabpanel" aria-labelledby="tab-h" hidden></section>
+  <p class="note">Динамика на табло — примерные точки W40–W41 для вида (настоящая берётся из истории недель). Медиана срока решения — реальная: W40 46,7, W41 3,5 раб. ч.</p>
+</div>
+
+<script>
+const GOALS=[
+ {grp:"Состояние недели",name:"Очередь за неделю не растёт",v:-3,goal:0,alarm:10,lower:true,hist:{W40:-7,W41:-3}},
+ {grp:"Состояние недели",name:"Доля долгостроя, %",v:9,goal:8,alarm:15,lower:true,hist:{W40:12,W41:9}},
+ {grp:"Состояние недели",name:"Открытых старше 30 дней",v:47,goal:40,alarm:60,lower:true,hist:{W40:52,W41:47}},
+ {grp:"Где болит",name:"Открытых инцидентов",v:47,goal:40,alarm:55,lower:true,hist:{W40:49,W41:47}},
+ {grp:"Где болит",name:"Открытые инциденты в плане (ksr), %",v:43,goal:90,alarm:70,lower:false,pct:true,hist:{W40:51,W41:43}},
+ {grp:"Где болит",name:"Отложенное исправление — со ссылкой и сроком, %",v:0,goal:90,alarm:70,lower:false,pct:true,hist:{W40:0,W41:0}},
+];
+const SLIDE=[
+ {name:"Медиана срока решения, раб. ч",v:3.5,goal:7,alarm:8.5,lower:true,hist:{W40:46.7,W41:3.5}},
+ {name:"Решено за рабочий день, %",v:61,goal:60,alarm:45,lower:false,pct:true,hist:{W40:48,W41:61}},
+];
+const WEEKS=Array.from({length:14},(_,i)=>"W"+(40+i)),NOW=1;
+const SHORT={ok:"в цели",warn:"на грани",bad:"хуже порога"};
+const fmt=x=>(x<0?"−":"")+String(Math.abs(Math.round(x*10)/10)).replace(".",",");
+const st=(g,x)=>g.lower?(x<=g.goal?"ok":x>g.alarm?"bad":"warn"):(x>=g.goal?"ok":x<g.alarm?"bad":"warn");
+const sg=g=>g.lower?["≤",">"]:["≥","<"];
+const gapTxt=g=>g.s==="ok"?"цель достигнута":"до цели "+(g.lower?"−"+fmt(g.v-g.goal):"+"+fmt(g.goal-g.v));
+[...GOALS,...SLIDE].forEach(g=>g.s=st(g,g.v));
+
+function scale(g){
+  let lo,hi;
+  if(g.pct){lo=0;hi=100}else{lo=Math.min(0,g.v,g.goal);hi=Math.max(g.alarm*1.35,g.v*1.1,g.goal+1);if(lo<0)lo*=1.4}
+  const P=x=>(x-lo)/(hi-lo)*100;
+  const zs=g.lower?[[lo,g.goal,"ok"],[g.goal,g.alarm,"warn"],[g.alarm,hi,"bad"]]:[[lo,g.alarm,"bad"],[g.alarm,g.goal,"warn"],[g.goal,hi,"ok"]];
+  return `<div class="sc" role="img" aria-label="шкала цель — порог">`+zs.map(([a,b,c])=>`<i class="z ${c}${c===g.s?" hit":""}" style="left:${P(a).toFixed(1)}%;width:calc(${(P(b)-P(a)).toFixed(1)}% - 2px)"></i>`).join("")+
+    `<i class="m" style="left:${P(Math.min(Math.max(g.v,lo),hi)).toFixed(1)}%"></i></div>`;
+}
+function tile(g){const [a,b]=sg(g);
+  return `<div class="tile"><div class="hd"><h4>${g.name}</h4><span class="sw">${SHORT[g.s]}</span></div>
+  <div class="row"><div class="v">${fmt(g.v)}</div><div class="kv"><span>цель</span><b>${a} ${fmt(g.goal)}</b><span>порог</span><b>${b} ${fmt(g.alarm)}</b><span class="gp">${gapTxt(g)}</span></div></div>
+  ${scale(g)}<div class="ft">к дек 2026</div></div>`}
+
+let gid=0;
+function trend(g,{w=640,h=150,mini=false}={}){
+  const id="tg"+(gid++),pl=mini?40:70,pr=10,pt=18,pb=22,vals=Object.values(g.hist);
+  let lo=Math.min(0,...vals,g.goal,g.alarm),hi=Math.max(...vals,g.goal,g.alarm)*1.12;if(g.pct){lo=0;hi=100}
+  const X=i=>pl+14+i*(w-pl-14-pr)/(WEEKS.length-1),Y=v=>pt+(hi-v)/(hi-lo)*(h-pt-pb);
+  let s=`<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--st)" stop-opacity=".25"/><stop offset="1" stop-color="var(--st)" stop-opacity="0"/></linearGradient></defs>`;
+  s+=`<line x1="${pl}" x2="${w-pr}" y1="${Y(lo)}" y2="${Y(lo)}" stroke="var(--rule)"/>`;
+  let yg=Y(g.goal),ya=Y(g.alarm),lg=yg,la=ya;
+  if(Math.abs(lg-la)<15){const m=(lg+la)/2,d=yg>ya?7.5:-7.5;lg=m+d;la=m-d}
+  s+=`<line x1="${pl}" x2="${w-pr}" y1="${yg}" y2="${yg}" stroke="var(--ok-t)" stroke-width="1.4"/>`;
+  s+=`<line x1="${pl}" x2="${w-pr}" y1="${ya}" y2="${ya}" stroke="var(--bad-t)" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+  s+=`<text x="${pl-6}" y="${lg+4}" text-anchor="end" class="lg" fill="var(--ok-t)">${mini?"":"цель "}${fmt(g.goal)}</text>`;
+  s+=`<text x="${pl-6}" y="${la+4}" text-anchor="end" class="lg" fill="var(--bad-t)">${mini?"":"порог "}${fmt(g.alarm)}</text>`;
+  const pts=WEEKS.map((k,i)=>k in g.hist?[X(i),Y(g.hist[k]),g.hist[k],i]:null).filter(Boolean);
+  s+=`<polygon fill="url(#${id})" points="${pts[0][0]},${Y(lo)} ${pts.map(p=>p[0]+","+p[1]).join(" ")} ${pts.at(-1)[0]},${Y(lo)}"/>`;
+  s+=`<polyline fill="none" stroke="var(--st)" stroke-width="2.4" stroke-linejoin="round" points="${pts.map(p=>p[0]+","+p[1]).join(" ")}"/>`;
+  WEEKS.forEach((k,i)=>{if(i>NOW)s+=`<circle cx="${X(i)}" cy="${Y(lo)}" r="1.8" fill="color-mix(in srgb,var(--muted) 50%,transparent)"/>`;
+    if(!mini||i===0||i===7||i===WEEKS.length-1)s+=`<text x="${X(i)}" y="${h-5}" text-anchor="middle" class="ax${i>NOW?" fut":""}">${k}</text>`});
+  pts.forEach(([x,y,v,i])=>{const cur=i===NOW,c=st(g,v);
+    s+=`<circle cx="${x}" cy="${y}" r="${cur?6:4}" fill="var(--${c})" stroke="var(--paper)" stroke-width="2"><title>${WEEKS[i]}: ${fmt(v)}</title></circle>`;
+    const ty=y-11<pt-4?y+20:y-11;s+=`<text x="${cur?x+12:x}" y="${cur?y+4:ty}" text-anchor="${cur?"start":"middle"}" class="tv">${fmt(v)}</text>`});
+  return `<svg class="trend" viewBox="0 0 ${w} ${h}" role="img" aria-label="Динамика: ${g.name}, 4 кв. 2026">${s}</svg>`;
+}
+
+const cnt=s=>GOALS.filter(g=>g.s===s).length;
+const stamp=`<div class="stamps"><span class="stamp"><i style="background:var(--bad)"></i>хуже порога ${cnt("bad")}</span><span class="stamp"><i style="background:var(--warn)"></i>на грани ${cnt("warn")}</span><span class="stamp"><i style="background:var(--ok)"></i>в цели ${cnt("ok")}</span></div>`;
+const groups=[...new Set(GOALS.map(g=>g.grp))];
+const why=`<p class="why"><b>Что это.</b> Цели из plan.csv с отметкой «на табло»: значение за неделю 05.10–11.10 (очередь — на срез), цвет — по цели и порогу, график — недели 4 кв. 2026, пустые справа — сколько осталось.</p><p class="use"><b>Польза / проблема.</b> Один взгляд: красное — тема совещания и поручение; зелёное держится 2 нед. — цель можно поднять.</p>`;
+const whyS=`<p class="why"><b>Что это.</b> Цели слайда из plan.csv: плитка — значение, цель, порог и шкала; график — недели квартала.</p><p class="use"><b>Польза / проблема.</b> Идём ли к цели к сроку; панели ниже раскрывают эти цели.</p>`;
+
+function page(kind){
+  const H=kind==="h";
+  const box=(g,wide)=>H
+    ? `<a class="box h ${wide?"wide ":""}${g.s}" href="#${kind}">${tile(g)}<div class="ch">${wide?'<div class="cap">недели 4 кв. 2026 · пустые справа — сколько осталось</div>':""}${trend(g,wide?{}:{w:290,h:120,mini:true})}</div></a>`
+    : `<a class="box v ${g.s}" href="#${kind}">${tile(g)}<div class="ch">${trend(g,wide?{w:390,h:160}:{w:270,h:115,mini:true})}</div></a>`;
+  const board=groups.map(gr=>`<div class="act">${gr}</div><div class="${H?"bdH":"bdV"}">`+GOALS.filter(g=>g.grp===gr).map(g=>box(g,false)).join("")+`</div>`).join("");
+  return `<div class="panel"><div class="ph"><h3>Табло целей — 4 кв. 2026</h3>${stamp}</div>${board}${why}</div>
+   <div class="panel" style="margin-top:16px"><div class="ph"><h3>Цели слайда «Сроки решения» — 4 кв. 2026</h3><div class="stamps"><span class="stamp">plan.csv</span></div></div>
+   <div class="${H?"slH":"slV"}">${SLIDE.map(g=>box(g,true)).join("")}</div>${whyS}</div>`;
+}
+document.getElementById("v").innerHTML=page("v");
+document.getElementById("h").innerHTML=page("h");
+
+const tabs=[...document.querySelectorAll('[role="tab"]')];
+function show(k){tabs.forEach(t=>{const on=t.getAttribute("aria-controls")===k;t.setAttribute("aria-selected",on);document.getElementById(t.getAttribute("aria-controls")).hidden=!on})}
+tabs.forEach(t=>t.addEventListener("click",()=>show(t.getAttribute("aria-controls"))));
+if(location.hash==="#h")show("h");
+</script>

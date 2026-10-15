@@ -1,0 +1,252 @@
+<title>Плитки целей ReportSPPR</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;600;700&display=swap">
+<style>
+/* Раунд 2: заливка состояния остаётся, но прозрачная или градиентом; плитка и график слайда — одна карточка с общим фоном. Токены — из template_v6.html */
+:root{
+  --page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
+  --ok:#0F6E3A;--warn:#B7800F;--bad:#D93025;
+  --ok-t:#0F6E3A;--warn-t:#8A5A00;--bad-t:#B3261E;
+  --ok-d:#0A5A2F;--warn-d:#8F5A00;--bad-d:#A81F15;   /* тёмный край градиента варианта D */
+  --tint:15%;--edge:40%;
+  --num:"Bahnschrift","DIN Alternate","Roboto Condensed","Arial Narrow",sans-serif;
+  --text:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --page:#11161C;--paper:#1A2129;--ink:#E7ECF1;--ink2:#B9C3CD;--muted:#8B97A4;--rule:#2D3742;--wash:#212A33;
+  --ok:#2FA463;--warn:#D9A12A;--bad:#EC5545;--ok-t:#5ACB8A;--warn-t:#E8B957;--bad-t:#FF8678;--tint:22%;--edge:50%;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --page:#11161C;--paper:#1A2129;--ink:#E7ECF1;--ink2:#B9C3CD;--muted:#8B97A4;--rule:#2D3742;--wash:#212A33;
+  --ok:#2FA463;--warn:#D9A12A;--bad:#EC5545;--ok-t:#5ACB8A;--warn-t:#E8B957;--bad-t:#FF8678;--tint:22%;--edge:50%;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--ink);font:15px/1.45 var(--text);font-variant-numeric:tabular-nums;margin:0}
+.page{max-width:1240px;margin:0 auto;padding-block:28px 60px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:24px}
+h1{font:600 32px/1.1 var(--num);margin:0;text-wrap:balance}
+.lead{color:var(--muted);margin:6px 0 0;max-width:72ch}
+.panel{background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:16px 20px;min-width:0}
+.ph{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.ph h3{font:600 18px/1.2 var(--text);margin:0}
+.stamps{display:flex;gap:6px;flex-wrap:wrap}
+.stamp{display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:1;padding:5px 8px;border:1px solid var(--rule);border-radius:4px;color:var(--ink2);background:var(--wash);white-space:nowrap}
+.stamp i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.act{font-size:12px;color:var(--muted);margin:2px 0 6px}
+.bd{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin-bottom:12px}
+.var{display:grid;gap:12px}
+.var>header{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+.var>header .L{font:700 15px/1 var(--num);color:var(--paper);background:var(--ink);border-radius:5px;padding:5px 8px}
+.var>header h2{font:600 22px/1.2 var(--num);margin:0}
+.var>header p{margin:0;color:var(--ink2);flex:1 1 380px;min-width:0;font-size:14px}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 22px;font-size:13px;color:var(--ink2);border-top:1px solid var(--rule);padding-top:10px}
+.meta b{color:var(--ink);display:block;font-size:12px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+.ok{--s:var(--ok);--st:var(--ok-t);--sd:var(--ok-d)}.warn{--s:var(--warn);--st:var(--warn-t);--sd:var(--warn-d)}.bad{--s:var(--bad);--st:var(--bad-t);--sd:var(--bad-d)}
+a.t{color:inherit;text-decoration:none;display:block;min-width:0}
+a.t:focus-visible{outline:2px solid #1A56DB;outline-offset:2px;border-radius:12px}
+
+/* ===== плитка: общая разметка для всех вариантов ===== */
+.tile{border-radius:10px;padding:12px 16px 10px;height:100%;display:flex;flex-direction:column;gap:6px;
+  --fg:var(--ink);--fg2:var(--ink2);--fgm:var(--muted);--vc:var(--st);--ln:color-mix(in srgb,var(--s) 30%,transparent);color:var(--fg)}
+.tile .hd{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.tile h4{margin:0;font:600 13.5px/1.3 var(--text);color:var(--fg);text-wrap:balance}
+.tile .sw{font:700 10.5px/1.3 var(--text);text-transform:uppercase;letter-spacing:.06em;color:var(--vc);white-space:nowrap;padding-top:2px}
+.tile .row{display:flex;align-items:center;gap:16px}
+.tile .v{font:600 46px/1 var(--num);color:var(--vc)}
+.tile .kv{display:grid;grid-template-columns:auto auto;gap:1px 10px;font-size:12px;color:var(--fgm);border-left:2px solid var(--ln);padding-left:12px}
+.tile .kv b{font:600 14px/1.3 var(--num);color:var(--fg)}
+.tile .kv .gp{grid-column:1/-1;font:600 12.5px/1.4 var(--text);color:var(--vc)}
+.tile .ft{margin-top:auto;font-size:12px;color:var(--fgm)}
+/* шкала цель — порог */
+.sc{position:relative;height:8px;margin:4px 0 2px;border-radius:4px;overflow:visible}
+.sc .z{position:absolute;top:2px;height:4px;border-radius:2px;opacity:.55}
+.sc .z.hit{opacity:1}
+.sc .z.ok{background:var(--ok)}.sc .z.warn{background:var(--warn)}.sc .z.bad{background:var(--bad)}
+.sc .m{position:absolute;top:-3px;width:4px;height:14px;margin-left:-2px;border-radius:2px;background:var(--fg)}
+
+/* A — «Дымка»: прозрачная заливка цвета состояния */
+.A .tile{background:color-mix(in srgb,var(--s) var(--tint),var(--paper));border:1px solid color-mix(in srgb,var(--s) var(--edge),var(--paper))}
+.A a.t:hover .tile{border-color:var(--s)}
+/* B — «Градиент вбок»: насыщенно у числа, к правому краю растворяется */
+.B .tile{background:linear-gradient(100deg,color-mix(in srgb,var(--s) 34%,var(--paper)) 0%,color-mix(in srgb,var(--s) 12%,var(--paper)) 55%,var(--paper) 100%);border:1px solid color-mix(in srgb,var(--s) 30%,var(--rule))}
+.B a.t:hover .tile{border-color:var(--s)}
+/* C — «Градиент сверху»: цветная шапка плавно переходит в белое тело */
+.C .tile{background:linear-gradient(180deg,color-mix(in srgb,var(--s) 42%,var(--paper)) 0,color-mix(in srgb,var(--s) 10%,var(--paper)) 62px,var(--paper) 100%);border:1px solid color-mix(in srgb,var(--s) 30%,var(--rule))}
+.C a.t:hover .tile{border-color:var(--s)}
+/* D — «Глубокий градиент»: яркий фон-светофор, но двумя тонами и без белых плашек */
+.D .tile{background:linear-gradient(135deg,var(--s) 0%,var(--sd) 100%);--fg:#fff;--fg2:rgba(255,255,255,.92);--fgm:rgba(255,255,255,.82);--vc:#fff;--ln:rgba(255,255,255,.45)}
+.D .tile .sc .z{background:rgba(255,255,255,.35)}.D .tile .sc .z.hit{background:#fff}
+.D a.t:hover .tile{filter:brightness(1.07)}
+
+/* ===== карточка слайда: плитка и график на одном фоне ===== */
+.gc{border-radius:12px;display:grid;grid-template-columns:320px 1fr;overflow:hidden}
+.gc>.tile{border:0!important;border-radius:0;background:transparent!important}
+.gc .ch{padding:10px 14px 6px 4px;min-width:0;display:flex;flex-direction:column;justify-content:center}
+.gc .ch .cap{font-size:12px;color:var(--fgm,var(--muted));padding-left:74px;margin-bottom:2px}
+.A .gc{background:color-mix(in srgb,var(--s) var(--tint),var(--paper));border:1px solid color-mix(in srgb,var(--s) var(--edge),var(--paper))}
+.B .gc{background:linear-gradient(90deg,color-mix(in srgb,var(--s) 34%,var(--paper)) 0,color-mix(in srgb,var(--s) 10%,var(--paper)) 340px,var(--paper) 100%);border:1px solid color-mix(in srgb,var(--s) 30%,var(--rule))}
+.C .gc{background:linear-gradient(180deg,color-mix(in srgb,var(--s) 42%,var(--paper)) 0,color-mix(in srgb,var(--s) 10%,var(--paper)) 62px,var(--paper) 100%);border:1px solid color-mix(in srgb,var(--s) 30%,var(--rule))}
+.D .gc{background:linear-gradient(120deg,var(--s) 0%,var(--sd) 100%);--fgm:rgba(255,255,255,.82)}
+/* график берёт цвета у карточки */
+svg.trend{width:100%;height:auto;display:block;overflow:visible}
+.trend{--c-ln:var(--st);--c-ax:var(--muted);--c-fut:color-mix(in srgb,var(--muted) 45%,transparent);--c-goal:var(--ok-t);--c-alarm:var(--bad-t);--c-val:var(--ink);--c-ring:var(--paper);--c-grid:color-mix(in srgb,var(--s) 22%,transparent)}
+.D .trend{--c-ln:#fff;--c-ax:rgba(255,255,255,.85);--c-fut:rgba(255,255,255,.4);--c-goal:#fff;--c-alarm:#fff;--c-val:#fff;--c-ring:var(--sd);--c-grid:rgba(255,255,255,.22);--c-pt:#fff}
+.trend text{font-family:var(--num)}
+.trend .ax{font-size:11.5px;fill:var(--c-ax)}.trend .fut{fill:var(--c-fut)}
+.trend .tv{font-size:12.5px;font-weight:600;fill:var(--c-val)}
+.trend .lg{font-size:11.5px;font-weight:700}
+.trend .chip{fill:var(--c-ring);opacity:.9}
+
+/* E — «Плитка + поле»: цветная плитка, дальше нейтральное поле графика; нижняя полоса продолжается серой */
+:root{--gx-bg:#E4E9EE;--gx-line:#C2CBD4;--gx-grid:#FFFFFF;--gx-go:.85}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--gx-bg:#222B35;--gx-line:#3A4652;--gx-grid:#FFFFFF;--gx-go:.14}}
+:root[data-theme="dark"]{--gx-bg:#222B35;--gx-line:#3A4652;--gx-grid:#FFFFFF;--gx-go:.14}
+.gx{display:grid;grid-template-columns:320px 1fr;border-radius:12px;overflow:hidden;margin-bottom:10px}
+.gx>.tile{border:0!important;border-radius:0;box-shadow:inset 0 -4px 0 var(--s)}
+.gx .ch{background:var(--gx-bg);box-shadow:inset 0 -4px 0 var(--gx-line);padding:8px 14px 12px 6px;min-width:0;display:flex;flex-direction:column;justify-content:center}
+.gx .cap{font-size:12px;color:var(--muted);padding-left:40px;margin-bottom:2px}
+.gx .trend{--c-ln:var(--st);--c-ax:var(--muted);--c-fut:color-mix(in srgb,var(--muted) 55%,transparent);--c-goal:var(--ok-t);--c-alarm:var(--bad-t);--c-val:var(--ink);--c-ring:var(--gx-bg);--c-pt:initial}
+.trend .gy{font-size:10.5px;fill:var(--muted)}
+.sw4{display:inline-flex;border:1px solid var(--rule);border-radius:6px;overflow:hidden;margin-left:auto}
+.sw4 button{font:600 13px var(--num);background:var(--paper);color:var(--ink2);border:0;border-left:1px solid var(--rule);padding:5px 11px;cursor:pointer}
+.sw4 button:first-child{border-left:0}.sw4 button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.sw4 button:focus-visible{outline:2px solid #1A56DB;outline-offset:-2px}
+@media (max-width:900px){.gx{grid-template-columns:1fr}.gx .cap{padding-left:0}}
+.rec{border-left:4px solid var(--ink)}
+.rec h2{font:600 20px/1.2 var(--num);margin:0 0 6px}
+.rec p{margin:4px 0;max-width:90ch;color:var(--ink2);font-size:14px}
+@media (max-width:900px){.gc{grid-template-columns:1fr}.gc .ch .cap{padding-left:0}}
+@media (prefers-reduced-motion:no-preference){a.t .tile{transition:border-color .15s,filter .15s}}
+</style>
+
+<div class="page">
+  <header>
+    <h1>Плитки целей: раунд 2</h1>
+    <p class="lead">Заливка цветом состояния осталась, но мягче: прозрачная (A), градиентом вбок (B), градиентом сверху (C) или яркая в два тона (D). На слайде плитка и график теперь одна карточка: общий фон, линия графика в цвет состояния, те же шрифты и подписи, что в плитке. Белые плашки убраны везде.</p>
+  </header>
+  <div id="variants"></div>
+  <section class="panel rec">
+    <h2>Мой выбор — B «Градиент вбок»</h2>
+    <p>Цвет сильнее всего у числа, где на него и смотрят, а к правому краю растворяется. На табло красное и жёлтое различаются с одного взгляда, но ёлки нет. На слайде тот же градиент тянется через карточку и уходит в белое под графиком, поэтому линии и подписи графика читаются чисто.</p>
+    <p>A — самый тихий и надёжный при печати. D — если нужен прежний яркий светофор: он мягче нынешнего за счёт второго тона, но всё ещё пёстрый.</p>
+  </section>
+</div>
+
+<script>
+const GOALS=[
+ {grp:"Состояние недели",name:"Очередь за неделю не растёт",v:-3,goal:0,alarm:10,lower:true},
+ {grp:"Состояние недели",name:"Доля долгостроя, %",v:9,goal:8,alarm:15,lower:true},
+ {grp:"Состояние недели",name:"Открытых старше 30 дней",v:47,goal:40,alarm:60,lower:true},
+ {grp:"Где болит",name:"Открытых инцидентов",v:47,goal:40,alarm:55,lower:true},
+ {grp:"Где болит",name:"Открытые инциденты в плане (ksr), %",v:43,goal:90,alarm:70,lower:false,pct:true},
+ {grp:"Где болит",name:"Отложенное исправление — со ссылкой и сроком, %",v:0,goal:90,alarm:70,lower:false,pct:true},
+];
+const SLIDES=[
+ {name:"Медиана срока решения, раб. ч",v:3.5,goal:7,alarm:8.5,lower:true,hist:{W40:46.7,W41:3.5}},
+ {name:"Открытые инциденты в плане (ksr), %",v:43,goal:90,alarm:70,lower:false,pct:true,hist:{W40:51,W41:43}},
+];
+const WEEKS=Array.from({length:14},(_,i)=>"W"+(40+i)),NOW=1;
+const SHORT={ok:"в цели",warn:"на грани",bad:"хуже порога"};
+const fmt=x=>(x<0?"−":"")+String(Math.abs(Math.round(x*10)/10)).replace(".",",");
+const st=(g,x)=>g.lower?(x<=g.goal?"ok":x>g.alarm?"bad":"warn"):(x>=g.goal?"ok":x<g.alarm?"bad":"warn");
+const sg=g=>g.lower?["≤",">"]:["≥","<"];
+const gapTxt=g=>g.s==="ok"?"цель достигнута":"до цели "+(g.lower?"−"+fmt(g.v-g.goal):"+"+fmt(g.goal-g.v));
+[...GOALS,...SLIDES].forEach(g=>g.s=st(g,g.v));
+
+function scale(g){
+  let lo,hi;
+  if(g.pct){lo=0;hi=100}else{lo=Math.min(0,g.v,g.goal);hi=Math.max(g.alarm*1.35,g.v*1.1,g.goal+1);if(lo<0)lo*=1.4}
+  const P=x=>(x-lo)/(hi-lo)*100;
+  const zs=g.lower?[[lo,g.goal,"ok"],[g.goal,g.alarm,"warn"],[g.alarm,hi,"bad"]]:[[lo,g.alarm,"bad"],[g.alarm,g.goal,"warn"],[g.goal,hi,"ok"]];
+  return `<div class="sc" role="img" aria-label="шкала: зелёное — цель, красное — за порогом">`+
+    zs.map(([a,b,c])=>`<i class="z ${c}${c===g.s?" hit":""}" style="left:${P(a).toFixed(1)}%;width:calc(${(P(b)-P(a)).toFixed(1)}% - 2px)"></i>`).join("")+
+    `<i class="m" style="left:${P(Math.min(Math.max(g.v,lo),hi)).toFixed(1)}%"></i></div>`;
+}
+function tile(g){const [a,b]=sg(g);
+  return `<div class="tile ${g.s}"><div class="hd"><h4>${g.name}</h4><span class="sw">${SHORT[g.s]}</span></div>
+  <div class="row"><div class="v">${fmt(g.v)}</div><div class="kv"><span>цель</span><b>${a} ${fmt(g.goal)}</b><span>порог</span><b>${b} ${fmt(g.alarm)}</b><span class="gp">${gapTxt(g)}</span></div></div>
+  ${scale(g)}<div class="ft">к дек 2026</div></div>`}
+
+function trend(g,id){
+  const w=640,h=150,pl=74,pr=12,pt=22,pb=24,vals=Object.values(g.hist);
+  let lo=Math.min(0,...vals,g.goal,g.alarm),hi=Math.max(...vals,g.goal,g.alarm)*1.12;if(g.pct){lo=0;hi=100}
+  const X=i=>pl+i*(w-pl-pr)/(WEEKS.length-1),Y=v=>pt+(hi-v)/(hi-lo)*(h-pt-pb);
+  let s=`<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--c-ln)" stop-opacity=".28"/><stop offset="1" stop-color="var(--c-ln)" stop-opacity="0"/></linearGradient></defs>`;
+  s+=`<line x1="${pl}" x2="${w-pr}" y1="${Y(lo)}" y2="${Y(lo)}" stroke="var(--c-grid)"/>`;
+  let yg=Y(g.goal),ya=Y(g.alarm),lg=yg,la=ya;
+  if(Math.abs(lg-la)<16){const m=(lg+la)/2,d=(yg>ya?8:-8);lg=m+d;la=m-d}
+  s+=`<line x1="${pl}" x2="${w-pr}" y1="${yg}" y2="${yg}" stroke="var(--c-goal)" stroke-width="1.5" opacity=".9"/>`;
+  s+=`<line x1="${pl}" x2="${w-pr}" y1="${ya}" y2="${ya}" stroke="var(--c-alarm)" stroke-width="1.5" stroke-dasharray="5 4" opacity=".9"/>`;
+  s+=`<text x="${pl-18}" y="${lg+4}" text-anchor="end" class="lg" fill="var(--c-goal)">цель ${fmt(g.goal)}</text>`;
+  s+=`<text x="${pl-18}" y="${la+4}" text-anchor="end" class="lg" fill="var(--c-alarm)">порог ${fmt(g.alarm)}</text>`;
+  const pts=WEEKS.map((k,i)=>k in g.hist?[X(i),Y(g.hist[k]),g.hist[k],i]:null).filter(Boolean);
+  s+=`<polygon fill="url(#${id})" points="${pts[0][0]},${Y(lo)} ${pts.map(p=>p[0]+","+p[1]).join(" ")} ${pts.at(-1)[0]},${Y(lo)}"/>`;
+  s+=`<polyline fill="none" stroke="var(--c-ln)" stroke-width="2.4" stroke-linejoin="round" points="${pts.map(p=>p[0]+","+p[1]).join(" ")}"/>`;
+  WEEKS.forEach((k,i)=>{ if(i>NOW) s+=`<circle cx="${X(i)}" cy="${Y(lo)}" r="2" fill="var(--c-fut)"/>`;
+    s+=`<text x="${X(i)}" y="${h-5}" text-anchor="middle" class="ax${i>NOW?" fut":""}">${k}</text>`});
+  pts.forEach(([x,y,v,i])=>{const cur=i===NOW,c=st(g,v);
+    s+=`<circle cx="${x}" cy="${y}" r="${cur?6.5:4.5}" fill="var(--c-pt,var(--${c}))" stroke="var(--c-ring)" stroke-width="2.5"><title>${WEEKS[i]}: ${fmt(v)}</title></circle>`;
+    const ty=y-12<pt-6?y+22:y-12;s+=`<text x="${x+(cur?14:0)}" y="${cur?y+4:ty}" text-anchor="${cur?"start":"middle"}" class="tv">${fmt(v)}</text>`});
+  return `<svg class="trend" viewBox="0 0 ${w} ${h}" role="img" aria-label="Динамика: ${g.name}, 4 кв. 2026">${s}</svg>`;
+}
+
+const cnt=s=>GOALS.filter(g=>g.s===s).length;
+const stamp=`<div class="stamps"><span class="stamp"><i style="background:var(--bad)"></i>хуже порога ${cnt("bad")}</span><span class="stamp"><i style="background:var(--warn)"></i>на грани ${cnt("warn")}</span><span class="stamp"><i style="background:var(--ok)"></i>в цели ${cnt("ok")}</span></div>`;
+
+const VARS=[
+ {k:"A",t:"Дымка",d:"Заливка цветом состояния на 15% прозрачности и рамка того же цвета. Число — насыщенным цветом состояния, остальное тёмным.",
+  plus:"Самый спокойный; хорошо печатается и одинаково читается на проекторе и в тёмной теме.",minus:"Издалека жёлтое и зелёное различаются слабее, чем сейчас."},
+ {k:"B",t:"Градиент вбок",d:"Цвет плотнее всего слева, у числа, и растворяется к правому краю. На слайде градиент тянется через карточку и уходит в белое под графиком.",
+  plus:"Светофор считывается сразу, но без ёлки; плитка и график — одно целое.",minus:"При печати на ч/б принтере градиент станет серым пятном (сам цвет не нужен — есть слово состояния)."},
+ {k:"C",t:"Градиент сверху",d:"Цветная «шапка» сверху плавно переходит в белое тело. Название сидит на цвете, цифры — уже на светлом.",
+  plus:"Ряд плиток читается как строй цветных заголовков; цифры на белом.",minus:"На карточке слайда градиент уходит быстро — график почти на белом, связь с плиткой слабее, чем в B."},
+ {k:"D",t:"Глубокий градиент",d:"Яркий фон, как сейчас (Т-110), но двумя тонами одного цвета и без белых плашек; график на слайде рисуется белым прямо по цвету.",
+  plus:"Ближе всего к нынешнему решению; карточка слайда выглядит цельной.",minus:"На табло всё ещё пёстро: 6 ярких плиток подряд."},
+];
+
+let out="";
+for(const V of VARS){
+  const groups=[...new Set(GOALS.map(g=>g.grp))];
+  const board=groups.map(gr=>`<div class="act">${gr}</div><div class="bd">`+GOALS.filter(g=>g.grp===gr).map(g=>`<a class="t" href="#var-${V.k}">${tile(g)}</a>`).join("")+`</div>`).join("");
+  const cards=SLIDES.map((g,i)=>`<div class="gc ${g.s}" style="margin-bottom:10px">${tile(g)}<div class="ch"><div class="cap">недели 4 кв. 2026 · пустые справа — сколько осталось</div>${trend(g,`gr${V.k}${i}`)}</div></div>`).join("");
+  out+=`<section class="var ${V.k}" id="var-${V.k}">
+   <header><span class="L">${V.k}</span><h2>${V.t}</h2><p>${V.d}</p></header>
+   <div class="panel"><div class="ph"><h3>Табло целей — 4 кв. 2026</h3>${stamp}</div>${board}</div>
+   <div class="panel"><div class="ph"><h3>Цели слайда — 4 кв. 2026</h3><div class="stamps"><span class="stamp">plan.csv</span></div></div>${cards}</div>
+   <div class="meta"><div><b>Плюсы</b>${V.plus}</div><div><b>Минусы</b>${V.minus}</div></div>
+  </section>`;
+}
+document.getElementById("variants").innerHTML=out;
+
+function niceStep(r){const e=Math.pow(10,Math.floor(Math.log10(r/4)));for(const m of [1,2,2.5,5,10])if(r/(m*e)<=5)return m*e;return 10*e}
+function trend2(g,id){
+  const w=640,h=160,pl=40,pr=86,pt=14,pb=22,vals=Object.values(g.hist);
+  let lo=Math.min(0,...vals,g.goal,g.alarm),hi=Math.max(...vals,g.goal,g.alarm)*1.08;if(g.pct){lo=0;hi=100}
+  const step=niceStep(hi-lo);hi=Math.ceil(hi/step)*step;
+  const X=i=>pl+i*(w-pl-pr)/(WEEKS.length-1),Y=v=>pt+(hi-v)/(hi-lo)*(h-pt-pb);
+  let s=`<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--c-ln)" stop-opacity=".22"/><stop offset="1" stop-color="var(--c-ln)" stop-opacity="0"/></linearGradient></defs>`;
+  for(let v=lo;v<=hi+1e-9;v+=step){s+=`<line x1="${pl}" x2="${w-pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--gx-grid)" stroke-opacity="var(--gx-go)" stroke-width="1" stroke-dasharray="2 4"/>`;
+    s+=`<text x="${pl-8}" y="${Y(v)+3.5}" text-anchor="end" class="gy">${fmt(v)}</text>`}
+  WEEKS.forEach((k,i)=>s+=`<line x1="${X(i)}" x2="${X(i)}" y1="${pt}" y2="${Y(lo)}" stroke="var(--gx-grid)" stroke-opacity="var(--gx-go)" stroke-dasharray="2 4"/>`);
+  let yg=Y(g.goal),ya=Y(g.alarm),lg=yg,la=ya;
+  if(Math.abs(lg-la)<16){const m=(lg+la)/2,d=(yg>ya?8:-8);lg=m+d;la=m-d}
+  s+=`<line x1="${pl}" x2="${w-pr}" y1="${yg}" y2="${yg}" stroke="var(--c-goal)" stroke-width="1.5"/>`;
+  s+=`<line x1="${pl}" x2="${w-pr}" y1="${ya}" y2="${ya}" stroke="var(--c-alarm)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  s+=`<text x="${w-pr+8}" y="${lg+4}" class="lg" fill="var(--c-goal)">цель ${fmt(g.goal)}</text>`;
+  s+=`<text x="${w-pr+8}" y="${la+4}" class="lg" fill="var(--c-alarm)">порог ${fmt(g.alarm)}</text>`;
+  const pts=WEEKS.map((k,i)=>k in g.hist?[X(i),Y(g.hist[k]),g.hist[k],i]:null).filter(Boolean);
+  s+=`<polygon fill="url(#${id})" points="${pts[0][0]},${Y(lo)} ${pts.map(p=>p[0]+","+p[1]).join(" ")} ${pts.at(-1)[0]},${Y(lo)}"/>`;
+  s+=`<polyline fill="none" stroke="var(--c-ln)" stroke-width="2.4" stroke-linejoin="round" points="${pts.map(p=>p[0]+","+p[1]).join(" ")}"/>`;
+  WEEKS.forEach((k,i)=>s+=`<text x="${X(i)}" y="${h-5}" text-anchor="middle" class="ax${i>NOW?" fut":""}">${k}</text>`);
+  pts.forEach(([x,y,v,i])=>{const cur=i===NOW,c=st(g,v);
+    s+=`<circle cx="${x}" cy="${y}" r="${cur?6.5:4.5}" fill="var(--${c})" stroke="var(--gx-bg)" stroke-width="2.5"><title>${WEEKS[i]}: ${fmt(v)}</title></circle>`;
+    const ty=y-12<pt?y+22:y-12;s+=`<text x="${x+(cur?14:0)}" y="${cur?y+4:ty}" text-anchor="${cur?"start":"middle"}" class="tv">${fmt(v)}</text>`});
+  return `<svg class="trend" viewBox="0 0 ${w} ${h}" role="img" aria-label="Динамика: ${g.name}, 4 кв. 2026">${s}</svg>`;
+}
+const E=document.createElement("section");E.className="var";E.id="var-E";
+E.innerHTML=`<header><span class="L">E</span><h2>Плитка + поле</h2><p>Карточка слайда горизонтально: сначала цветная плитка, дальше нейтральное серое поле графика. Нижняя полоса под плиткой — цвета состояния, под графиком продолжается серой. По полю — еле заметная белая пунктирная сетка: по неделям и с шагом по значению.</p></header>
+ <div class="panel"><div class="ph"><h3>Цели слайда — 4 кв. 2026</h3><div class="sw4" role="group" aria-label="Заливка плитки">${["A","B","C","D"].map(k=>`<button type="button" id="fill-${k}" data-k="${k}" aria-pressed="${k==="B"}">${k}</button>`).join("")}</div><div class="stamps"><span class="stamp">plan.csv</span></div></div>
+ <div id="eBox" class="B">${SLIDES.map((g,i)=>`<div class="gx ${g.s}">${tile(g)}<div class="ch"><div class="cap">недели 4 кв. 2026 · пустые справа — сколько осталось</div>${trend2(g,"gx"+i)}</div></div>`).join("")}</div></div>
+ <div class="meta"><div><b>Плюсы</b>Плитка остаётся акцентом, график спокойный и читается на любом фоне плитки; сетка даёт масштаб без тяжёлых осей.</div><div><b>Минусы</b>Карточка из двух фонов — нужна аккуратная стыковка по высоте (решено общей нижней полосой).</div></div>`;
+document.getElementById("variants").appendChild(E);
+E.querySelectorAll(".sw4 button").forEach(b=>b.addEventListener("click",()=>{
+  document.getElementById("eBox").className=b.dataset.k;
+  E.querySelectorAll(".sw4 button").forEach(x=>x.setAttribute("aria-pressed",x===b))}));
+</script>

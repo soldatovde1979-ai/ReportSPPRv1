@@ -16,7 +16,7 @@ html[data-sppr-theme="dark"]{color-scheme:dark;--page:#0F141A;--paper:#19212A;--
 --s-ok:#2FA463;--s-warn:#D9A12A;--s-bad:#EC5545;--s-na:#7D8899;--g0:30%;--g1:9%;
 --grid:#34404C;--nodata:#4A5562;--dim:#6A7682;--diag:#26303B;--g-ok:#4A5868;--heat:#6FA0D8;--heat-hi:#0B1016;--bar:#8FA3B8;--bar2:#6E8297}
 /* 6.7: экспериментальная тема — светлые цвета + эффекты ниже (блок «ЭФФЕКТЫ ТЕМЫ exp») */
-html[data-sppr-theme="exp"]{--page:#E6EAF0;--rule:#E3E8EE;--wash:#F3F5F8;--fl:0 1px 2px rgba(16,24,40,.04),0 6px 16px rgba(16,24,40,.07),0 18px 40px rgba(16,24,40,.06);--fl-s:0 1px 2px rgba(16,24,40,.05),0 3px 8px rgba(16,24,40,.06)}
+html[data-sppr-theme="exp"]{--page:#EEF1FB;--paper:#fff;--ink:#1B1F3B;--ink2:#3D4366;--muted:#6E7393;--rule:#E4E7F5;--wash:#F4F5FD;--c-blue:#5B4CF0;--t-blue:#EEECFF;--c-ai:#8B5CF6;--t-ai:#F7F3FF;--t-ai2:#EFE7FF;--top-bg:#fff;--top-mut:#6E7393;--top-br:transparent;--fl:0 2px 4px rgba(40,36,110,.04),0 10px 28px rgba(40,36,110,.08),0 28px 60px rgba(40,36,110,.06);--fl-s:0 1px 3px rgba(40,36,110,.06),0 4px 12px rgba(40,36,110,.07)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font:15px/1.45 var(--text);color:var(--ink);background:var(--page);font-variant-numeric:tabular-nums}
 .mock{background:var(--t-mock);border-bottom:1px solid var(--t-mock-br);color:var(--t-mock-fg);font-size:13px;padding:7px 24px}
@@ -234,6 +234,39 @@ html[data-sppr-theme="exp"] .slide.on .hb-t i,html[data-sppr-theme="exp"] .slide
 @keyframes sppr-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 @media (prefers-reduced-motion:reduce){html[data-sppr-theme] *{animation:none!important;transition:none!important}}
 @media print{html[data-sppr-theme] *{animation:none!important;transition:none!important;box-shadow:none!important}.thm{display:none}}
+/* ===== 6.15: ЭКСПЕРИМЕНТАЛЬНАЯ ТЕМА — кардинально другая (my-FT Т-116): ни одной рамки, градиентный фон, светлая верхняя панель,
+   фиолетовый акцент, карточки на тенях, штампы-таблетки, градиентные плитки, таблицы без линий ===== */
+html[data-sppr-theme="exp"] *,html[data-sppr-theme="exp"] *::before,html[data-sppr-theme="exp"] *::after{border-color:transparent!important;outline-color:transparent}
+html[data-sppr-theme="exp"] body{background:linear-gradient(135deg,#EAF0FF 0%,#F3EEFF 45%,#E9FBFF 100%) fixed}
+html[data-sppr-theme="exp"] .top{background:rgba(255,255,255,.96);color:var(--ink);box-shadow:0 4px 24px rgba(40,36,110,.10)}
+html[data-sppr-theme="exp"] .top h1{color:var(--ink)}html[data-sppr-theme="exp"] .top button{color:var(--ink2);background:var(--wash);border-radius:20px}
+html[data-sppr-theme="exp"] .top button:hover{background:var(--t-blue);color:var(--c-blue)}html[data-sppr-theme="exp"] #cnt{color:var(--ink2)}
+html[data-sppr-theme="exp"] .thm{background:var(--wash);border-radius:20px}html[data-sppr-theme="exp"] .top .thm button[aria-pressed="true"]{background:var(--c-blue);color:#fff}
+html[data-sppr-theme="exp"] .top #tk-save{background:var(--c-blue);color:#fff}
+html[data-sppr-theme="exp"] .rail a{border-radius:20px}html[data-sppr-theme="exp"] .rail a.on{background:linear-gradient(90deg,#5B4CF0,#8B5CF6);color:#fff;box-shadow:0 6px 18px rgba(91,76,240,.30)}
+html[data-sppr-theme="exp"] .rail a.on span{color:#fff}
+html[data-sppr-theme="exp"] .sh h2{background:linear-gradient(90deg,#1B1F3B,#5B4CF0);-webkit-background-clip:text;background-clip:text;color:transparent}
+html[data-sppr-theme="exp"] .panel,html[data-sppr-theme="exp"] .kpi,html[data-sppr-theme="exp"] .case,html[data-sppr-theme="exp"] .tc,html[data-sppr-theme="exp"] .gbox{border-radius:18px;box-shadow:var(--fl)}
+html[data-sppr-theme="exp"] .panel{padding:20px 24px 18px}html[data-sppr-theme="exp"] .ph h3{font-size:18px}
+html[data-sppr-theme="exp"] .aibox{background:linear-gradient(160deg,#F7F3FF,#fff 55%)}
+html[data-sppr-theme="exp"] .stamp{border-radius:20px;background:var(--t-blue);color:var(--c-blue);box-shadow:none}
+html[data-sppr-theme="exp"] .s-ai{background:var(--t-ai2);color:var(--c-ai-ink)}html[data-sppr-theme="exp"] .s-demo{background:var(--t-warn)}
+html[data-sppr-theme="exp"] .tid{background:var(--t-blue);border-radius:20px;box-shadow:none;padding:1px 8px}
+html[data-sppr-theme="exp"] .tx{border-radius:50%;background:var(--t-blue);box-shadow:none}
+html[data-sppr-theme="exp"] .itile{border-radius:18px;box-shadow:0 10px 24px rgba(40,36,110,.18)}
+html[data-sppr-theme="exp"] .itile.t-open{background:linear-gradient(135deg,#C2255C,#7A1236)}html[data-sppr-theme="exp"] .itile.t-in{background:linear-gradient(135deg,#F2574A,#C2255C)}
+html[data-sppr-theme="exp"] .itile.t-sol{background:linear-gradient(135deg,#12B886,#0B7285)}html[data-sppr-theme="exp"] .itile.t-ai{background:linear-gradient(135deg,#8B5CF6,#5B4CF0)}
+html[data-sppr-theme="exp"] thead th{color:var(--muted);font-size:12px;letter-spacing:.02em}
+html[data-sppr-theme="exp"] tbody tr:nth-child(even){background:var(--wash)}
+html[data-sppr-theme="exp"] tbody tr:hover{background:linear-gradient(90deg,var(--t-blue),transparent 90%)}
+html[data-sppr-theme="exp"] .ai-note{background:linear-gradient(90deg,#F3EEFF,#fff);border-radius:14px}
+html[data-sppr-theme="exp"] .ai-note i{background:linear-gradient(135deg,#8B5CF6,#5B4CF0);border-radius:50%}
+html[data-sppr-theme="exp"] details.cellar{background:rgba(255,255,255,.55);box-shadow:var(--fl-s);border-radius:18px}
+html[data-sppr-theme="exp"] .tk-form input,html[data-sppr-theme="exp"] .tk-form select{background:var(--wash);box-shadow:none;border-radius:10px}
+html[data-sppr-theme="exp"] .tk-form button,html[data-sppr-theme="exp"] .tk-add,html[data-sppr-theme="exp"] .more{border-radius:20px}
+html[data-sppr-theme="exp"] .tk-form button{background:linear-gradient(90deg,#5B4CF0,#8B5CF6)}
+html[data-sppr-theme="exp"] .tk-st{border-radius:20px}
+html[data-sppr-theme="exp"] .mock{background:#FFF8E1;color:#5B4A0B}
 </style><script>
 // 6.7: темы отчёта (my-FT Т-116). Добавить тему: блок html[data-sppr-theme="id"]{переменные} в стилях (и, если нужно,
 // эффекты, как у exp) + строка в THEMES: [id, значок, название]. Остальное — само: кнопка, запоминание выбора, печать.

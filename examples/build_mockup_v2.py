@@ -8,7 +8,7 @@
 #                         python3 examples/build_mockup_v2.py --stub 1   # заглушка ИИ 1–3 → mockup_report_v2_stub<N>.html
 # Windows (PowerShell):   py examples\build_mockup_v2.py --stub 2
 # ----------------------------------------------------------------------
-VERSION = "2.10"     # 2.10 — заглушка ИИ (AI_STUB / --stub: 1 пусто, 2 промпт блока, 3 текст из отчёта W41); 2.9 — цели и поручения из plan.csv; 2.8 — модуль — старший src/report_v*.py, шаблон — того же мажора (смена мажора без правки файла); 2.7 — неделя макета зафиксирована (REPORT_WEEK = 39); 2.6 — тонкая обёртка над модулем 5.x
+VERSION = "2.11"     # 2.11 — постоянные номера элементов (examples/element_ids.json, my-FT Т-118); 2.10 — заглушка ИИ (AI_STUB / --stub: 1 пусто, 2 промпт блока, 3 текст из отчёта W41); 2.9 — цели и поручения из plan.csv; 2.8 — модуль — старший src/report_v*.py, шаблон — того же мажора (смена мажора без правки файла); 2.7 — неделя макета зафиксирована (REPORT_WEEK = 39); 2.6 — тонкая обёртка над модулем 5.x
 # выгрузка; демо-копия с табличными частями — examples/sppr_dump_20260929_180748_842rec_demo_tab.json
 DUMP_FILE = "examples/sppr_dump_20260929_180748_842rec_demo_tab.json"
 AI_FILE = "examples/mockup_v2_ai.json"
@@ -24,6 +24,7 @@ REPORT_WEEK = 39                     # номер ISO-недели; 39 — не�
 # ----------------------------------------------------------------------
 AI_STUB = 0                          # 0 — выкл; 1 — пусто; 2 — промпт блока; 3 — текст из готового отчёта
 NOTEBOOK_FILE = "RepSSPR.ipynb"      # откуда брать промпты для заглушки 2
+IDS_FILE = "examples/element_ids.json"   # постоянные номера элементов макета «слайд.номер» — не меняются и не переиспользуются
 
 import argparse, glob, json, os, re, sys, importlib.util
 
@@ -82,5 +83,92 @@ html = rv.render(R, open(TEMPLATE_FILE, encoding="utf-8").read(), strict=True,
                          f"разметку ИИ для макета сделал Claude по правилам промпта ноутбука. Это не боевой отчёт."
                          + (f" Заглушка ИИ {STUB}: {rv.STUB_MODES[STUB]} — ответы разборов, критичных, планшетов, повторов "
                             f"и старых открытых заменены" if STUB else ""))
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО (2.11): номера элементов макета — постоянные: элемент узнаётся по подписи «слайд | вид | название без цифр
+#               | порядковый среди одинаковых», номер берётся из IDS_FILE; новому — следующий свободный на слайде; номер
+#               удалённого элемента больше не выдаётся. Список номеров — в блоке «только макет» (после плашки), скрипт
+#               шаблона показывает их по порядку элементов на странице
+# ПОЧЕМУ: my-FT Т-118 — «номера не должны вообще-то меняться»: ссылки в обсуждении остаются верными после правок
+# ----------------------------------------------------------------------
+from html.parser import HTMLParser
+
+ENUM_CLASSES = ("panel", "kpi", "gbox", "tc", "itile", "ai-note")    # = SEL скрипта нумерации в шаблоне
+ENUM_SVG = ("chart", "gtr", "trend")
+VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
+
+
+class EnumScan(HTMLParser):
+    """Элементы, которые нумерует шаблон, в порядке документа: [(слайд, вид, название)] — для подписи номера."""
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.stack, self.out, self.slide, self.head = [], [], None, None
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        cls = (a.get("class") or "").split()
+        if tag == "article" and "slide" in cls:
+            self.slide = a.get("id")
+        kind = None
+        if self.slide:
+            if tag == "table":
+                kind = "table"
+            elif tag == "svg" and set(cls) & set(ENUM_SVG):
+                kind = "svg"
+            elif set(cls) & set(ENUM_CLASSES):
+                kind = next(c for c in ENUM_CLASSES if c in cls)
+        rec = None
+        if kind:
+            parent = next((r for r in reversed(self.stack) if r and r[1] is not None), None)
+            rec = [self.slide, kind, "", parent]
+            self.out.append(rec)
+        if tag in ("h3", "h4", "span") and self.head is None:
+            owner = next((r for r in reversed(self.stack) if r and r[1] and not r[2]), None)
+            if owner and (tag != "span" or owner[1] in ("tc", "itile")):
+                self.head = [owner, ""]
+        if tag not in VOID:
+            self.stack.append(rec)
+
+    def handle_endtag(self, tag):
+        if self.head and tag in ("h3", "h4", "span"):
+            owner, txt = self.head
+            owner[2] = re.sub(r"[\d.,%−+–-]+", "#", " ".join(txt.split()))[:60] or "—"
+            self.head = None
+        if tag == "article":
+            self.slide = None
+        if self.stack and tag not in VOID:
+            self.stack.pop()
+
+    def handle_data(self, data):
+        if self.head:
+            self.head[1] += data
+
+
+def enum_numbers(page, ids_path):
+    """Номера элементов по слайдам в порядке страницы; IDS_FILE дополняется новыми, старые не трогаются."""
+    sc = EnumScan()
+    sc.feed(page)
+    ids = json.load(open(ids_path, encoding="utf-8")) if os.path.exists(ids_path) else {"slides": {}, "items": {}, "next": {}}
+    order = re.findall(r'<article class="slide" id="(s\d+)"', page)
+    for k in order:                                   # номер слайда закрепляется при первом появлении
+        ids["slides"].setdefault(k, max(ids["slides"].values(), default=0) + 1)
+    seen, out, new = {}, {}, 0
+    for slide, kind, name, parent in sc.out:
+        label = name or ((parent[2] if parent else "") + " · " + kind)
+        sig = f"{slide} | {kind} | {label}"
+        seen[sig] = seen.get(sig, 0) + 1
+        sig += f" | {seen[sig]}"
+        if sig not in ids["items"]:
+            n = ids["next"].get(slide, 1)
+            ids["items"][sig] = f'{ids["slides"][slide]}.{n}'
+            ids["next"][slide] = n + 1
+            new += 1
+        out.setdefault(slide, []).append(ids["items"][sig])
+    json.dump(ids, open(ids_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1, sort_keys=True)
+    return out, new
+
+
+nums, new = enum_numbers(html, IDS_FILE)
+print(f"Номера элементов: {sum(map(len, nums.values()))}, новых {new} → {IDS_FILE}")
+html = html.replace('</div><style>\n/* 6.10: только макет', '</div><script>window.SPPR_ENUM=' + json.dumps(nums) + '</script><style>\n/* 6.10: только макет', 1)
 open(OUT_FILE, "w", encoding="utf-8").write(html)
 print(f"Записан {OUT_FILE}: {len(html)//1024} КБ, слайдов {len(rv.ORDER)}")

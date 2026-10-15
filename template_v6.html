@@ -1,4 +1,4 @@
-{#- template_v6.html · TEMPLATE_VERSION = "6.10" · 15.10.2026
+{#- template_v6.html · TEMPLATE_VERSION = "6.11" · 15.10.2026
     Оболочка отчёта ReportSPPR v6: стили, верхняя панель, меню слайдов, переключение слайдов.
     Слайды и меню собирает модуль src/report_v6.py (render) — он же проверяет мажор этого шаблона.
     Переменные: title — заголовок вкладки; banner — плашка над отчётом (только макет), текст;
@@ -28,7 +28,8 @@
     6.8: цели — вертикальные боксы .gbox (my-FT Т-114): плитка .gb-t, шкала .gb-sc, график .gtr; состояние — класс .gs-ok/-warn/-bad/-na
     (переменные --s-*, --g0/--g1 у тем). Старые стили плиток .gt*, .goals .gr, .bullet больше не используются.
     6.9: окно расшифровки — значки у заголовков: «Описание» (запрос) — облачко с вопросом, «Решение» — галочка (my-FT Т-117).
-    6.10: только макет (banner задан) — номера элементов «слайд.номер» — маленькие серые, еле заметные (my-FT Т-118). -#}
+    6.10: только макет (banner задан) — номера элементов «слайд.номер» — маленькие серые, еле заметные (my-FT Т-118).
+    6.11: номера макета постоянные — список window.SPPR_ENUM кладёт сборщик (examples/element_ids.json); у элемента — data-n. -#}
 <!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }}</title><style>:root,html[data-theme="light"]{--page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
 --ph-wait:#8A94A6;--ph-clar:#C9A227;--ph-solve:#5D86B0;
 --top-bg:#18222D;--top-mut:#C5D0DC;--top-br:#6B7B8C;
@@ -251,8 +252,10 @@ if(!THEMES.some(x=>x[0]===t))t=THEMES[0][0];document.documentElement.dataset.the
 // нумерация по порядку на странице: блоки, плитки и боксы, графики, таблицы, выводы ИИ; номер — «слайд.элемент»
 document.addEventListener('DOMContentLoaded',()=>{
 const SEL='.panel,.kpi,.gbox,.tc,.itile,.ai-note,svg.chart,svg.gtr,svg.trend,table';
-document.querySelectorAll('.slide').forEach((s,k)=>{let n=0;
-  s.querySelectorAll(SEL).forEach(el=>{n++;const b=document.createElement('span');b.className='enum';b.textContent=(k+1)+'.'+n;
+// 6.11: номера — постоянные из сборщика макета (window.SPPR_ENUM[слайд][i], examples/element_ids.json); нет списка — по порядку
+const EN=window.SPPR_ENUM||{};
+document.querySelectorAll('.slide').forEach((s,k)=>{let n=0;const L=EN[s.id]||[];
+  s.querySelectorAll(SEL).forEach(el=>{const b=document.createElement('span');b.className='enum';b.textContent=L[n]||((k+1)+'.'+(n+1));n++;el.dataset.n=b.textContent;
     if(el.tagName==='svg'||el.tagName==='SVG'||el.tagName==='TABLE'){const w=document.createElement('span');w.className='enum-w';w.appendChild(b);el.before(w)}
     else{if(getComputedStyle(el).position==='static')el.style.position='relative';el.prepend(b)}})})});
 </script>{% endif %}<div class="top"><h1>Качество 1С-поддержки</h1><span class="per">{{ period }}</span><span class="sp"></span><button id="prev">←</button><span id="cnt"></span><button id="next">→</button><button id="all">Все слайды</button><span class="thm" id="thm" role="group" aria-label="Тема оформления"></span></div><div class="wrap"><nav class="rail" aria-label="Слайды">{{ rail|safe }}</nav><main>{{ slides|safe }}</main></div><dialog id="xdlg" aria-label="Описание и решение обращения"><div class="xw"><button class="xc" aria-label="Закрыть">✕</button><div class="xb"></div></div></dialog><script>

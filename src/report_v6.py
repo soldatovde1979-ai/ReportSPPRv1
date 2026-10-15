@@ -13,7 +13,7 @@
 #   attach_ai(R, разметка, stub=N, prompts=..., sample=...)  # 6.8: заглушка ИИ вместо ответов этапов (STUB_MODES)
 #   html = render(R, текст_шаблона, title=...)
 # ----------------------------------------------------------------------
-VERSION = "6.10"                # 6.10 — цвета линий, полос, точек и тепловой карты — переменные шаблона (темы, my-FT Т-116); 6.9 — «Проблема» решений и «Первопричина» недели с подстановкой цифр (my-FT Т-115); 6.8 — заглушка ИИ (AI_STUB 0–3: выкл / пусто / промпт блока / текст готового отчёта) вместо ответов этапов ИИ, без вызовов модели; 6.7 — отложенное исправление: ссылка и срок во всём решении, без ksr; панель на s4 с решением целиком; доля запланированных открытых инцидентов (ksr) — inc_plan_pct (my-FT Т-107, Т-111); 6.6 — отложенное исправление в плане (ksr, my-FT Т-107); плитки целей — яркий фон, условия своими цветами (Т-110); 6.5 — расшифровка обращения: значок у номера у всех, окно с текстом из 1С без сокращений; 6.4 — основной срок решения — из 1С (tab_sla), расчётный — общий срок с уточнениями (my-FT Т-106); 6.3 — вид целей: плитка в стиле KPI, цель/порог/до цели колонкой, срок цели, график — квартал, акцентные цвета (my-FT Т-108); 6.2 — цели и поручения из plan.csv: табло, строки «плитка + динамика», поручения, подвал (my-FT Р-14); 6.1 — первый слайд возвращён к виду 5.6, s12 и светофор убраны (ksr остался); 6.0 — мажор вровень с ноутбуком 6.0 (два режима запуска, my-FT Т-99); расчёт и вёрстка как в 5.7
+VERSION = "6.11"                # 6.11 — цели — вертикальные боксы: плитка + график, градиент сверху вниз, шкала «цель — порог» (my-FT Т-114); 6.10 — цвета линий, полос, точек и тепловой карты — переменные шаблона (темы, my-FT Т-116); 6.9 — «Проблема» решений и «Первопричина» недели с подстановкой цифр (my-FT Т-115); 6.8 — заглушка ИИ (AI_STUB 0–3: выкл / пусто / промпт блока / текст готового отчёта) вместо ответов этапов ИИ, без вызовов модели; 6.7 — отложенное исправление: ссылка и срок во всём решении, без ksr; панель на s4 с решением целиком; доля запланированных открытых инцидентов (ksr) — inc_plan_pct (my-FT Т-107, Т-111); 6.6 — отложенное исправление в плане (ksr, my-FT Т-107); плитки целей — яркий фон, условия своими цветами (Т-110); 6.5 — расшифровка обращения: значок у номера у всех, окно с текстом из 1С без сокращений; 6.4 — основной срок решения — из 1С (tab_sla), расчётный — общий срок с уточнениями (my-FT Т-106); 6.3 — вид целей: плитка в стиле KPI, цель/порог/до цели колонкой, срок цели, график — квартал, акцентные цвета (my-FT Т-108); 6.2 — цели и поручения из plan.csv: табло, строки «плитка + динамика», поручения, подвал (my-FT Р-14); 6.1 — первый слайд возвращён к виду 5.6, s12 и светофор убраны (ksr остался); 6.0 — мажор вровень с ноутбуком 6.0 (два режима запуска, my-FT Т-99); расчёт и вёрстка как в 5.7
 # ----------------------------------------------------------------------
 # ЧТО ИЗМЕНЕНО (6.0): файл переименован report_v5.py → report_v6.py; TEMPLATE_MAJOR берётся из VERSION; имена модуля
 #               и шаблона в паспорте и в ошибках — из мажора; ноутбук в паспорте — RepSSPR.ipynb. Расчёт не менялся
@@ -1619,42 +1619,111 @@ def metrics_table(R):
              "слайд по умолчанию": METRIC_SLIDE.get(k, "")} for k, v in R.M.items()]
 
 
-def _trend_svg(g, w=620, h=112):
-    """Динамика цели за квартал: линия цели (сплошная), порог (пунктир), значения — линией, точки — цветом статуса;
-    будущие недели квартала пустые — видно, сколько осталось до срока цели. Без заливок (my-FT Т-108)."""
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО (6.11): цель — вертикальный бокс: плитка сверху (число, цель / порог / до цели колонкой, шкала «цель — порог»,
+#               срок), под ней график недель квартала; градиент цвета состояния сверху вниз затухает к графику. Цвета —
+#               переменные темы (класс gs-<состояние>). График не растягивается (без preserveAspectRatio="none"): шрифт
+#               не плющится, подписи цели и порога разводятся, будущие недели — точками. Табло и цели слайда — одни боксы.
+# ПОЧЕМУ: my-FT Т-114, В-32, В-33 — плитки целей «невозможно смотреть», график с плиткой «не бьётся»; Т-110 заменён
+# ----------------------------------------------------------------------
+GOAL_SHORT = {"ok": "в цели", "warn": "на грани", "bad": "хуже порога", "na": "нет данных"}
+_GTR_N = [0]                                      # счётчик id заливки графика: несколько графиков на странице
+
+
+def _fmtg(v):
+    """Число цели для показа: «−» вместо дефиса у отрицательных."""
+    return _fmtn(v).replace("-", "−")
+
+
+def _goal_pct(g, vals):
+    """Доля в процентах — шкала и график до 100."""
+    return "%" in g["name"] and max(vals) <= 100
+
+
+def _goal_scale(g):
+    """Шкала «цель — порог»: зелёный, жёлтый, красный отрезки, яркий — где значение сейчас; метка — значение."""
+    v, goal, alarm, lower = g["value"], g["goal"], g["alarm"], g["lower"]
+    if v is None:
+        return ""
+    vals = [v, goal] + ([alarm] if alarm is not None else [])
+    if _goal_pct(g, vals) and not lower:
+        lo, hi = 0.0, 100.0
+    else:
+        lo = min(0.0, v, goal)
+        hi = max((alarm if alarm is not None else goal) * 1.35, v * 1.1, goal + 1)
+        lo = lo * 1.4 if lo < 0 else lo
+    P = lambda x: (x - lo) / ((hi - lo) or 1) * 100
+    if lower:
+        zs = [(lo, goal, "ok")] + ([(goal, alarm, "warn"), (alarm, hi, "bad")] if alarm is not None else [(goal, hi, "bad")])
+    else:
+        zs = ([(lo, alarm, "bad"), (alarm, goal, "warn")] if alarm is not None else [(lo, goal, "bad")]) + [(goal, hi, "ok")]
+    z = "".join(f'<i class="z {c}{" hit" if c == g["color"] else ""}" style="left:{P(x0):.1f}%;width:calc({P(x1) - P(x0):.1f}% - 2px)"></i>'
+                for x0, x1, c in zs if x1 > x0)
+    return (f'<div class="gb-sc" role="img" aria-label="шкала: зелёное — цель, красное — за порогом; метка — {_fmtg(v)}">{z}'
+            f'<i class="m" style="left:{min(max(P(v), 0), 100):.1f}%"></i></div>')
+
+
+def _trend_svg(g, mini=False):
+    """Динамика цели за квартал (my-FT Т-108, Т-114): линия и заливка цвета состояния, цель — сплошная, порог — пунктир,
+    подписи слева; будущие недели — точками на оси; текущая неделя — крупная точка с числом. mini — для табло."""
     ser = g["series"]
+    w, h = (300, 118) if mini else (520, 170)
+    pl, pr, pt, pb = (44 if mini else 72), 10, 18, 22
     vals = [v for _, v, _ in ser if v is not None] + [g["goal"]] + ([g["alarm"]] if g["alarm"] is not None else [])
-    lo, hi = min(0.0, min(vals)), max(vals) * 1.18 or 1.0
-    pl, pr, pt, pb = 8, 64, 14, 20
+    lo, hi = min(0.0, min(vals)), (max(vals) * 1.12) or 1.0
+    if _goal_pct(g, vals):
+        lo, hi = 0.0, 100.0
     n = len(ser)
-    X = lambda i: pl + (w - pl - pr) * (i + .5) / n
+    X = lambda i: pl + 14 + (w - pl - 14 - pr) * i / max(n - 1, 1)
     Y = lambda v: pt + (h - pt - pb) * (1 - (v - lo) / ((hi - lo) or 1))
-    # 6.10: линия и подписи — переменные шаблона: в тёмной теме не пропадают (my-FT Т-116)
-    ok, bad, ink, mut = GOAL_COLOR["ok"][0], GOAL_COLOR["bad"][0], "var(--ink2)", "var(--dim)"
-    s = (f'<line x1="{pl}" x2="{w - pr}" y1="{Y(g["goal"]):.1f}" y2="{Y(g["goal"]):.1f}" stroke="{ok}" stroke-width="1.6"/>'
-         f'<text x="{w - pr + 6}" y="{Y(g["goal"]) + 4:.1f}" class="tg" fill="{ok}">цель {_fmtn(g["goal"])}</text>')
-    if g["alarm"] is not None:
-        s += (f'<line x1="{pl}" x2="{w - pr}" y1="{Y(g["alarm"]):.1f}" y2="{Y(g["alarm"]):.1f}" stroke="{bad}" stroke-width="1.2" stroke-dasharray="5 4"/>'
-              f'<text x="{w - pr + 6}" y="{Y(g["alarm"]) + 4:.1f}" class="tg" fill="{bad}">порог {_fmtn(g["alarm"])}</text>')
-    pts = [(X(i), Y(v), v, lab, c, i == max(j for j, (_, _, f) in enumerate(ser) if not f))
-           for i, ((lab, v, fut), c) in enumerate(zip(ser, g["colors"])) if v is not None]
+    _GTR_N[0] += 1
+    gid = f"gtr{_GTR_N[0]}"
+    s = (f'<defs><linearGradient id="{gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--st)" stop-opacity=".25"/>'
+         f'<stop offset="1" stop-color="var(--st)" stop-opacity="0"/></linearGradient></defs>'
+         f'<line x1="{pl}" x2="{w - pr}" y1="{Y(lo):.1f}" y2="{Y(lo):.1f}" stroke="var(--rule)"/>')
+    yg = Y(g["goal"])
+    ya = Y(g["alarm"]) if g["alarm"] is not None else None
+    lg, la = yg, ya
+    if ya is not None and abs(yg - ya) < 15:                 # подписи цели и порога не наезжают
+        m, d = (yg + ya) / 2, (7.5 if yg > ya else -7.5)
+        lg, la = m + d, m - d
+    s += (f'<line x1="{pl}" x2="{w - pr}" y1="{yg:.1f}" y2="{yg:.1f}" stroke="var(--c-ok)" stroke-width="1.4"/>'
+          f'<text x="{pl - 6}" y="{lg + 4:.1f}" text-anchor="end" class="lg" fill="var(--c-ok)">{"" if mini else "цель "}{_fmtg(g["goal"])}</text>')
+    if ya is not None:
+        s += (f'<line x1="{pl}" x2="{w - pr}" y1="{ya:.1f}" y2="{ya:.1f}" stroke="var(--c-bad)" stroke-width="1.4" stroke-dasharray="5 4"/>'
+              f'<text x="{pl - 6}" y="{la + 4:.1f}" text-anchor="end" class="lg" fill="var(--c-bad)">{"" if mini else "порог "}{_fmtg(g["alarm"])}</text>')
+    cur_i = max((j for j, (_, _, f) in enumerate(ser) if not f), default=-1)
+    pts = [(X(i), Y(v), v, lab, c, i == cur_i) for i, ((lab, v, fut), c) in enumerate(zip(ser, g["colors"])) if v is not None]
     if len(pts) > 1:
-        s += f'<polyline fill="none" stroke="{ink}" stroke-width="1.8" points="' + " ".join(f"{x:.1f},{y:.1f}" for x, y, *_ in pts) + '"/>'
+        line = " ".join(f"{x:.1f},{y:.1f}" for x, y, *_ in pts)
+        s += (f'<polygon fill="url(#{gid})" points="{pts[0][0]:.1f},{Y(lo):.1f} {line} {pts[-1][0]:.1f},{Y(lo):.1f}"/>'
+              f'<polyline fill="none" stroke="var(--st)" stroke-width="2.4" stroke-linejoin="round" points="{line}"/>')
     for i, (lab, v, fut) in enumerate(ser):
-        s += f'<text x="{X(i):.1f}" y="{h - 5}" text-anchor="middle" class="tl"{" fill=" + chr(34) + mut + chr(34) if fut else ""}>{E(lab)}</text>'
+        if fut:
+            s += f'<circle cx="{X(i):.1f}" cy="{Y(lo):.1f}" r="1.8" fill="var(--dim)"/>'
+        if not mini or i in (0, n // 2, n - 1):
+            s += f'<text x="{X(i):.1f}" y="{h - 5}" text-anchor="middle" class="ax{" fut" if fut else ""}">{E(lab)}</text>'
     for x, y, v, lab, c, cur in pts:
-        s += (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{5.5 if cur else 3.6}" fill="{GOAL_COLOR[c][0]}" stroke="var(--paper)" stroke-width="{2 if cur else 1}">'
-              f'<title>{E(lab)}: {_fmtn(v)}</title></circle>'
-              f'<text x="{x:.1f}" y="{y - 9:.1f}" text-anchor="middle" class="tv">{_fmtn(v)}</text>')
+        s += (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{6 if cur else 4}" fill="var(--s-{c})" stroke="var(--paper)" stroke-width="2">'
+              f'<title>{E(lab)}: {_fmtg(v)}</title></circle>')
+        if cur and x > w - pr - 40:                          # последняя неделя квартала — число над точкой, не за краем
+            s += f'<text x="{x:.1f}" y="{y - 11:.1f}" text-anchor="end" class="tv">{_fmtg(v)}</text>'
+        elif cur:
+            s += f'<text x="{x + 12:.1f}" y="{y + 4:.1f}" class="tv">{_fmtg(v)}</text>'
+        elif not mini:                                       # на табло — число только у текущей недели
+            s += f'<text x="{x:.1f}" y="{y + 20 if y - 11 < pt - 4 else y - 11:.1f}" text-anchor="middle" class="tv">{_fmtg(v)}</text>'
     if len(pts) < 2:
-        s += f'<text x="{pl + 4}" y="{h - pb - 6}" class="tl">прошлых недель квартала в истории пока нет — точки появятся со следующих прогонов</text>'
-    return f'<svg class="trend" viewBox="0 0 {w} {h}" preserveAspectRatio="none" role="img">{s}</svg>'
+        # подсказка — сверху или снизу поля, где дальше от линий цели и порога
+        lines = [yg] + ([ya] if ya is not None else [])
+        top, bot = pt + 8, h - pb - 6
+        hy = top if min(abs(top - y) for y in lines) > min(abs(bot - y) for y in lines) else bot
+        s += (f'<text x="{pl + 14}" y="{hy}" class="ax">'
+              f'{"история — со следующих прогонов" if mini else "прошлых недель в истории ещё нет — появятся со следующих прогонов"}</text>')
+    return f'<svg class="gtr" viewBox="0 0 {w} {h}" role="img" aria-label="Динамика по неделям квартала: {E(g["name"])}">{s}</svg>'
 
 
-def _goal_tile(g, href=None):
-    """Плитка цели — светофор (my-FT Т-110): яркий фон цвета состояния, как плитки «Инциденты в цифрах»; число белым;
-    справа колонкой — цель, порог, до цели, каждое своим цветом на белой плашке; ниже — срок цели и состояние."""
-    col, word = GOAL_COLOR[g["color"]]
+def _goal_tile(g):
+    """Плитка цели — верх бокса: название и состояние, число цветом состояния, колонкой цель / порог / до цели, шкала, срок."""
     sg, sa = ("≤", ">") if g["lower"] else ("≥", "<")
     if g["value"] is None:
         gap = "нет значения"
@@ -1662,13 +1731,19 @@ def _goal_tile(g, href=None):
         gap = "цель достигнута"
     else:
         gap = f"до цели {'−' if g['lower'] else '+'}{_fmtn(abs(g['value'] - g['goal']))}"
-    name = f'<a href="{href}">{E(g["name"])}</a>' if href else E(g["name"])
     run = f' · в цели {g["ok_run"]} нед. — поднять планку?' if g["ok_run"] >= ACHIEVED_WEEKS else ""
-    return (f'<div class="gt gt-{g["color"]}" style="--gc:{col}"><h4>{name}</h4>'
-            f'<div class="gt-b"><div class="gt-v">{_fmtn(g["value"])}</div>'
-            f'<div class="gt-c"><span class="c-goal">цель {sg} {_fmtn(g["goal"])}</span><span class="c-alarm">порог {sa} {_fmtn(g["alarm"])}</span>'
-            f'<span class="c-gap">{gap}</span></div></div>'
-            f'<div class="gt-d">к {MON_FULL_GEN[g["due"].month]} {g["due"].year} · <b>{word}</b>{run}</div></div>')
+    alarm = f'<span>порог</span><b>{sa} {_fmtg(g["alarm"])}</b>' if g["alarm"] is not None else ""
+    return (f'<div class="gb-t"><div class="gb-h"><h4>{E(g["name"])}</h4><span class="gb-w">{GOAL_SHORT[g["color"]]}</span></div>'
+            f'<div class="gb-r"><div class="gb-v">{_fmtg(g["value"])}</div>'
+            f'<div class="gb-c"><span>цель</span><b>{sg} {_fmtg(g["goal"])}</b>{alarm}<span class="gp">{gap}</span></div></div>'
+            f'{_goal_scale(g)}<div class="gb-d">к {MON_FULL_GEN[g["due"].month]} {g["due"].year}{run}</div></div>')
+
+
+def _goal_box(g, mini=False, href=None):
+    """Бокс цели: плитка + график; на табло весь бокс — ссылка на слайд цели."""
+    tag, attr = ("a", f' href="{href}" title="Открыть слайд цели"') if href else ("div", "")
+    return (f'<{tag} class="gbox gs-{g["color"]}"{attr}>{_goal_tile(g)}'
+            f'<div class="gb-g">{_trend_svg(g, mini)}</div></{tag}>')
 
 
 def _quarter_label(R):
@@ -1681,7 +1756,7 @@ def goal_rows_html(R, key):
     gs = [g for g in R.PLAN["goals"] if g["slide"] == key]
     if not gs:
         return ""
-    rows = "".join(f'<div class="gr">{_goal_tile(g)}<div class="gr-t">{_trend_svg(g)}</div></div>' for g in gs)
+    rows = '<div class="gboxes gboxes-s">' + "".join(_goal_box(g) for g in gs) + "</div>"   # 6.11: вертикальные боксы (Т-114)
     return (f'<section class="panel goals"><header class="ph"><h3>Цели слайда — {_quarter_label(R)}</h3>'
             f'<div class="stamps"><span class="stamp">plan.csv</span></div></header><div class="pb">{rows}</div>'
             f'<p class="why"><b>Что это.</b> Цели из plan.csv: значение за {R.PER_S} (очередь — на срез), цель и порог, срок цели; '
@@ -1699,14 +1774,14 @@ def board_html(R):
     for gname, items in NAV:
         gs = [g for k, _ in items for g in on if g["slide"] == k]
         if gs:
-            groups += (f'<div class="bd-g"><div class="act">{E(gname)}</div><div class="bd">'
-                       + "".join(_goal_tile(g, href=f"#{g['slide']}") for g in gs) + "</div></div>")
+            groups += (f'<div class="bd-g"><div class="act">{E(gname)}</div><div class="gboxes">'   # 6.11: боксы с мини-графиком (Т-114)
+                       + "".join(_goal_box(g, mini=True, href=f"#{g['slide']}") for g in gs) + "</div></div>")
     cnt = Counter(g["color"] for g in on)
     head = " · ".join(f"{GOAL_COLOR[c][1]} — {cnt[c]}" for c in ("bad", "warn", "ok", "na") if cnt[c])
     return (f'<section class="panel board"><header class="ph"><h3>Табло целей — {_quarter_label(R)}</h3><div class="stamps"><span class="stamp">{E(head)}</span></div></header>'
             f'<div class="pb">{groups}</div>'
             f'<p class="why"><b>Что это.</b> Цели из plan.csv с отметкой «на табло»: значение за {R.PER_S} (очередь — на срез), цвет — по цели и порогу, '
-            f'срок цели — месяц и год. Клик по названию — слайд с динамикой и поручениями.</p>'
+            f'срок цели — месяц и год; график — недели квартала. Клик по боксу — слайд с динамикой и поручениями.</p>'
             f'<p class="use"><b>Польза / проблема.</b> Один взгляд: красное — тема совещания и поручение; зелёное держится '
             f'{ACHIEVED_WEEKS} нед. — цель можно поднять. Цели и пороги меняются в plan.csv без правки кода.</p></section>')
 
@@ -1809,6 +1884,7 @@ def _months6(R):
 
 def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
     """Слайды отчёта: (меню, {ключ слайда: HTML}). with_ai=False — без блоков «Разбор ИИ по слайду» (текст для промпта)."""
+    _GTR_N[0] = 0                    # 6.11: id заливок графиков целей — с нуля в каждой сборке, отчёт воспроизводим
     raw, rows, dropped = R.raw, R.rows, R.dropped
     AI, AIT, AIO, BYID, RAWID, M = R.AI, R.AIT, R.AIO, R.BYID, R.RAWID, R.M
     NOW, WS, WE, WEEK, DAYS, PER, PER_S, rule, in_per = R.NOW, R.WS, R.WE, R.WEEK, R.DAYS, R.PER, R.PER_S, R.rule, R.in_per

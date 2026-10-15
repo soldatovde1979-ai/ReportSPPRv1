@@ -1,4 +1,4 @@
-{#- template_v6.html · TEMPLATE_VERSION = "6.7" · 15.10.2026
+{#- template_v6.html · TEMPLATE_VERSION = "6.8" · 15.10.2026
     Оболочка отчёта ReportSPPR v6: стили, верхняя панель, меню слайдов, переключение слайдов.
     Слайды и меню собирает модуль src/report_v6.py (render) — он же проверяет мажор этого шаблона.
     Переменные: title — заголовок вкладки; banner — плашка над отчётом (только макет), текст;
@@ -24,13 +24,16 @@
     6.6: заглушка ИИ (my-FT Т-113) — пометка .ai-stub в блоках ИИ: режим заглушки и текст промпта (pre, с переносами).
     6.7: темы (my-FT Т-116) — светлая, тёмная, экспериментальная; кнопки в правом углу верхней панели, выбор запоминается в браузере,
     печать — в светлой. Цвета — переменные (:root); тема = блок html[data-theme="id"]{переменные} + строка в THEMES (скрипт в <head>).
-    Экспериментальная: тени вместо рамок, градиентная линия .tc, каскадное появление, подъём .itile, заполнение полос, подсветка строки. -#}
+    Экспериментальная: тени вместо рамок, градиентная линия .tc, каскадное появление, подъём .itile, заполнение полос, подсветка строки.
+    6.8: цели — вертикальные боксы .gbox (my-FT Т-114): плитка .gb-t, шкала .gb-sc, график .gtr; состояние — класс .gs-ok/-warn/-bad/-na
+    (переменные --s-*, --g0/--g1 у тем). Старые стили плиток .gt*, .goals .gr, .bullet больше не используются. -#}
 <!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }}</title><style>:root,html[data-theme="light"]{--page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
 --ph-wait:#8A94A6;--ph-clar:#C9A227;--ph-solve:#5D86B0;
 --top-bg:#18222D;--top-mut:#C5D0DC;--top-br:#6B7B8C;
 --c-ok:#0F6E3A;--c-bad:#B3261E;--c-bad2:#D93025;--c-warn:#8A5A00;--c-warn2:#B7800F;--c-blue:#1A56DB;--c-ai:#7E57C2;--c-ai-ink:#5B3C99;
 --t-ai:#FBFAFE;--t-ai-br:#D8C8F0;--t-ai2:#EFE9F8;--t-bad:#FBE3E1;--t-bad-fg:#9B1C12;--t-warn:#FFF1CC;--t-warn-fg:#7A5A00;--t-ok:#E3F4E8;--t-blue:#EBF1FA;
 --t-mock:#FFF7DB;--t-mock-br:#E9D48A;--t-mock-fg:#5B4A0B;--b-demo:#E0C27A;--b-in:#9DB6CF;--b-sol:#8FC1A0;
+--s-ok:#0F6E3A;--s-warn:#B7800F;--s-bad:#D93025;--s-na:#6B7785;--g0:34%;--g1:10%;
 --grid:#C9D1D9;--nodata:#B8C2CC;--dim:#9AA5B1;--diag:#E8EDF2;--g-ok:#B9C6D4;--heat:#1D3350;--heat-hi:#fff;--bar:#3B4754;--bar2:#5D6B7A;
 --num:"Bahnschrift","DIN Alternate","Roboto Condensed","Arial Narrow",sans-serif;--text:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif}
 /* 6.7: тёмная тема — те же переменные, другие значения (как добавить тему — шапка шаблона) */
@@ -39,6 +42,7 @@ html[data-theme="dark"]{color-scheme:dark;--page:#0F141A;--paper:#19212A;--ink:#
 --c-ok:#43B97A;--c-bad:#FF6B5E;--c-bad2:#F2574A;--c-warn:#E3AE4A;--c-warn2:#D9A12A;--c-blue:#6EA2FF;--c-ai:#A88BE0;--c-ai-ink:#C3A9F2;
 --t-ai:#1F1B2A;--t-ai-br:#4A3D6B;--t-ai2:#2E2742;--t-bad:#3A2020;--t-bad-fg:#FF9C92;--t-warn:#382D18;--t-warn-fg:#F0C66B;--t-ok:#1C3326;--t-blue:#1E2A3D;
 --t-mock:#332B17;--t-mock-br:#6B5A2A;--t-mock-fg:#F0DCA0;--b-demo:#8A7238;--b-in:#3F5A78;--b-sol:#3D6B4C;
+--s-ok:#2FA463;--s-warn:#D9A12A;--s-bad:#EC5545;--s-na:#7D8899;--g0:30%;--g1:9%;
 --grid:#34404C;--nodata:#4A5562;--dim:#6A7682;--diag:#26303B;--g-ok:#4A5868;--heat:#6FA0D8;--heat-hi:#0B1016;--bar:#8FA3B8;--bar2:#6E8297}
 /* 6.7: экспериментальная тема — светлые цвета + эффекты ниже (блок «ЭФФЕКТЫ ТЕМЫ exp») */
 html[data-theme="exp"]{--page:#E8ECF1;--rule:#E1E6EC}
@@ -180,6 +184,28 @@ details.cellar>summary{cursor:pointer;font-size:14px;color:var(--ink2);font-weig
 .ai-stub{margin:4px 0 10px;padding:8px 12px;border:1px dashed var(--c-ai);border-radius:8px;background:var(--t-ai);font-size:13px;color:var(--ink2)}.ai-stub b{color:var(--c-ai-ink);font-weight:600;margin-right:6px}
 .ai-stub pre{margin-top:6px;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.45 Consolas,"Cascadia Mono",monospace;color:var(--ink);max-height:22em;overflow:auto;background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:8px 10px}
 
+/* ===== 6.8: цели — вертикальные боксы (my-FT Т-114): плитка сверху, график снизу; градиент цвета состояния сверху вниз
+   затухает к графику; цвета — переменные темы (--s-* заливка, --c-* текст) ===== */
+.gs-ok{--s:var(--s-ok);--st:var(--c-ok)}.gs-warn{--s:var(--s-warn);--st:var(--c-warn)}.gs-bad{--s:var(--s-bad);--st:var(--c-bad)}.gs-na{--s:var(--s-na);--st:var(--muted)}
+.gboxes{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}.gboxes-s{grid-template-columns:repeat(auto-fill,minmax(380px,1fr))}
+.gbox{display:flex;flex-direction:column;min-width:0;overflow:hidden;border-radius:12px;color:var(--ink);text-decoration:none;
+  border:1px solid color-mix(in srgb,var(--s) 32%,var(--rule));
+  background:linear-gradient(180deg,color-mix(in srgb,var(--s) var(--g0),var(--paper)) 0,color-mix(in srgb,var(--s) var(--g1),var(--paper)) 150px,var(--paper) 220px)}
+a.gbox:hover{border-color:var(--s)}a.gbox:focus-visible{outline:2px solid var(--c-blue);outline-offset:2px}
+.gb-t{padding:12px 16px 8px;display:flex;flex-direction:column;gap:6px}
+.gb-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.gb-h h4{font-size:13.5px;font-weight:600;line-height:1.3}
+.gb-w{font:700 10.5px/1.3 var(--text);text-transform:uppercase;letter-spacing:.06em;color:var(--st);white-space:nowrap;padding-top:2px}
+.gb-r{display:flex;align-items:center;gap:16px}.gb-v{font:600 44px/1 var(--num);color:var(--st)}
+.gb-c{display:grid;grid-template-columns:auto auto;gap:1px 10px;font-size:12px;color:var(--muted);border-left:2px solid color-mix(in srgb,var(--s) 35%,transparent);padding-left:12px}
+.gb-c b{font:600 14px/1.3 var(--num);color:var(--ink)}.gb-c .gp{grid-column:1/-1;font:600 12.5px/1.4 var(--text);color:var(--st)}
+.gb-sc{position:relative;height:8px;margin:2px 0}.gb-sc .z{position:absolute;top:2px;height:4px;border-radius:2px;opacity:.5}.gb-sc .z.hit{opacity:1}
+.gb-sc .z.ok{background:var(--s-ok)}.gb-sc .z.warn{background:var(--s-warn)}.gb-sc .z.bad{background:var(--s-bad)}
+.gb-sc .m{position:absolute;top:-3px;width:4px;height:14px;margin-left:-2px;border-radius:2px;background:var(--ink)}
+.gb-d{font-size:12px;color:var(--muted)}.gb-g{padding:0 10px 8px;margin-top:auto}
+.gtr{width:100%;height:auto;display:block;overflow:visible}.gtr text{font-family:var(--num)}
+.gtr .ax{font-size:11px;fill:var(--muted)}.gtr .ax.fut{fill:var(--dim)}.gtr .tv{font-size:12px;font-weight:600;fill:var(--ink)}.gtr .lg{font-size:11px;font-weight:700}
+html[data-theme="exp"] .gbox{border-color:transparent;box-shadow:0 1px 2px rgba(16,24,40,.05),0 4px 12px rgba(16,24,40,.07)}
+@media print{.gbox{break-inside:avoid}}
 /* ===== 6.7: переключатель тем — кнопки в правом углу верхней панели (собирает скрипт из списка THEMES) ===== */
 .thm{display:inline-flex;gap:2px;margin-left:6px;padding:2px;border:1px solid var(--top-br);border-radius:7px}
 .top .thm button{width:26px;height:24px;padding:0;border:0;border-radius:5px;font:13px/1 var(--text);color:var(--top-mut)}

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Макет v2 — Качество 1С-поддержки · Неделя 39</title><style>:root,html[data-theme="light"]{--page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Макет v2 — Качество 1С-поддержки · Неделя 39</title><style>:root,html[data-sppr-theme="light"]{--page:#EDF0F3;--paper:#fff;--ink:#18222D;--ink2:#3B4754;--muted:#66727F;--rule:#D9DEE4;--wash:#F5F7F9;
 --ph-wait:#8A94A6;--ph-clar:#C9A227;--ph-solve:#5D86B0;
 --top-bg:#18222D;--top-mut:#C5D0DC;--top-br:#6B7B8C;
 --c-ok:#0F6E3A;--c-bad:#B3261E;--c-bad2:#D93025;--c-warn:#8A5A00;--c-warn2:#B7800F;--c-blue:#1A56DB;--c-ai:#7E57C2;--c-ai-ink:#5B3C99;
@@ -8,7 +8,7 @@
 --grid:#C9D1D9;--nodata:#B8C2CC;--dim:#9AA5B1;--diag:#E8EDF2;--g-ok:#B9C6D4;--heat:#1D3350;--heat-hi:#fff;--bar:#3B4754;--bar2:#5D6B7A;
 --num:"Bahnschrift","DIN Alternate","Roboto Condensed","Arial Narrow",sans-serif;--text:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif}
 /* 6.7: тёмная тема — те же переменные, другие значения (как добавить тему — шапка шаблона) */
-html[data-theme="dark"]{color-scheme:dark;--page:#0F141A;--paper:#19212A;--ink:#E6EBF0;--ink2:#B7C1CC;--muted:#8C98A5;--rule:#2C3743;--wash:#212A34;
+html[data-sppr-theme="dark"]{color-scheme:dark;--page:#0F141A;--paper:#19212A;--ink:#E6EBF0;--ink2:#B7C1CC;--muted:#8C98A5;--rule:#2C3743;--wash:#212A34;
 --top-bg:#0A0E13;--top-mut:#9AA8B6;--top-br:#3A4756;
 --c-ok:#43B97A;--c-bad:#FF6B5E;--c-bad2:#F2574A;--c-warn:#E3AE4A;--c-warn2:#D9A12A;--c-blue:#6EA2FF;--c-ai:#A88BE0;--c-ai-ink:#C3A9F2;
 --t-ai:#1F1B2A;--t-ai-br:#4A3D6B;--t-ai2:#2E2742;--t-bad:#3A2020;--t-bad-fg:#FF9C92;--t-warn:#382D18;--t-warn-fg:#F0C66B;--t-ok:#1C3326;--t-blue:#1E2A3D;
@@ -16,7 +16,7 @@ html[data-theme="dark"]{color-scheme:dark;--page:#0F141A;--paper:#19212A;--ink:#
 --s-ok:#2FA463;--s-warn:#D9A12A;--s-bad:#EC5545;--s-na:#7D8899;--g0:30%;--g1:9%;
 --grid:#34404C;--nodata:#4A5562;--dim:#6A7682;--diag:#26303B;--g-ok:#4A5868;--heat:#6FA0D8;--heat-hi:#0B1016;--bar:#8FA3B8;--bar2:#6E8297}
 /* 6.7: экспериментальная тема — светлые цвета + эффекты ниже (блок «ЭФФЕКТЫ ТЕМЫ exp») */
-html[data-theme="exp"]{--page:#E8ECF1;--rule:#E1E6EC}
+html[data-sppr-theme="exp"]{--page:#EEF1FB;--paper:#fff;--ink:#1B1F3B;--ink2:#3D4366;--muted:#6E7393;--rule:#E4E7F5;--wash:#F4F5FD;--c-blue:#5B4CF0;--t-blue:#EEECFF;--c-ai:#8B5CF6;--t-ai:#F7F3FF;--t-ai2:#EFE7FF;--top-bg:#fff;--top-mut:#6E7393;--top-br:transparent;--fl:0 2px 4px rgba(40,36,110,.04),0 10px 28px rgba(40,36,110,.08),0 28px 60px rgba(40,36,110,.06);--fl-s:0 1px 3px rgba(40,36,110,.06),0 4px 12px rgba(40,36,110,.07)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font:15px/1.45 var(--text);color:var(--ink);background:var(--page);font-variant-numeric:tabular-nums}
 .mock{background:var(--t-mock);border-bottom:1px solid var(--t-mock-br);color:var(--t-mock-fg);font-size:13px;padding:7px 24px}
@@ -169,7 +169,7 @@ a.gbox:hover{border-color:var(--s)}a.gbox:focus-visible{outline:2px solid var(--
 .gb-d{font-size:12px;color:var(--muted)}.gb-g{padding:0 10px 8px;margin-top:auto}
 .gtr{width:100%;height:auto;display:block;overflow:visible}.gtr text{font-family:var(--num)}
 .gtr .ax{font-size:11px;fill:var(--muted)}.gtr .ax.fut{fill:var(--dim)}.gtr .tv{font-size:12px;font-weight:600;fill:var(--ink)}.gtr .lg{font-size:11px;font-weight:700}
-html[data-theme="exp"] .gbox{border-color:transparent;box-shadow:0 1px 2px rgba(16,24,40,.05),0 4px 12px rgba(16,24,40,.07)}
+html[data-sppr-theme="exp"] .gbox{border-color:transparent;box-shadow:var(--fl-s)}
 @media print{.gbox{break-inside:avoid}}
 /* ===== 6.12: поручения в отчёте (my-FT Т-70, Т-71, В-34): список, поле ввода, статус кликом, «Сохранить поручения» ===== */
 .tk-list table{font-size:13.5px}.tk-list td{vertical-align:top}.tk-list .tk-id{font:12px var(--num);color:var(--muted);white-space:nowrap}
@@ -197,29 +197,96 @@ html[data-theme="exp"] .gbox{border-color:transparent;box-shadow:0 1px 2px rgba(
 .top .thm button:focus-visible{outline:2px solid #fff;outline-offset:1px}
 /* ===== ЭФФЕКТЫ ТЕМЫ exp (экспериментальная, my-FT Т-116): тени вместо рамок, градиентная линия, каскад, подъём плиток,
    заполнение полос, подсветка строки. Стекло с размытием и затемнение соседних строк — не вошли (риски, чат 15.10) ===== */
-html[data-theme="exp"] .panel:not(.aibox),html[data-theme="exp"] .kpi{border-color:transparent;box-shadow:0 1px 2px rgba(16,24,40,.05),0 4px 12px rgba(16,24,40,.06),0 14px 32px rgba(16,24,40,.05)}
-html[data-theme="exp"] .tc{border-top:1px solid var(--rule);position:relative;overflow:hidden}
-html[data-theme="exp"] .tc::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--c),color-mix(in srgb,var(--c) 15%,transparent))}
-html[data-theme="exp"] .itile{transition:transform .2s ease,box-shadow .2s ease}
-html[data-theme="exp"] .itile:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(16,24,40,.22),0 0 0 3px rgba(255,255,255,.35) inset}
-html[data-theme="exp"] tbody tr{transition:background-color .2s ease}
-html[data-theme="exp"] tbody tr:hover{background:linear-gradient(90deg,var(--t-blue),transparent 85%)}
-html[data-theme="exp"] .slide.on>*{animation:sppr-up .45s ease both}
-html[data-theme="exp"] .slide.on>:nth-child(2){animation-delay:.05s}html[data-theme="exp"] .slide.on>:nth-child(3){animation-delay:.1s}
-html[data-theme="exp"] .slide.on>:nth-child(4){animation-delay:.15s}html[data-theme="exp"] .slide.on>:nth-child(5){animation-delay:.2s}
-html[data-theme="exp"] .slide.on>:nth-child(n+6){animation-delay:.25s}
-html[data-theme="exp"] .slide.on .hb-t i,html[data-theme="exp"] .slide.on .phb i{transform-origin:left;animation:sppr-grow .7s ease .15s both}
+/* 6.14: «парящий» стиль — рамок нет нигде: блоки, плитки, штампы, таблицы, поля отделяются тенями и заливкой */
+html[data-sppr-theme="exp"] .panel,html[data-sppr-theme="exp"] .kpi,html[data-sppr-theme="exp"] .case,html[data-sppr-theme="exp"] .tc{border:0;border-radius:14px;box-shadow:var(--fl);transition:transform .2s ease,box-shadow .2s ease}
+html[data-sppr-theme="exp"] .panel:hover,html[data-sppr-theme="exp"] .kpi:hover{box-shadow:0 2px 4px rgba(16,24,40,.05),0 10px 24px rgba(16,24,40,.09),0 24px 52px rgba(16,24,40,.08)}
+html[data-sppr-theme="exp"] .aibox{background:linear-gradient(180deg,var(--t-ai),var(--paper) 60%)}
+html[data-sppr-theme="exp"] .hero,html[data-sppr-theme="exp"] .inc-hero{box-shadow:var(--fl),inset 0 3px 0 var(--c-bad2)}
+html[data-sppr-theme="exp"] .stamp,html[data-sppr-theme="exp"] .tid,html[data-sppr-theme="exp"] .tx,html[data-sppr-theme="exp"] .more,html[data-sppr-theme="exp"] .na-note{border-color:transparent;box-shadow:var(--fl-s)}
+html[data-sppr-theme="exp"] .s-ai{border:0;background:var(--t-ai2)}
+html[data-sppr-theme="exp"] .ai-note,html[data-sppr-theme="exp"] .ai-stub{border:0;box-shadow:var(--fl-s);border-radius:10px}
+html[data-sppr-theme="exp"] details.cellar{border:0;background:transparent;box-shadow:inset 0 0 0 2px var(--rule)}
+html[data-sppr-theme="exp"] th{border-bottom:0}html[data-sppr-theme="exp"] thead th{color:var(--muted);font-size:12px;letter-spacing:.02em}
+html[data-sppr-theme="exp"] td,html[data-sppr-theme="exp"] tbody th{border-bottom:0}
+html[data-sppr-theme="exp"] tbody tr:nth-child(even){background:var(--wash)}html[data-sppr-theme="exp"] tbody tr td:first-child{border-radius:6px 0 0 6px}html[data-sppr-theme="exp"] tbody tr td:last-child{border-radius:0 6px 6px 0}
+html[data-sppr-theme="exp"] table.heat tr.tot td,html[data-sppr-theme="exp"] table.heat tr.tot th,html[data-sppr-theme="exp"] tr.grp th{border:0}
+html[data-sppr-theme="exp"] .own,html[data-sppr-theme="exp"] .kpi-lines,html[data-sppr-theme="exp"] .kpi-m,html[data-sppr-theme="exp"] .strip3,html[data-sppr-theme="exp"] .sub3 span{border:0}
+html[data-sppr-theme="exp"] .eqbar>div{border-top:0;position:relative;padding-top:12px}
+html[data-sppr-theme="exp"] .eqbar>div::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--c-blue),transparent)}
+html[data-sppr-theme="exp"] .eqbar .sl::before,html[data-sppr-theme="exp"] .eqbar .res::before{background:linear-gradient(90deg,var(--c-ok),transparent)}
+html[data-sppr-theme="exp"] .eqbar .rj::before{background:linear-gradient(90deg,var(--c-warn2),transparent)}html[data-sppr-theme="exp"] .eqbar .res.up::before{background:linear-gradient(90deg,var(--c-bad),transparent)}
+html[data-sppr-theme="exp"] .gt-c span,html[data-sppr-theme="exp"] .tk-form input,html[data-sppr-theme="exp"] .tk-form select{border-color:transparent;box-shadow:var(--fl-s)}
+html[data-sppr-theme="exp"] .tk-form{border-top:0}
+html[data-sppr-theme="exp"] .top{box-shadow:0 6px 20px rgba(16,24,40,.18)}
+html[data-sppr-theme="exp"] .rail a.on{box-shadow:var(--fl-s)}
+html[data-sppr-theme="exp"] .tc{position:relative;overflow:hidden}
+html[data-sppr-theme="exp"] .tc::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--c),color-mix(in srgb,var(--c) 15%,transparent))}
+html[data-sppr-theme="exp"] .itile{transition:transform .2s ease,box-shadow .2s ease}
+html[data-sppr-theme="exp"] .itile:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(16,24,40,.22),0 0 0 3px rgba(255,255,255,.35) inset}
+html[data-sppr-theme="exp"] tbody tr{transition:background-color .2s ease}
+html[data-sppr-theme="exp"] tbody tr:hover{background:linear-gradient(90deg,var(--t-blue),transparent 85%)}
+html[data-sppr-theme="exp"] .slide.on>*{animation:sppr-up .45s ease both}
+html[data-sppr-theme="exp"] .slide.on>:nth-child(2){animation-delay:.05s}html[data-sppr-theme="exp"] .slide.on>:nth-child(3){animation-delay:.1s}
+html[data-sppr-theme="exp"] .slide.on>:nth-child(4){animation-delay:.15s}html[data-sppr-theme="exp"] .slide.on>:nth-child(5){animation-delay:.2s}
+html[data-sppr-theme="exp"] .slide.on>:nth-child(n+6){animation-delay:.25s}
+html[data-sppr-theme="exp"] .slide.on .hb-t i,html[data-sppr-theme="exp"] .slide.on .phb i{transform-origin:left;animation:sppr-grow .7s ease .15s both}
 @keyframes sppr-up{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:none}}
 @keyframes sppr-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
-@media (prefers-reduced-motion:reduce){html[data-theme] *{animation:none!important;transition:none!important}}
-@media print{html[data-theme] *{animation:none!important;transition:none!important;box-shadow:none!important}.thm{display:none}}
+@media (prefers-reduced-motion:reduce){html[data-sppr-theme] *,html[data-sppr-theme] *::before,html[data-sppr-theme] *::after{animation:none!important;transition:none!important}}
+@media print{html[data-sppr-theme] *,html[data-sppr-theme] *::before,html[data-sppr-theme] *::after{animation:none!important;transition:none!important;box-shadow:none!important}.thm{display:none}}
+/* ===== 6.15: ЭКСПЕРИМЕНТАЛЬНАЯ ТЕМА — кардинально другая (my-FT Т-116): ни одной рамки, градиентный фон, светлая верхняя панель,
+   фиолетовый акцент, карточки на тенях, штампы-таблетки, градиентные плитки, таблицы без линий ===== */
+html[data-sppr-theme="exp"] *,html[data-sppr-theme="exp"] *::before,html[data-sppr-theme="exp"] *::after{border-color:transparent!important;outline-color:transparent}
+html[data-sppr-theme="exp"] body{background:linear-gradient(135deg,#EAF0FF 0%,#F3EEFF 45%,#E9FBFF 100%) fixed}
+html[data-sppr-theme="exp"] .top{background:rgba(255,255,255,.96);color:var(--ink);box-shadow:0 4px 24px rgba(40,36,110,.10)}
+html[data-sppr-theme="exp"] .top h1{color:var(--ink)}html[data-sppr-theme="exp"] .top button{color:var(--ink2);background:var(--wash);border-radius:20px}
+html[data-sppr-theme="exp"] .top button:hover{background:var(--t-blue);color:var(--c-blue)}html[data-sppr-theme="exp"] #cnt{color:var(--ink2)}
+html[data-sppr-theme="exp"] .thm{background:var(--wash);border-radius:20px}html[data-sppr-theme="exp"] .top .thm button[aria-pressed="true"]{background:var(--c-blue);color:#fff}
+html[data-sppr-theme="exp"] .top #tk-save{background:var(--c-blue);color:#fff}
+html[data-sppr-theme="exp"] .rail a{border-radius:20px}html[data-sppr-theme="exp"] .rail a.on{background:linear-gradient(90deg,#5B4CF0,#8B5CF6);color:#fff;box-shadow:0 6px 18px rgba(91,76,240,.30)}
+html[data-sppr-theme="exp"] .rail a.on span{color:#fff}
+html[data-sppr-theme="exp"] .sh h2{background:linear-gradient(90deg,#1B1F3B,#5B4CF0);-webkit-background-clip:text;background-clip:text;color:transparent}
+html[data-sppr-theme="exp"] .panel,html[data-sppr-theme="exp"] .kpi,html[data-sppr-theme="exp"] .case,html[data-sppr-theme="exp"] .tc,html[data-sppr-theme="exp"] .gbox{border-radius:18px;box-shadow:var(--fl)}
+html[data-sppr-theme="exp"] .panel{padding:20px 24px 18px}html[data-sppr-theme="exp"] .ph h3{font-size:18px}
+html[data-sppr-theme="exp"] .aibox{background:linear-gradient(160deg,#F7F3FF,#fff 55%)}
+html[data-sppr-theme="exp"] .stamp{border-radius:20px;background:var(--t-blue);color:var(--c-blue);box-shadow:none}
+html[data-sppr-theme="exp"] .s-ai{background:var(--t-ai2);color:var(--c-ai-ink)}html[data-sppr-theme="exp"] .s-demo{background:var(--t-warn)}
+html[data-sppr-theme="exp"] .tid{background:var(--t-blue);border-radius:20px;box-shadow:none;padding:1px 8px}
+html[data-sppr-theme="exp"] .tx{border-radius:50%;background:var(--t-blue);box-shadow:none}
+html[data-sppr-theme="exp"] .itile{border-radius:18px;box-shadow:0 10px 24px rgba(40,36,110,.18)}
+html[data-sppr-theme="exp"] .itile.t-open{background:linear-gradient(135deg,#C2255C,#7A1236)}html[data-sppr-theme="exp"] .itile.t-in{background:linear-gradient(135deg,#F2574A,#C2255C)}
+html[data-sppr-theme="exp"] .itile.t-sol{background:linear-gradient(135deg,#12B886,#0B7285)}html[data-sppr-theme="exp"] .itile.t-ai{background:linear-gradient(135deg,#8B5CF6,#5B4CF0)}
+html[data-sppr-theme="exp"] thead th{color:var(--muted);font-size:12px;letter-spacing:.02em}
+html[data-sppr-theme="exp"] tbody tr:nth-child(even){background:var(--wash)}
+html[data-sppr-theme="exp"] tbody tr:hover{background:linear-gradient(90deg,var(--t-blue),transparent 90%)}
+html[data-sppr-theme="exp"] .ai-note{background:linear-gradient(90deg,#F3EEFF,#fff);border-radius:14px}
+html[data-sppr-theme="exp"] .ai-note i{background:linear-gradient(135deg,#8B5CF6,#5B4CF0);border-radius:50%}
+html[data-sppr-theme="exp"] details.cellar{background:rgba(255,255,255,.55);box-shadow:var(--fl-s);border-radius:18px}
+html[data-sppr-theme="exp"] .tk-form input,html[data-sppr-theme="exp"] .tk-form select{background:var(--wash);box-shadow:none;border-radius:10px}
+html[data-sppr-theme="exp"] .tk-form button,html[data-sppr-theme="exp"] .tk-add,html[data-sppr-theme="exp"] .more{border-radius:20px}
+html[data-sppr-theme="exp"] .tk-form button{background:linear-gradient(90deg,#5B4CF0,#8B5CF6)}
+html[data-sppr-theme="exp"] .tk-st{border-radius:20px}
+html[data-sppr-theme="exp"] .mock{background:#FFF8E1;color:#5B4A0B}
+/* ===== 6.16: тревога (my-FT Т-120) — красное по состоянию: цели «хуже порога» (.gbox.gs-bad) и просроченные поручения (.tk-late).
+   Все темы: пульсирующая точка. Экспериментальная: ещё один случайный эффект на открытии слайда (data-fx у слайда) — свечение,
+   вздрагивание или сигнальная лента; на слайде у всех красных один и тот же. «Уменьшить движение» и печать — неподвижно. ===== */
+@keyframes sppr-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
+.gs-bad .gb-w::before,.tk-late::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c-bad2);margin-right:5px;vertical-align:1px;animation:sppr-dot 1.6s ease-in-out infinite}
+@keyframes sppr-glow{0%,100%{box-shadow:var(--fl)}50%{box-shadow:var(--fl),0 0 0 4px rgba(242,87,74,.30),0 0 30px rgba(242,87,74,.45)}}
+@keyframes sppr-shake{0%,100%{transform:none}15%{transform:translateX(-5px) rotate(-.4deg)}35%{transform:translateX(5px) rotate(.4deg)}55%{transform:translateX(-3px)}75%{transform:translateX(2px)}}
+@keyframes sppr-tape{from{background-position:0 0}to{background-position:45px 0}}
+html[data-sppr-theme="exp"] .slide.on[data-fx="glow"] .gbox.gs-bad{animation:sppr-glow 1.3s ease-in-out .5s 3}
+html[data-sppr-theme="exp"] .slide.on[data-fx="shake"] .gbox.gs-bad{animation:sppr-shake .55s ease .6s 1}
+html[data-sppr-theme="exp"] .gbox.gs-bad{position:relative}
+html[data-sppr-theme="exp"] .slide.on[data-fx="tape"] .gbox.gs-bad::after{content:"";position:absolute;left:0;right:0;top:0;height:6px;border-radius:18px 18px 0 0;
+  background:repeating-linear-gradient(-45deg,#F2574A 0 8px,#FFD43B 8px 16px);background-size:45px 6px;animation:sppr-tape 1s linear 6;opacity:.9}
 </style><script>
-// 6.7: темы отчёта (my-FT Т-116). Добавить тему: блок html[data-theme="id"]{переменные} в стилях (и, если нужно,
+// 6.7: темы отчёта (my-FT Т-116). Добавить тему: блок html[data-sppr-theme="id"]{переменные} в стилях (и, если нужно,
 // эффекты, как у exp) + строка в THEMES: [id, значок, название]. Остальное — само: кнопка, запоминание выбора, печать.
 const THEMES=[["light","☀","Светлая"],["dark","☾","Тёмная"],["exp","✦","Экспериментальная"]];
 const THEME_KEY="sppr-theme";
 (function(){let t=null;try{t=localStorage.getItem(THEME_KEY)}catch(e){}
-if(!THEMES.some(x=>x[0]===t))t=THEMES[0][0];document.documentElement.dataset.theme=t})();
+if(!THEMES.some(x=>x[0]===t))t=THEMES[0][0];document.documentElement.dataset.spprTheme=t})();
 </script></head><body><div class="mock">Макет v2.11 на выгрузке 29.09.2026: цифры и вёрстку делает модуль src/report_v6.py (тот же, что в ноутбуке RepSSPR.ipynb), разметку ИИ для макета сделал Claude по правилам промпта ноутбука. Это не боевой отчёт.</div><script>window.SPPR_ENUM={"s1": ["1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11", "1.12", "1.13", "1.14", "1.15", "1.16", "1.17", "1.18", "1.19", "1.20", "1.21", "1.22", "1.23", "1.24", "1.25", "1.26", "1.27", "1.28", "1.29", "1.30", "1.31", "1.32", "1.33", "1.34", "1.35", "1.36", "1.37", "1.38", "1.39", "1.40", "1.41", "1.42", "1.43", "1.44", "1.45", "1.46", "1.47", "1.48", "1.49", "1.50", "1.51", "1.52", "1.53", "1.54", "1.55", "1.56", "1.57"], "s11": ["2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7", "2.8", "2.9", "2.10", "2.11", "2.12", "2.13", "2.14", "2.15", "2.16", "2.17", "2.18", "2.19", "2.20", "2.21", "2.22", "2.23", "2.24", "2.25", "2.26"], "s2": ["3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15", "3.16", "3.17", "3.18", "3.19", "3.20", "3.21", "3.22"], "s3": ["4.1", "4.2", "4.3", "4.4", "4.5", "4.6", "4.7", "4.8", "4.9", "4.10", "4.11", "4.12", "4.13", "4.14", "4.15", "4.16", "4.17", "4.18", "4.19", "4.20", "4.21", "4.22", "4.23", "4.24", "4.25", "4.26", "4.27", "4.28", "4.29", "4.30", "4.31", "4.32"], "s4": ["5.1", "5.2", "5.3", "5.4", "5.5", "5.6", "5.7", "5.8", "5.9", "5.10", "5.11", "5.12", "5.13", "5.14", "5.15", "5.16", "5.17", "5.18", "5.19", "5.20", "5.21", "5.22", "5.23"], "s5": ["6.1", "6.2", "6.3", "6.4", "6.5", "6.6", "6.7", "6.8", "6.9", "6.10", "6.11", "6.12", "6.13", "6.14", "6.15", "6.16"], "s7": ["7.1", "7.2", "7.3", "7.4", "7.5", "7.6", "7.7", "7.8", "7.9", "7.10", "7.11"], "s6": ["8.1", "8.2", "8.3", "8.4", "8.5", "8.6", "8.7", "8.8", "8.9", "8.10", "8.11", "8.12", "8.13", "8.14", "8.15", "8.16", "8.17", "8.18", "8.19", "8.20", "8.21"], "s9": ["9.1", "9.2", "9.3", "9.4", "9.5", "9.6", "9.7", "9.8", "9.9", "9.10", "9.11", "9.12", "9.13", "9.14", "9.15", "9.16"], "s8": ["10.1", "10.2", "10.3", "10.4", "10.5", "10.6", "10.7", "10.8", "10.9", "10.10", "10.11", "10.12", "10.13", "10.14", "10.15", "10.16", "10.17", "10.18", "10.19", "10.20"], "s10": ["11.1", "11.2", "11.3", "11.4", "11.5", "11.6", "11.7", "11.8", "11.9", "11.10", "11.11", "11.12", "11.13", "11.14"], "s12": ["12.1", "12.2"]}</script><style>
 /* 6.10: только макет — номера элементов «слайд.номер» для ссылок в обсуждении (чат 15.10); в боевом отчёте блока нет */
 .enum{position:absolute;top:-7px;left:-7px;z-index:3;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--paper);color:var(--muted);
@@ -5221,14 +5288,15 @@ e-mail:</div><b class="xl xl-s">Решение</b><div class="xt">14.09.2026 9:5
 11.09.2026 10:18:25 Волжин Олег Петрович: Изменен источник выбора смен использованных при заполнении графиков, данные взяты из регистра сведения &quot;ГрафикиРаботыПоВидамВремени&quot;</div></div></div><script type="application/json" id="plan-data">{"cols": ["id", "вид", "слайд", "что", "метрика", "направление", "цель", "тревога", "на табло", "кто", "срок", "статус", "создано", "закрыто", "заметка"], "rows": [{"id": "Ц-01", "вид": "цель", "слайд": "s1", "что": "Очередь за неделю не растёт", "метрика": "dq", "направление": "меньше", "цель": "0", "тревога": "10", "на табло": "да", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было −25…+19 за W36–W41"}, {"id": "Ц-02", "вид": "цель", "слайд": "s11", "что": "Медиана срока решения, раб. ч", "метрика": "med_all", "направление": "меньше", "цель": "7", "тревога": "8,5", "на табло": "нет", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было 6,8–8,2"}, {"id": "Ц-03", "вид": "цель", "слайд": "s11", "что": "Решено в пределах рабочего дня, %", "метрика": "day_pct", "направление": "больше", "цель": "60", "тревога": "45", "на табло": "нет", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было 48–58%"}, {"id": "Ц-04", "вид": "цель", "слайд": "s11", "что": "Доля долгостроя, %", "метрика": "lng_share", "направление": "меньше", "цель": "8", "тревога": "15", "на табло": "да", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было 7–15%"}, {"id": "Ц-05", "вид": "цель", "слайд": "s2", "что": "Открытых старше 30 дней", "метрика": "open_gt30", "направление": "меньше", "цель": "40", "тревога": "60", "на табло": "да", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было 50–60"}, {"id": "Ц-06", "вид": "цель", "слайд": "s2", "что": "Старые открытые без единого часа", "метрика": "zombie", "направление": "меньше", "цель": "5", "тревога": "15", "на табло": "нет", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было 13"}, {"id": "Ц-07", "вид": "цель", "слайд": "s3", "что": "Открытых инцидентов", "метрика": "inc_open", "направление": "меньше", "цель": "40", "тревога": "55", "на табло": "да", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было 53"}, {"id": "Ц-08", "вид": "цель", "слайд": "s3", "что": "Открытых инцидентов старше 30 дней", "метрика": "inc_old", "направление": "меньше", "цель": "20", "тревога": "35", "на табло": "нет", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было 36"}, {"id": "Ц-09", "вид": "цель", "слайд": "s3", "что": "Просрочен крайний срок решения (план 1С)", "метрика": "ksr_over", "направление": "меньше", "цель": "0", "тревога": "2", "на табло": "нет", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "поле ksr — выгрузка v1.9"}, {"id": "Ц-19", "вид": "цель", "слайд": "s4", "что": "Отложенное исправление — со ссылкой и сроком, %", "метрика": "plan_ok_pct", "направление": "больше", "цель": "90", "тревога": "70", "на табло": "да", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "my-FT Т-107: «будет решено в рамках ЗИ № … тогда-то»"}, {"id": "Ц-20", "вид": "цель", "слайд": "s3", "что": "Открытые инциденты в плане (ksr), %", "метрика": "inc_plan_pct", "направление": "больше", "цель": "90", "тревога": "70", "на табло": "да", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "my-FT Т-107: ksr — только запланированность и просрочка инцидентов"}, {"id": "Ц-10", "вид": "цель", "слайд": "s4", "что": "Ручных правок данных за неделю", "метрика": "pr_n", "направление": "меньше", "цель": "45", "тревога": "65", "на табло": "да", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было 49–70"}, {"id": "Ц-11", "вид": "цель", "слайд": "s4", "что": "Правки, которые по сути дефекты", "метрика": "pr_defect", "направление": "меньше", "цель": "5", "тревога": "12", "на табло": "нет", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было 13 (W39)"}, {"id": "Ц-12", "вид": "цель", "слайд": "s5", "что": "Обращений в топ-7 групп тем (повторы)", "метрика": "top7_n", "направление": "меньше", "цель": "30", "тревога": "50", "на табло": "да", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было 44 (W39)"}, {"id": "Ц-13", "вид": "цель", "слайд": "s6", "что": "Доля «Плохо», %", "метрика": "bad_pct", "направление": "меньше", "цель": "5", "тревога": "10", "на табло": "да", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было 7% (W39)"}, {"id": "Ц-14", "вид": "цель", "слайд": "s6", "что": "Неверный тип при регистрации, %", "метрика": "mis_pct", "направление": "меньше", "цель": "10", "тревога": "20", "на табло": "нет", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было 16% (W39)"}, {"id": "Ц-15", "вид": "цель", "слайд": "s7", "что": "Открытых обращений по планшетам", "метрика": "pl_open", "направление": "меньше", "цель": "8", "тревога": "15", "на табло": "да", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было 15"}, {"id": "Ц-16", "вид": "цель", "слайд": "s8", "что": "Служебные карточки, % часов", "метрика": "svc_pct", "направление": "меньше", "цель": "8", "тревога": "15", "на табло": "да", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было 7–19%"}, {"id": "Ц-17", "вид": "цель", "слайд": "s8", "что": "Ожидание на час работы, кал. ч", "метрика": "wait_ratio", "направление": "меньше", "цель": "20", "тревога": "30", "на табло": "нет", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было 21–35"}, {"id": "Ц-18", "вид": "цель", "слайд": "s9", "что": "Медиана срока второй линии, раб. ч", "метрика": "med_l2", "направление": "меньше", "цель": "8", "тревога": "11", "на табло": "да", "кто": "", "срок": "", "статус": "в работе", "создано": "15.10.2026", "закрыто": "", "заметка": "было 8,0–11,7"}], "open": ["предложено", "в работе"], "who": ["Альшин Н. Ж.", "Бердников И. В.", "Волжин О. П.", "Гудилина С. В.", "Дягилева И. В.", "Заленский А. В.", "Захарова О. Д.", "Калашников А. Н.", "Кошелев З. В.", "Кравченко Н. С.", "Красавин А. А.", "Морденко П. А.", "Наумов И. Н.", "Попова А. В.", "Попова Н. А.", "Самсонова А. Г.", "Свалова А. И.", "Чечурин А. С.", "руководитель поддержки", "руководитель разработки", "владелец процесса", "владелец НСИ"], "slides": {"s1": "Неделя 39", "s11": "Сроки и долгострой", "s2": "Очередь на 29.09", "s3": "Инциденты", "s4": "Ручные правки и НСИ", "s5": "Повторы", "s7": "Планшеты", "s6": "Качество и классификация", "s9": "Аналитики", "s8": "Цена в часах", "s10": "Паспорт данных", "s12": "Поручения"}, "ws": "2026-09-21", "we": "2026-09-28", "now": "2026-09-29", "file": "plan.csv"}</script><datalist id="tk-who"><option value="Альшин Н. Ж."><option value="Бердников И. В."><option value="Волжин О. П."><option value="Гудилина С. В."><option value="Дягилева И. В."><option value="Заленский А. В."><option value="Захарова О. Д."><option value="Калашников А. Н."><option value="Кошелев З. В."><option value="Кравченко Н. С."><option value="Красавин А. А."><option value="Морденко П. А."><option value="Наумов И. Н."><option value="Попова А. В."><option value="Попова Н. А."><option value="Самсонова А. Г."><option value="Свалова А. И."><option value="Чечурин А. С."><option value="руководитель поддержки"><option value="руководитель разработки"><option value="владелец процесса"><option value="владелец НСИ"></datalist></main></div><dialog id="xdlg" aria-label="Описание и решение обращения"><div class="xw"><button class="xc" aria-label="Закрыть">✕</button><div class="xb"></div></div></dialog><script>
 // 6.7: кнопки тем из THEMES; выбор запоминается в браузере; печать — всегда в первой (светлой) теме
 (function(){const box=document.getElementById('thm'),root=document.documentElement;
-function set(id){root.dataset.theme=id;try{localStorage.setItem(THEME_KEY,id)}catch(e){}
+function set(id){root.dataset.spprTheme=id;try{localStorage.setItem(THEME_KEY,id)}catch(e){}
 box.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===id))}
 THEMES.forEach(([id,ic,name])=>{const b=document.createElement('button');b.type='button';b.dataset.t=id;b.textContent=ic;b.title=name;b.setAttribute('aria-label','Тема: '+name);
-b.setAttribute('aria-pressed',root.dataset.theme===id);b.onclick=()=>set(id);box.appendChild(b)});
-let keep=null;addEventListener('beforeprint',()=>{keep=root.dataset.theme;root.dataset.theme=THEMES[0][0]});
-addEventListener('afterprint',()=>{if(keep)root.dataset.theme=keep})})();
+b.setAttribute('aria-pressed',root.dataset.spprTheme===id);b.onclick=()=>set(id);box.appendChild(b)});
+let keep=null;addEventListener('beforeprint',()=>{keep=root.dataset.spprTheme;root.dataset.spprTheme=THEMES[0][0]});
+addEventListener('afterprint',()=>{if(keep)root.dataset.spprTheme=keep})})();
 const slides=[...document.querySelectorAll('.slide')],links=[...document.querySelectorAll('.rail a')];let cur=0;const cnt=document.getElementById('cnt');
-function show(i){cur=Math.max(0,Math.min(slides.length-1,i));slides.forEach((s,k)=>s.classList.toggle('on',k===cur));links.forEach((a,k)=>a.classList.toggle('on',k===cur));cnt.textContent=(cur+1)+' / '+slides.length;window.scrollTo(0,0)}
+function show(i){cur=Math.max(0,Math.min(slides.length-1,i));slides[cur].dataset.fx=['glow','shake','tape'][Math.random()*3|0];   // 6.16: случайный эффект тревоги (экспериментальная тема)
+slides.forEach((s,k)=>s.classList.toggle('on',k===cur));links.forEach((a,k)=>a.classList.toggle('on',k===cur));cnt.textContent=(cur+1)+' / '+slides.length;window.scrollTo(0,0)}
 links.forEach((a,k)=>a.addEventListener('click',e=>{e.preventDefault();document.body.classList.remove('all');show(k)}));
 document.getElementById('prev').onclick=()=>show(cur-1);document.getElementById('next').onclick=()=>show(cur+1);
 document.getElementById('all').onclick=()=>document.body.classList.toggle('all');

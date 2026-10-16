@@ -10,9 +10,10 @@
 #   R = load(выгрузка, имя_файла, report_week, history)   # период, выборки, без ИИ
 #   attach_ai(R, разметка)                                  # разметка ИИ → все метрики R.M
 #   R.AI["slides"] = разборы                                # разборы слайдов (s1…s11)
+#   attach_ai(R, разметка, stub=N, prompts=..., sample=...)  # 6.8: заглушка ИИ вместо ответов этапов (STUB_MODES)
 #   html = render(R, текст_шаблона, title=...)
 # ----------------------------------------------------------------------
-VERSION = "6.0"                 # 6.0 — мажор вровень с ноутбуком 6.0 (два режима запуска, my-FT Т-99); расчёт и вёрстка как в 5.7
+VERSION = "6.15"                # 6.15 — число поручений в списке — data-cnt (data-n занят номерами макета); 6.14 — поручения правятся в отчёте: поле ввода внизу слайдов, итоговый слайд s12, «В поручения», сохранение в plan.csv (my-FT Т-70, Т-71, В-34); 6.13 — масштаб графика цели по значениям, а не 0–100 (график «приземлялся»); 6.12 — значки у «Описание» и «Решение» в окне расшифровки (my-FT Т-117); 6.11 — цели — вертикальные боксы: плитка + график, градиент сверху вниз, шкала «цель — порог» (my-FT Т-114); 6.10 — цвета линий, полос, точек и тепловой карты — переменные шаблона (темы, my-FT Т-116); 6.9 — «Проблема» решений и «Первопричина» недели с подстановкой цифр (my-FT Т-115); 6.8 — заглушка ИИ (AI_STUB 0–3: выкл / пусто / промпт блока / текст готового отчёта) вместо ответов этапов ИИ, без вызовов модели; 6.7 — отложенное исправление: ссылка и срок во всём решении, без ksr; панель на s4 с решением целиком; доля запланированных открытых инцидентов (ksr) — inc_plan_pct (my-FT Т-107, Т-111); 6.6 — отложенное исправление в плане (ksr, my-FT Т-107); плитки целей — яркий фон, условия своими цветами (Т-110); 6.5 — расшифровка обращения: значок у номера у всех, окно с текстом из 1С без сокращений; 6.4 — основной срок решения — из 1С (tab_sla), расчётный — общий срок с уточнениями (my-FT Т-106); 6.3 — вид целей: плитка в стиле KPI, цель/порог/до цели колонкой, срок цели, график — квартал, акцентные цвета (my-FT Т-108); 6.2 — цели и поручения из plan.csv: табло, строки «плитка + динамика», поручения, подвал (my-FT Р-14); 6.1 — первый слайд возвращён к виду 5.6, s12 и светофор убраны (ksr остался); 6.0 — мажор вровень с ноутбуком 6.0 (два режима запуска, my-FT Т-99); расчёт и вёрстка как в 5.7
 # ----------------------------------------------------------------------
 # ЧТО ИЗМЕНЕНО (6.0): файл переименован report_v5.py → report_v6.py; TEMPLATE_MAJOR берётся из VERSION; имена модуля
 #               и шаблона в паспорте и в ошибках — из мажора; ноутбук в паспорте — RepSSPR.ipynb. Расчёт не менялся
@@ -57,10 +58,28 @@ HOLIDAYS = {f"2026-{d}" for d in ("01-01", "01-02", "01-03", "01-04", "01-05", "
 SVC_RX = r"списания выполнены|планерк|совещани"   # признаки служебной карточки учёта времени
 FAST_H, LONG_H, OLD_DAYS = 8, 40, 30
 
-import json, re, html, statistics, os
+import json, re, html, statistics, os, csv, io
 from datetime import datetime, timedelta
 from collections import Counter, defaultdict
 from html.parser import HTMLParser
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО (6.6): решение с отложенным исправлением — «будет решено / исправлено / доработано в рамках…»,
+#               «планируемая дата / срок», «зарегистрирована ЗНИ / инцидент»; прошедшее время («исправлена в рамках
+#               инцидента») не считается. Ссылка на обращение — номер 00-… или ref из url (Справочник.Идеи?ref=…)
+# ПОЧЕМУ: my-FT Т-107, В-31 — такое решение «в плане», только если ksr есть у самого обращения и у того, на которое ссылается
+# ----------------------------------------------------------------------
+DEFER_RX = re.compile(
+    r"буд(?:ет|ут)\s+(?:\S+\s+){0,3}?(?:реш|исправ|устран|дораб|исключ|реализ|выполн)\w*\s+(?:\S+\s+){0,2}?"
+    r"(?:в\s+рамках|по\s+обращени|по\s+ЗНИ|в\s+ЗНИ|в\s+задач)"
+    r"|в\s+рамках\s+(?:ЗНИ|ЗИ\b|обращени|инцидент|задач)\S*[^.]{0,120}?буд(?:ет|ут)\s"
+    r"|планируем\w*\s+(?:дат|срок)\w*"
+    r"|(?:зарегистрирован[аоы]?|заведен[аоы]?)\s+(?:отдельн\w*\s+)?(?:инцидент|ЗНИ|ЗИ\b)"
+    r"|(?:отдельно|дополнительно)\s+(?:зарегистрирован|заведен)\w*", re.I)
+REF_RX = re.compile(r"Идеи\?ref=([0-9a-f]{32})|(\d{2}-\d{8})", re.I)
+# 6.7: ссылка на обращение (номер, «ЗНИ № 23595», ссылка 1С) и срок (дата, но не метка времени автора «21.09.2026 16:59»)
+LINK_RX = re.compile(r"Идеи\?ref=[0-9a-f]{32}|\b\d{2}-\d{8}\b|(?:ЗНИ|ЗИ|обращени\w*|инцидент\w*|задач\w*|запрос\w*)\s*№\s*\.?\s*\d{3,}", re.I)
+DATE_RX = re.compile(r"(?<![\d.])\d{1,2}\.\d{1,2}\.(?:\d{4}|\d{2})(?!\d|\.\d)(?!\s*\d{1,2}:\d{2})"
+                     r"|\b(?:январ|феврал|март|апрел|ма[йя]|июн|июл|август|сентябр|октябр|ноябр|декабр)\w*\s+\d{4}", re.I)
 
 SOLVED = ["Отработано, требует подтверждения", "Закрыто"]
 REJECTED = "Отклонено"
@@ -126,21 +145,86 @@ CONSEQ = {("Правка данных", "Инцидент"): "Дефект пр�
           ("Права", "Консультация"): "Права уже были — нужна была инструкция"}
 TRANSLIT = dict(zip("абвгдеёжзийклмнопрстуфхцчшщъыьэюя", ["a", "b", "v", "g", "d", "e", "e", "zh", "z", "i", "y", "k", "l", "m", "n", "o", "p", "r", "s", "t", "u", "f", "kh", "ts", "ch", "sh", "shch", "", "y", "", "e", "yu", "ya"]))
 # порядок слайдов и меню; номера слайдов — метрики n_s1…n_s11 для текстов разборов
-NAV = [("Состояние недели", [("s1", "Неделя {WEEK}"), ("s11", "Сроки и долгострой"), ("s2", "Очередь на {NOW}"), ("s12", "Поток и динамика")]),
+NAV = [("Состояние недели", [("s1", "Неделя {WEEK}"), ("s11", "Сроки и долгострой"), ("s2", "Очередь на {NOW}")]),
        ("Где болит", [("s3", "Инциденты"), ("s4", "Ручные правки и НСИ"), ("s5", "Повторы"), ("s7", "Планшеты")]),
        ("Качество, люди, цена", [("s6", "Качество и классификация"), ("s9", "Аналитики"), ("s8", "Цена в часах")]),
-       ("Приложение", [("s10", "Паспорт данных")])]
-# ЧТО ИЗМЕНЕНО (5.7): s12 — «Поток и динамика» (бывший s1 до светофора); порядок: s1 светофор → s11 → s2 → s12
-ORDER = ["s1", "s11", "s2", "s12", "s3", "s4", "s5", "s7", "s6", "s9", "s8", "s10"]
-AI_SLIDES = ["s1", "s11", "s2", "s12", "s3", "s4", "s5", "s7", "s6", "s9", "s8"]   # слайды с разбором ИИ (паспорт — без)
+       ("Приложение", [("s10", "Паспорт данных")]),
+       ("Решения", [("s12", "Поручения")])]          # 6.14: итоговый слайд поручений (my-FT Т-70, В-34)
+# ЧТО ИЗМЕНЕНО (6.1): s12 убран, порядок — как в 5.6 (первый слайд — поток, скорость, решения)
+ORDER = ["s1", "s11", "s2", "s3", "s4", "s5", "s7", "s6", "s9", "s8", "s10", "s12"]
+AI_SLIDES = ["s1", "s11", "s2", "s3", "s4", "s5", "s7", "s6", "s9", "s8"]   # слайды с разбором ИИ (паспорт — без)
 # поля разборов слайдов: обязательные списки и поля их строк (data.md, разд. 11)
 SLIDE_ITEM = ("fact", "conc", "act", "who", "eff", "ids")
 # ЧТО ИЗМЕНЕНО (5.1): у s1 нет prev — контроль прошлых решений скрыт до поручений Т-70 (my-FT В-21)
-# ЧТО ИЗМЕНЕНО (5.7): контракт разбора «решения руководителя» переехал с s1 на s12 (светофор — без списков)
-SLIDE_EXTRA = {"s12": {"decisions": ("problem", "fact", "ids", "act", "who", "eff"), "root_all": ("cause", "ids", "act", "who")},
+# ЧТО ИЗМЕНЕНО (6.1): «решения руководителя» и первопричины — снова в разборе s1 (как до 5.7)
+SLIDE_EXTRA = {"s1": {"decisions": ("problem", "fact", "ids", "act", "who", "eff"), "root_all": ("cause", "ids", "act", "who")},
                "s3": {"root": ("cause", "ids", "fix", "kind"), "notsolved": ("id", "done", "why", "risk"), "fix_first": ("name", "ids", "act")},
                "s4": {"nsi_nonedit": ("id", "cls", "note")},
                "s6": {"best": ("id", "why", "kb")}}
+
+
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО (6.8): заглушка ИИ — режим сборки без ответов этапов ИИ (разборы слайдов, критичные, планшеты,
+#               повторы, старые открытые): 1 — пусто, 2 — какой промпт применяется к блоку, 3 — текст из готового отчёта
+# ПОЧЕМУ: макет и отчёт без токенов — проверить вёрстку и промпты, показать вид с реалистичным текстом (my-FT Т-113)
+# Разметка каждого решённого обращения (тема, тип, оценка) заглушкой не трогается: на ней стоят цифры и графики.
+# ----------------------------------------------------------------------
+STUB_MODES = {0: "", 1: "пусто", 2: "промпт блока", 3: "текст из готового отчёта"}
+STUB_STAGES = ("open_old", "open_crit", "planshet", "signals")      # этапы ИИ, кроме разборов слайдов
+STUB_SAMPLE_FILE = "examples/ai_stub_w41.json"                     # текст для режима 3 (взят один раз из отчёта W41)
+# панель → чей ответ в ней (ключ промпта): разборы слайдов «slide:sN» и этапы ИИ
+STUB_PANELS = (("Что требует решения руководителя", "slide:s1"), ("Первопричины недели", "slide:s1"),
+               ("Как сократить очередь", "open_old"), ("Все открытые старше 30 дней", "open_old"),
+               ("Критичные", "open_crit"), ("Общие первопричины", "slide:s3"), ("Закрыто, но не решено", "slide:s3"),
+               ("Что чинить первым", "slide:s3"), ("НСИ отдельно", "slide:s4"), ("Скрытые повторы", "signals"),
+               ("Внедрение планшетов", "planshet"), ("Лучшие решения", "slide:s6"), ("Сводная таблица и что поправить", "slide:s9"),
+               ("Случай недели", "slide:s9"))
+STUB_PROMPT_VARS = ("SYSTEM_SLIDES", "BASE_SCHEMA", "SLIDES", "SYSTEM_OPEN_OLD", "SYSTEM_OPEN_CRIT", "SYSTEM_PLANSHET", "SYSTEM_SIGNALS")
+
+
+def stub_prompts(v):
+    """Промпты этапов ИИ из переменных ноутбука (словарь имя → значение) → {ключ блока: текст промпта}.
+    Разбор слайда — общие правила + задача и схема слайда; данные обращений в запросе не показываются."""
+    out = {"open_old": v.get("SYSTEM_OPEN_OLD", ""), "open_crit": v.get("SYSTEM_OPEN_CRIT", ""),
+           "planshet": v.get("SYSTEM_PLANSHET", ""), "signals": v.get("SYSTEM_SIGNALS", "")}
+    for k, (title, task, schema) in (v.get("SLIDES") or {}).items():
+        out[f"slide:{k}"] = (f"{v.get('SYSTEM_SLIDES', '')}\n\n— запрос слайда —\nСлайд «{title}» (ключ {k})\nЧТО НУЖНО: {task}\n"
+                             f"СХЕМА ОТВЕТА (JSON): {{{v.get('BASE_SCHEMA', '')}{schema}}}\n"
+                             f"Дальше в запросе: каталог метрик, цели plan.csv, текст слайда, тексты обращений со слайда.")
+    return out
+
+
+def notebook_prompts(path):
+    """Промпты этапов ИИ прямо из ячеек ноутбука (без запуска): присваивания STUB_PROMPT_VARS — литералы Python."""
+    import ast
+    nb = json.load(open(path, encoding="utf-8"))
+    v = {}
+    for c in nb["cells"]:
+        if c.get("cell_type") != "code":
+            continue
+        src = "".join(c["source"])
+        if not any(n in src for n in STUB_PROMPT_VARS):
+            continue
+        try:
+            tree = ast.parse(src)
+        except SyntaxError:
+            continue
+        for node in tree.body:
+            if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) \
+                    and node.targets[0].id in STUB_PROMPT_VARS:
+                val = node.value
+                if isinstance(val, ast.JoinedStr):      # f-строка: вставки показываются выражением {…} — ноутбук не запускается
+                    v[node.targets[0].id] = "".join(x.value if isinstance(x, ast.Constant) else "{" + ast.unparse(x.value) + "}"
+                                                    for x in val.values)
+                    continue
+                try:
+                    v[node.targets[0].id] = ast.literal_eval(val)
+                except ValueError:
+                    pass
+    miss = [n for n in STUB_PROMPT_VARS if n not in v]
+    if miss:
+        raise ValueError(f"в {path} не найдены промпты: {miss}")
+    return stub_prompts(v)
 
 
 class Report:
@@ -417,6 +501,15 @@ def load(raw, dump_name="", report_week=None, history=None, demo=False, say=prin
         # срок по 1С: секунды в статусах без пауз (как считает 1С; рабочие или календарные — не проверено), часы
         r["h1c"] = round(sum(x[2] for x in r["tab_sla"] if not x[3]) / 3600, 1) if r["tab_sla"] else None
         r["p1c"] = round(sum(x[2] for x in r["tab_sla"] if x[3]) / 3600, 1) if r["tab_sla"] else None
+        # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО (6.4): основной срок решения — из 1С (tab_sla без пауз, раб. ч); расчётный (от регистрации до решения
+        #               по рабочему календарю, с уточнениями) — h_calc, «общий срок»; нет tab_sla — основной = расчётный
+        # ПОЧЕМУ: my-FT Т-106, В-30 — «длительность из 1С сделать основной; расчётная — для общей длительности с уточнениями»
+        # ----------------------------------------------------------------------
+        r["h_calc"] = r["h"]
+        r["h_src"] = "1С" if (r["h"] is not None and r["h1c"] is not None) else "расч."
+        if r["h_src"] == "1С":
+            r["h"] = r["h1c"]
         # оценка пользователя: последняя по дате; число — первая цифра значения («5», «5 - Отлично»)
         r["rate"] = max(r["tab_rate"], key=lambda x: x[0]) if r["tab_rate"] else None
         m_ = re.match(r"\s*(\d)", r["rate"][1]) if r["rate"] else None
@@ -532,6 +625,7 @@ def load(raw, dump_name="", report_week=None, history=None, demo=False, say=prin
     R.BYID = {r["id"]: r for r in rows}
     R.RAWID = {str(r.get("id", "")).strip(): r for r in raw}
     R.history = normalize_history(history or [])
+    R.PLAN = None                               # 6.2: план (plan.csv) — attach_plan; нет — слайды без целей и поручений
     R.AI = {"tickets": [], "open_old": [], "open_crit": [], "planshet": {}, "signals": [], "slides": {}}
     R.AIT, R.AIO = {}, {}
     R.M = {}
@@ -546,9 +640,20 @@ def _split_open(R):
 
 
 # ================================================================ РАЗМЕТКА ИИ И МЕТРИКИ
-def attach_ai(R, ai):
-    """Разметка ИИ (схема data.md, разд. 11) → поля строк и все метрики R.M. Разборы слайдов можно добавить позже."""
-    ai = ai or {}
+def attach_ai(R, ai, stub=0, prompts=None, sample=None):
+    """Разметка ИИ (схема data.md, разд. 11) → поля строк и все метрики R.M. Разборы слайдов можно добавить позже.
+    stub (6.8, STUB_MODES): 1–3 — ответы этапов ИИ заменяются заглушкой; prompts — {ключ блока: промпт} (режим 2),
+    sample — разметка из готового отчёта (режим 3: разборы слайдов и повторы; номера — чужой недели, только текстом)."""
+    ai = dict(ai or {})
+    if stub not in STUB_MODES:
+        raise ValueError(f"AI_STUB = {stub!r}: допустимо {sorted(STUB_MODES)}")
+    R.STUB, R.STUB_PROMPTS = stub, dict(prompts or {})
+    if stub:
+        smp = sample or {}
+        ai["slides"] = dict(smp.get("slides") or {}) if stub == 3 else {}
+        ai["signals"] = list(smp.get("signals") or []) if stub == 3 else []
+        ai.update(open_old=[], open_crit=[], planshet={})
+    R.STUB_SRC = (sample or {}).get("meta", {}).get("source", "") if stub == 3 else ""
     R.AI = {"tickets": [a for a in (ai.get("tickets") or []) if isinstance(a, dict) and a.get("id")],
             "open_old": [a for a in (ai.get("open_old") or []) if isinstance(a, dict) and a.get("id")],
             "open_crit": [a for a in (ai.get("open_crit") or []) if isinstance(a, dict) and a.get("id")],
@@ -623,7 +728,7 @@ def _metrics(R):
     # ----------------------------------------------------------------------
     # ЧТО ИЗМЕНЕНО (5.6): ksr — крайний срок решения (выгрузка v1.9, vygruzka-1c.md п. 2.9):
     # ksr_open — открытые инциденты с планом решения; ksr_over — срок прошёл (просрочено);
-    # ksr_late — срок истекает в ближайшую неделю. Нет поля в выгрузке — метрик нет (светофор s1 — серый)
+    # ksr_late — срок истекает в ближайшую неделю. Нет поля в выгрузке — метрик нет
     # ----------------------------------------------------------------------
     R.ksr_on = any(r["ksr_dt"] for r in rows)
     if R.ksr_on:
@@ -631,6 +736,41 @@ def _metrics(R):
         M["ksr_open"] = len(kopn)
         M["ksr_over"] = sum(r["ksr_dt"] < R.NOW for r in kopn)
         M["ksr_late"] = sum(R.NOW <= r["ksr_dt"] < R.NOW + timedelta(days=7) for r in kopn)
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО (6.7): отложенное исправление в порядке, если в решении есть ссылка на обращение и срок (дата);
+    #               ksr здесь не используется. ksr — доля открытых инцидентов с планом и просрочка (ниже)
+    # ПОЧЕМУ: my-FT Т-107, уточнение 15.10: «будет решено в рамках ЗИ тогда-то» — норма; без ссылки или срока — залёт
+    # ----------------------------------------------------------------------
+    byref = {}
+    for x in R.rows:
+        m_ = re.search(r"ref=([0-9a-f]{32})", str(x.get("url") or ""), re.I)
+        if m_:
+            byref[m_.group(1).lower()] = x
+    R.defer = []
+    for r in real:
+        txt = r.get("sol_raw") or r.get("sol") or ""
+        m_ = DEFER_RX.search(txt)
+        if not m_ or r["type"] == "Дубль":
+            continue
+        # ЧТО ИЗМЕНЕНО (6.7): ссылка и срок ищутся во всём решении, а не в окне вокруг фразы «будет решено»
+        # ПОЧЕМУ: пользователь 15.10 — срок часто дальше по тексту; окно и короткая цитата его отрезали
+        link, date = LINK_RX.search(txt), DATE_RX.search(txt)
+        refs = []
+        for g_ref, g_id in REF_RX.findall(txt):
+            x = byref.get(g_ref.lower()) if g_ref else (R.BYID.get(g_id) or R.RAWID.get(g_id))
+            if x is not None and x["id"] != r["id"] and x not in refs:
+                refs.append(x)
+        R.defer.append(dict(r=r, refs=refs, link=link.group(0) if link else "", date=date.group(0) if date else "",
+                            ok=bool(link and date)))
+    M["plan_ref_n"] = len(R.defer)
+    M["plan_ok_n"] = sum(d["ok"] for d in R.defer)
+    M["plan_ok_pct"] = pct(M["plan_ok_n"], M["plan_ref_n"]) if R.defer else None
+    M["plan_nolink_n"] = sum(not d["link"] for d in R.defer)
+    M["plan_nodate_n"] = sum(not d["date"] for d in R.defer)
+    # ksr — запланированные открытые инциденты (Т-107): доля с планом решения; просрочка — ksr_over выше
+    if R.ksr_on:
+        M["inc_plan_pct"] = pct(M["ksr_open"], len(inc_types)) if inc_types else None
+        M["inc_unplanned"] = len(inc_types) - M["ksr_open"]
     M["inc_sol"] = sum(r["type"] == "Инцидент" for r in sol); M["inc_ai"] = sum(r["type_ai"] == "Инцидент" for r in sol)
     M["hidden_ratio"] = str(round(M["inc_ai"] / M["inc_sol"], 1)).replace(".", ",") if M["inc_sol"] else "—"
     M["inc_old"] = sum(r["age"] > OLD_DAYS for r in inc_types)
@@ -688,12 +828,16 @@ def _metrics(R):
     #         нет данных в выгрузке — метрик нет, каталог ИИ их не показывает
     # ----------------------------------------------------------------------
     sl = R.sla1c = [r for r in real if r["h1c"] is not None]
-    div = lambda r: max(r["h"], r["h1c"]) >= SLA_DIV_X * min(r["h"], r["h1c"]) and abs(r["h"] - r["h1c"]) >= SLA_DIV_H
-    R.sla_div = sorted([r for r in sl if div(r)], key=lambda r: -abs(r["h"] - r["h1c"]))
+    # 6.4: сравнение — расчётный (h_calc) против 1С (h1c); основной срок r["h"] теперь и есть 1С
+    div = lambda r: max(r["h_calc"], r["h1c"]) >= SLA_DIV_X * min(r["h_calc"], r["h1c"]) and abs(r["h_calc"] - r["h1c"]) >= SLA_DIV_H
+    R.sla_div = sorted([r for r in sl if div(r)], key=lambda r: -abs(r["h_calc"] - r["h1c"]))
     if sl:
-        M.update(sla1c_n=len(sl), sla1c_med=med([r["h1c"] for r in sl]), sla1c_our_med=med([r["h"] for r in sl]),
+        M.update(sla1c_n=len(sl), sla1c_med=med([r["h1c"] for r in sl]), sla1c_our_med=med([r["h_calc"] for r in sl]),
                  sla1c_pause_med=med([r["p1c"] for r in sl]), sla1c_div=len(R.sla_div),
-                 sla1c_div_more=sum(r["h1c"] > r["h"] for r in R.sla_div), sla1c_div_less=sum(r["h1c"] < r["h"] for r in R.sla_div))
+                 sla1c_div_more=sum(r["h1c"] > r["h_calc"] for r in R.sla_div), sla1c_div_less=sum(r["h1c"] < r["h_calc"] for r in R.sla_div))
+    # 6.4: общий (расчётный) срок и покрытие сроком 1С — для подписи основной медианы и паспорта
+    M["med_calc"] = med([r["h_calc"] for r in real])
+    M["h1c_share"] = pct(sum(r["h_src"] == "1С" for r in real), len(real)) if real else None
     real4 = R.real4 = [r for r in sol4 if r["cat"] != "Служебное"]
     # ----------------------------------------------------------------------
     # ЧТО ИЗМЕНЕНО (5.4): метрики фаз срока — Ожидание/Уточнение/Решение (phases_v1, разд. 1)
@@ -780,6 +924,12 @@ def _metrics(R):
             k = "obj_" + slug(o)
             M[k] = M.get(k, 0) + 1
             R.obj_keys.setdefault(k, o)
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО (6.2): метрики для целей plan.csv — доля решённых за рабочий день и доля «Плохо», %
+    # ПОЧЕМУ: были только в вёрстке (s1, светофор 5.7) — цель можно ставить только на метрику каталога (Р-14)
+    # ----------------------------------------------------------------------
+    M["day_pct"] = pct(sum(r["h"] <= FAST_H for r in real), len(real)) if real else None
+    M["bad_pct"] = pct(M["bad_n"], M["sol_ai"]) if M["sol_ai"] else None
     R.M = M
     R.say(f"Метрик: {len(M)}")
     return M
@@ -808,7 +958,7 @@ METRIC_INFO = {
     "sol_n": "решено за период (то же, что m_sol)", "open_n": "открыто на момент выгрузки (то же, что m_open)",
     "dq": "изменение очереди за период: пришло − решено − отклонено (плюс — очередь растёт)",
     "dq_prev": "изменение очереди за предыдущую неделю",
-    "med_all": "медиана срока решения, раб. ч (8 ч в рабочем дне, выходные не считаются), решённые за период без служебных",
+    "med_all": "медиана срока решения по 1С (tab_sla, без пауз — ожидание пользователя не считается), раб. ч; нет данных 1С — расчётный; решённые за период без служебных",
     "med_l1": "медиана срока решения первой линии, раб. ч", "med_l2": "медиана срока решения второй линии, раб. ч",
     "l2_l1_ratio": "во сколько раз медиана второй линии больше медианы первой",
     "long_all": f"долгострой: решены за период, но шли дольше {LONG_H} раб. ч (без служебных)",
@@ -855,6 +1005,8 @@ METRIC_INFO = {
     "sla1c_n": "решённых за период без служебных, у которых есть срок по БД (tab_sla)",
     "sla1c_med": "медиана срока по БД (tab_sla), ч: секунды в статусах без пауз (ожидание пользователя БД не считает)",
     "sla1c_our_med": "медиана расч. срока, раб. ч, по тем же обращениям, что и sla1c_med",
+    "med_calc": "медиана общего срока решения (расчётный: от регистрации до решения, 8 ч в рабочем дне, с уточнениями), раб. ч",
+    "h1c_share": "доля решённых за период без служебных, у которых основной срок — из 1С (tab_sla), %",
     "sla1c_pause_med": "медиана часов на паузе по БД (ожидание пользователя)",
     "sla1c_div": f"обращений, где расч. срок и срок по БД расходятся: больший ≥ меньшего × {SLA_DIV_X} и разница ≥ {SLA_DIV_H:g} ч",
     "sla1c_div_more": "из них по БД дольше расч.", "sla1c_div_less": "из них по БД короче расч.",
@@ -884,6 +1036,15 @@ METRIC_INFO = {
     "ksr_open": "открытых инцидентов с планом решения (поле ksr, выгрузка v1.9)",
     "ksr_over": "открытых инцидентов с просроченным планом решения (ksr раньше среза данных)",
     "ksr_late": "открытых инцидентов, у которых план решения истекает в ближайшие 7 дней",
+    # 6.7: отложенное исправление — ссылка и срок в решении; ksr — запланированные инциденты (my-FT Т-107)
+    "plan_ref_n": "решённых за период с отложенным исправлением («будет решено в рамках…», «зарегистрирована ЗНИ», «планируемая дата»)",
+    "plan_ok_n": "из них в порядке: в решении есть ссылка на обращение (номер, ЗНИ №, ссылка 1С) и срок (дата)",
+    "plan_ok_pct": "доля отложенных исправлений со ссылкой и сроком в решении, %",
+    "plan_nolink_n": "отложенных исправлений без ссылки на обращение", "plan_nodate_n": "отложенных исправлений без срока (даты)",
+    "inc_plan_pct": "доля открытых инцидентов с планом решения (ksr), %", "inc_unplanned": "открытых инцидентов без плана решения (ksr)",
+    # 6.2: метрики для целей plan.csv
+    "day_pct": "доля решённых за период без служебных, решённых в пределах рабочего дня (≤ 8 раб. ч), %",
+    "bad_pct": "доля решений с оценкой ИИ «Плохо» среди размеченных решённых за период, %",
 }
 ANL_INFO = {"sol": "решено за период", "mis": "из них с неверным типом", "med": "медиана срока решённых за период, раб. ч",
             "bad": "оценок «Плохо» за период", "old": f"открытых старше {OLD_DAYS} дней", "old0": "из них без единого часа",
@@ -984,7 +1145,7 @@ def quote_ok(R, rid, q):
 
 def validate(R, part, obj, key=None):
     """Проверка ответа ИИ кодом (HANDOFF, разд. 0). Возвращает [(путь, ошибка)]; пусто — ответ годен.
-    part: slide (key = s1…s12), open_crit, planshet, signals."""
+    part: slide (key = s1…s11), open_crit, planshet, signals."""
     errs = []
     if part == "slide":
         s = obj
@@ -1037,8 +1198,8 @@ def validate(R, part, obj, key=None):
                 x = s.get(c)
                 if not isinstance(x, dict) or not isinstance(x.get("why"), str) or x.get("id") not in ai_ids:
                     errs.append(((c,), f"{c}: нужен id размеченного решённого за период и why"))
-        # ЧТО ИЗМЕНЕНО (5.7): notes — опциональный словарь строк (flow/weeks/history); есть — только строки; контракт на s12
-        if key == "s12" and "notes" in s:
+        # ЧТО ИЗМЕНЕНО (5.5; 6.1 — снова s1): notes — опциональный словарь строк (flow/weeks/history); есть — только строки
+        if key == "s1" and "notes" in s:
             if not isinstance(s["notes"], dict):
                 errs.append((("notes",), "notes — не объект {flow: строка, weeks: строка, history: строка}"))
             else:
@@ -1140,6 +1301,10 @@ def history_records(R, decisions=None):
         if b >= R.WE:
             rec.update(open=len(R.opn), open_gt30=len(R.old), holders=dict(Counter(r["holder"] for r in R.opn)),
                        dump=R.dump_name, decisions=decisions or [])
+            # ЧТО ИЗМЕНЕНО (6.2): числовые метрики каталога отчётной недели — динамика целей plan.csv (hist_ver 4)
+            # ПОЧЕМУ: у плитки цели — график за 8 недель (my-FT Т-105); прошлые недели берут что есть (med_hour, open_gt30…)
+            rec["hist_ver"] = 4
+            rec["metrics"] = {k: v for k, v in R.M.items() if isinstance(v, (int, float)) and not isinstance(v, bool)}
         out.append(rec)
         a = b
     return out
@@ -1151,6 +1316,8 @@ def merge_history(old, new):
         prev = m.get((r["year"], r["week_num"]), {})
         # решения недели не затираются пересчётом той же недели без разборов ИИ
         if not r.get("decisions") and prev.get("decisions"): r = dict(r, decisions=prev["decisions"])
+        # 6.2: метрики недели не затираются пересчётом той же недели из более поздней выгрузки (там она не отчётная)
+        if not r.get("metrics") and prev.get("metrics"): r = dict(r, metrics=prev["metrics"], hist_ver=prev.get("hist_ver", 4))
         m[(r["year"], r["week_num"])] = r
     return [m[k] for k in sorted(m)]
 
@@ -1162,6 +1329,594 @@ def prev_decisions(R):
         if (rec["year"], rec["week_num"]) == (py, pw) and rec.get("decisions"):
             return pw, rec["decisions"]
     return None
+
+
+# ================================================================ ПЛАН: ЦЕЛИ И ПОРУЧЕНИЯ
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО (6.2): план — файл plan.csv (Excel, «;», UTF-8 с BOM): строки «цель» (метрика из каталога R.M, направление,
+#               цель, тревога, «на табло») и «поручение» (что, кому, срок, статус). Слайд: сверху строки «плитка + динамика»
+#               по целям слайда, ниже — панели, раскрывающие эти плитки, разбор ИИ, поручения слайда, остальное — в «подвал».
+#               Первая страница — табло: плитки целей с «на табло: да» по группам меню. Невыполненное переходит в следующий
+#               отчёт само (строка остаётся в plan.csv); предложения ИИ дописываются со статусом «предложено».
+# ПОЧЕМУ: my-FT Т-102…Т-105, Р-14 — «один слайд — одна плитка, цель, критика»; цели и поручения — данные, а не код
+# ----------------------------------------------------------------------
+PLAN_FILE = "plan.csv"
+PLAN_COLUMNS = ["id", "вид", "слайд", "что", "метрика", "направление", "цель", "тревога", "на табло",
+                "кто", "срок", "статус", "создано", "закрыто", "заметка"]
+PLAN_OPEN = ("предложено", "в работе")          # такие поручения переходят в следующий отчёт
+ACHIEVED_WEEKS = 2                               # цель держится столько недель подряд — «достигнуто, закрыть?»
+TREND_WEEKS = 8                                  # недель на графике динамики (Amazon WBR — 6 недель; у нас 8)
+MIN_WEEK_SOL = 10                                # неделя истории с меньшим числом решённых в динамику не идёт
+# ЧТО ИЗМЕНЕНО (6.3): цвета — акцентные из палитры отчёта (как плитки KPI и «Инциденты в цифрах»), без пастели;
+#               «тревога» в отчёте называется «порог» (my-FT Т-108)
+GOAL_COLOR = {"ok": ("#0F6E3A", "в цели"), "warn": ("#B7800F", "между целью и порогом"),
+              "bad": ("#D93025", "хуже порога"), "na": ("#6B7785", "нет данных")}
+MON_FULL_GEN = ["", "янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
+# слайд метрики по умолчанию — если в plan.csv колонка «слайд» пуста
+METRIC_SLIDE = {"dq": "s1", "m_in": "s1", "m_sol": "s1", "med_all": "s11", "day_pct": "s11", "lng_share": "s11",
+                "long_all": "s11", "long_l2": "s11", "open_gt30": "s2", "zombie": "s2", "quick_close": "s2",
+                "inc_open": "s3", "inc_old": "s3", "ksr_over": "s3", "inc_plan_pct": "s3", "inc_unplanned": "s3", "plan_ok_pct": "s4", "pr_n": "s4", "pr_h": "s4", "pr_defect": "s4",
+                "top7_n": "s5", "bad_pct": "s6", "mis_pct": "s6", "pl_open": "s7", "svc_pct": "s8", "wait_ratio": "s8",
+                "med_l2": "s9", "med_l1": "s9"}
+# панели, которые раскрывают метрику (по началу заголовка панели); панели слайда с целями, не раскрывающие ни одну
+# его цель, уходят в «подвал». Панели без заголовка <h3> (ряды плиток-KPI) остаются на месте.
+PANEL_METRICS = {
+    "s1": {"Справились ли с потоком": {"dq", "m_in", "m_sol"}, "Поток по дням и типам": {"dq", "m_in", "m_sol"},
+           "Динамика по неделям": {"dq", "m_in", "m_sol"}},
+    "s11": {"Все долгострои периода": {"long_all", "lng_share", "long_l2"}, "Кто и что в долгострое": {"long_all", "lng_share", "long_l2"},
+            "Распределение сроков решения": {"med_all", "day_pct", "lng_share", "long_all"}, "Из чего состоит срок": {"med_all", "day_pct"},
+            "Расч. срок и срок по БД": {"med_all"}},
+    "s2": {"Кто и сколько держит — старше 30 дней": {"open_gt30", "zombie"}, "Как сократить очередь": {"open_gt30", "zombie", "quick_close"},
+           "Все открытые старше": {"open_gt30", "zombie", "quick_close"}},
+    "s3": {"Инциденты в цифрах": {"inc_open", "inc_old", "ksr_over", "inc_plan_pct", "inc_unplanned"}, "Критичные": {"inc_open", "ksr_over", "inc_plan_pct"},
+           "Кто сейчас держит открытые инциденты": {"inc_open", "inc_old"}},
+    "s4": {"Отложенное исправление": {"plan_ok_pct"}, "Масштаб": {"pr_n", "pr_h"}, "Почему правим": {"pr_n", "pr_defect"}, "Правки, которые на самом деле дефекты": {"pr_defect", "pr_n"},
+           "Мог бы сделать сам": {"pr_n"}},
+    "s5": {"Топ-7 точечных проблем": {"top7_n"}, "Кто приносит повторы": {"top7_n"}, "Скрытые повторы": {"top7_n"}},
+    "s6": {"Оценка решений и все «Плохо»": {"bad_pct"}, "Как тип указан и какой он на самом деле": {"mis_pct"},
+           "Кто ошибается в типе": {"mis_pct"}},
+    "s7": {"Внедрение планшетов": {"pl_open"}, "Открытые по планшетам": {"pl_open"}},
+    "s8": {"Цена по разделам и типам": {"svc_pct"}, "Работали против ждали": {"wait_ratio"}},
+    "s9": {"Сводная таблица и что поправить": {"med_l2", "med_l1"}, "Вторая линия решает обращения первой": {"med_l2"}},
+}
+# значения метрик в истории недель до 6.2 (hist_ver 3) — для динамики, пока не накопились week["metrics"]
+_HIST_FALLBACK = {"med_all": lambda w: w.get("med_hour") if w.get("total_tickets") else None,
+                  "m_sol": lambda w: sum((w.get("sol") or {}).values()) or None,
+                  "m_in": lambda w: sum((w.get("in") or {}).values()) or None,
+                  "dq": lambda w: (sum((w.get("in") or {}).values()) - sum((w.get("sol") or {}).values()) - sum((w.get("rej") or {}).values()))
+                  if w.get("sol") else None,
+                  "open_gt30": lambda w: w.get("open_gt30"), "m_open": lambda w: w.get("open")}
+
+
+def _pnum(v):
+    """Число из ячейки Excel: «12,5», «15%», «≤ 10» → float; пусто или не число — None."""
+    s = re.sub(r"[^\d,.\-]", "", str(v or "")).replace(",", ".")
+    try:
+        return float(s) if s not in ("", "-", ".") else None
+    except ValueError:
+        return None
+
+
+def _pdate(v):
+    s = str(v or "").strip()
+    for f in ("%d.%m.%Y", "%Y-%m-%d", "%d.%m.%y"):
+        try:
+            return datetime.strptime(s, f)
+        except ValueError:
+            pass
+    return None
+
+
+def _fmtn(v):
+    if v is None:
+        return "—"
+    return (str(int(v)) if float(v).is_integer() else f"{v:.1f}").replace(".", ",")
+
+
+def read_plan(path):
+    """plan.csv → список строк-словарей с колонками PLAN_COLUMNS (лишние колонки сохраняются). Нет файла — []."""
+    if not path or not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        text = f.read()
+    delim = ";" if text.count(";") >= text.count(",") else ","
+    rows = []
+    for d in csv.DictReader(io.StringIO(text), delimiter=delim):
+        row = {str(k or "").strip().lower(): str(v or "").strip() for k, v in d.items() if k}
+        if any(row.values()):
+            rows.append(row)
+    return rows
+
+
+def write_plan(path, rows):
+    """Список строк плана → plan.csv для Excel («;», UTF-8 с BOM); колонки — PLAN_COLUMNS, затем лишние как были."""
+    extra = [k for r in rows for k in r if k not in PLAN_COLUMNS]
+    cols = PLAN_COLUMNS + list(dict.fromkeys(extra))
+    with open(path, "w", encoding="utf-8-sig", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=cols, delimiter=";", extrasaction="ignore")
+        w.writeheader()
+        for r in rows:
+            w.writerow({c: r.get(c, "") for c in cols})
+
+
+def goal_color(v, goal, alarm, lower):
+    """Цвет цели: ok — цель достигнута, bad — хуже тревоги, warn — между ними, na — нет значения или цели."""
+    if v is None or goal is None:
+        return "na"
+    if lower:
+        return "ok" if v <= goal else ("bad" if alarm is not None and v > alarm else "warn")
+    return "ok" if v >= goal else ("bad" if alarm is not None and v < alarm else "warn")
+
+
+def _week_metrics(R, w):
+    """Метрики прошлой недели, которые выгрузка позволяет посчитать заново (R.wk: пришло, решено, отклонено за неделю)."""
+    real = [r for r in w["s"] if r["cat"] != "Служебное"]
+    n = len(real)
+    return {"m_in": len(w["i"]), "m_sol": len(w["s"]), "m_rej": len(w["j"]), "dq": w["dq"],
+            "med_all": med([r["h"] for r in real]), "long_all": sum(r["h"] > LONG_H for r in real),
+            "lng_share": pct(sum(r["h"] > LONG_H for r in real), n) if n else None,
+            "day_pct": pct(sum(r["h"] <= FAST_H for r in real), n) if n else None,
+            "inc_in": sum(r["type"] == "Инцидент" for r in w["i"])}
+
+
+def quarter_of(d):
+    """Квартал даты: (год, номер 1–4, первый день, первый день следующего квартала)."""
+    q = (d.month - 1) // 3 + 1
+    start = datetime(d.year, 3 * q - 2, 1)
+    end = datetime(d.year + (q == 4), 1 if q == 4 else 3 * q + 1, 1)
+    return d.year, q, start, end
+
+
+def report_quarter(R):
+    """Квартал отчётной недели — по её четвергу (как ISO-неделя)."""
+    return quarter_of(R.WS + timedelta(days=3))
+
+
+def quarter_weeks(R):
+    """ISO-недели текущего квартала [(год, неделя)]: неделя в квартале, если её четверг в квартале."""
+    _, _, a, b = report_quarter(R)
+    d = a - timedelta(days=a.weekday())
+    out = []
+    while d < b:
+        th = d + timedelta(days=3)
+        if a <= th < b:
+            out.append(tuple(d.isocalendar()[:2]))
+        d += timedelta(days=7)
+    return out
+
+
+def _goal_due(R, raw):
+    """Срок цели из plan.csv: дата, «4 кв 2026», «IV кв. 2026», «Q4 2026», «2026-Q4»; пусто — конец квартала отчёта."""
+    d = _pdate(raw)
+    if d:
+        return d
+    t = str(raw or "").lower().replace("кв.", "кв")
+    m = re.search(r"(?:q\s*([1-4])|([1-4]|iv|iii|ii|i)\s*кв)\D*(\d{4})|(\d{4})\D*q\s*([1-4])", t)
+    if m:
+        rom = {"i": 1, "ii": 2, "iii": 3, "iv": 4}
+        q = int(m.group(1) or m.group(5) or 0) or rom.get(m.group(2), 0) or int(m.group(2) or 0)
+        y = int(m.group(3) or m.group(4))
+        return quarter_of(datetime(y, 3 * q - 2, 1))[3] - timedelta(days=1)
+    return report_quarter(R)[3] - timedelta(days=1)
+
+
+def metric_series(R, key):
+    """Динамика метрики по неделям текущего квартала (my-FT Т-108): [(«W38», значение или None, будущая?)].
+    Прошлые недели окна выгрузки (R.wk) — из выгрузки (повтор той же выгрузки даёт тот же отчёт); более ранние недели
+    квартала — из истории (week["metrics"], для старых записей — med_hour, open_gt30 и т. п.); недели после отчётной — пустые."""
+    pts = {}
+    for w in R.history:
+        k = (w.get("year"), w.get("week_num"))
+        if k >= (R.YEAR, R.WEEK):
+            continue
+        # неделя, которую выгрузки почти не покрыли (решений меньше MIN_WEEK_SOL) — не данные, а хвост выгрузки
+        if not w.get("metrics") and (w.get("total_tickets") or 0) < MIN_WEEK_SOL:
+            continue
+        v = (w.get("metrics") or {}).get(key)
+        if v is None and key in _HIST_FALLBACK:
+            v = _HIST_FALLBACK[key](w)
+        if isinstance(v, (int, float)):
+            pts[k] = float(v)
+    for w in R.wk[:-1]:                              # прошлые недели окна выгрузки — главнее истории
+        v = _week_metrics(R, w).get(key)
+        if v is not None:
+            pts[tuple(w["a"].isocalendar()[:2])] = float(v)
+    cur = R.M.get(key)
+    pts[(R.YEAR, R.WEEK)] = float(cur) if isinstance(cur, (int, float)) else None
+    return [(f"W{k[1]}", pts.get(k) if k <= (R.YEAR, R.WEEK) else None, k > (R.YEAR, R.WEEK)) for k in quarter_weeks(R)]
+
+
+def attach_plan(R, rows):
+    """Строки plan.csv → R.PLAN: цели (значение, цвет, динамика) и поручения (просрочка, перенос). Ошибки строк — в R.PLAN["errors"]."""
+    goals, tasks, errors = [], [], []
+    for n, r in enumerate(rows or [], 2):
+        kind = r.get("вид", "").lower()
+        key = r.get("метрика", "").strip()
+        slide = r.get("слайд", "").strip().lower() or METRIC_SLIDE.get(key, "s1")
+        if slide not in ORDER:
+            errors.append(f"строка {n}: слайд «{slide}» — нет такого (s1…s12)"); continue
+        lower = not r.get("направление", "").lower().startswith(("бол", ">", "≥", "max"))
+        goal, alarm = _pnum(r.get("цель")), _pnum(r.get("тревога") or r.get("порог"))   # «порог» — то же, что «тревога»
+        val = R.M.get(key) if key else None
+        if key and not isinstance(val, (int, float)) and val is not None:
+            val = _pnum(val)
+        if key and key not in R.M and key not in METRIC_INFO:
+            errors.append(f"строка {n}: метрики «{key}» нет в каталоге (metrics.csv)")
+        if kind.startswith("цел"):
+            if not key or goal is None:
+                errors.append(f"строка {n}: у цели нужны метрика и число в «цель»"); continue
+            ser = metric_series(R, key)
+            cols = [goal_color(v, goal, alarm, lower) for _, v, _ in ser]
+            run = 0
+            for (_, v, fut), c in reversed(list(zip(ser, cols))):
+                if fut: continue
+                if c != "ok": break
+                run += 1
+            goals.append(dict(id=r.get("id", ""), slide=slide, name=r.get("что") or metric_info(R, key), key=key, lower=lower,
+                              goal=goal, alarm=alarm, value=val, color=goal_color(val, goal, alarm, lower), series=ser, colors=cols,
+                              ok_run=run, board=r.get("на табло", "").lower().startswith(("да", "1", "y", "+")), status=r.get("статус", ""),
+                              due=_goal_due(R, r.get("срок")),
+                              note=r.get("заметка", "")))
+        elif kind.startswith("пор"):
+            st = r.get("статус", "").lower() or "предложено"
+            due, closed = _pdate(r.get("срок")), _pdate(r.get("закрыто"))
+            if st not in PLAN_OPEN and not (closed and R.WS <= closed < R.WE):
+                continue                    # выполнено или отклонено раньше периода — в отчёт не переходит
+            tasks.append(dict(id=r.get("id", ""), slide=slide, what=r.get("что", ""), who=r.get("кто", ""), due=due, status=st,
+                              created=_pdate(r.get("создано")), closed=closed, note=r.get("заметка", ""), key=key, goal=goal,
+                              lower=lower, alarm=alarm, value=val,
+                              color=goal_color(val, goal, alarm, lower) if key and goal is not None else None,
+                              late=bool(due and due < R.NOW and st in PLAN_OPEN)))
+        else:
+            errors.append(f"строка {n}: «вид» — цель или поручение, а не «{kind}»")
+    R.PLAN = {"goals": goals, "tasks": tasks, "errors": errors, "rows": list(rows or [])}
+    return R.PLAN
+
+
+def plan_text(R, key):
+    """Цели и поручения слайда простым текстом — вход разбора ИИ слайда (ИИ видит план, а не только цифры)."""
+    P_ = getattr(R, "PLAN", None) or {}
+    lines = []
+    for g in P_.get("goals", []):
+        if g["slide"] == key:
+            lines.append(f"- цель «{g['name']}» ({{{g['key']}}}): сейчас {_fmtn(g['value'])}, цель {'≤' if g['lower'] else '≥'} {_fmtn(g['goal'])}, "
+                         f"порог {'>' if g['lower'] else '<'} {_fmtn(g['alarm'])}, срок цели {g['due']:%m.%Y} — {GOAL_COLOR[g['color']][1]}")
+    for t in P_.get("tasks", []):
+        if t["slide"] == key:
+            lines.append(f"- поручение «{t['what']}» — {t['who'] or 'кому не указано'}, срок {t['due']:%d.%m.%Y}" if t["due"] else
+                         f"- поручение «{t['what']}» — {t['who'] or 'кому не указано'}, без срока")
+            lines[-1] += f", статус «{t['status']}»" + (", ПРОСРОЧЕНО" if t["late"] else "")
+    return ("ЦЕЛИ И ПОРУЧЕНИЯ СЛАЙДА (plan.csv; не предлагать уже назначенное, оценить, сдвигается ли цель):\n" + "\n".join(lines) + "\n\n") if lines else ""
+
+
+def plan_proposals(R, slides_ai, per_slide=2):
+    """Предложения ИИ по слайдам → новые строки plan.csv со статусом «предложено» (не больше per_slide на слайд,
+    без повторов уже записанного «что»). Возвращает новые строки; R.PLAN не меняется — отчёт этой недели их не показывает."""
+    rows = list((getattr(R, "PLAN", None) or {}).get("rows", []))
+    norm = lambda s: re.sub(r"\W+", " ", fmt_plain(R, s or "")).strip().lower()
+    seen = {norm(r.get("что")) for r in rows}
+    nums = [int(m.group(1)) for r in rows for m in [re.match(r"П-(\d+)", r.get("id", ""))] if m]
+    nxt = max(nums, default=0) + 1
+    out = []
+    for key in ORDER:
+        if key in ("s1", "s10"):
+            continue
+        k = 0
+        for x in (slides_ai.get(key) or {}).get("items", []):
+            what = fmt_plain(R, x.get("act", "")).strip()
+            if not what or norm(what) in seen or k >= per_slide:
+                continue
+            seen.add(norm(what)); k += 1
+            out.append({"id": f"П-{nxt:03d}", "вид": "поручение", "слайд": key, "что": what, "кто": x.get("who", ""),
+                        "статус": "предложено", "создано": f"{R.NOW:%d.%m.%Y}",
+                        "заметка": "ИИ: " + fmt_plain(R, x.get("fact", ""))[:200]})
+            nxt += 1
+    return out
+
+
+def metrics_table(R):
+    """Каталог метрик для plan.csv: ключ, что это, значение отчётной недели, слайд по умолчанию — metrics.csv рядом с планом."""
+    return [{"метрика": k, "что это": metric_info(R, k), "значение": _fmtn(v) if isinstance(v, (int, float)) else str(v),
+             "слайд по умолчанию": METRIC_SLIDE.get(k, "")} for k, v in R.M.items()]
+
+
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО (6.11): цель — вертикальный бокс: плитка сверху (число, цель / порог / до цели колонкой, шкала «цель — порог»,
+#               срок), под ней график недель квартала; градиент цвета состояния сверху вниз затухает к графику. Цвета —
+#               переменные темы (класс gs-<состояние>). График не растягивается (без preserveAspectRatio="none"): шрифт
+#               не плющится, подписи цели и порога разводятся, будущие недели — точками. Табло и цели слайда — одни боксы.
+# ПОЧЕМУ: my-FT Т-114, В-32, В-33 — плитки целей «невозможно смотреть», график с плиткой «не бьётся»; Т-110 заменён
+# ----------------------------------------------------------------------
+GOAL_SHORT = {"ok": "в цели", "warn": "на грани", "bad": "хуже порога", "na": "нет данных"}
+_GTR_N = [0]                                      # счётчик id заливки графика: несколько графиков на странице
+
+
+def _fmtg(v):
+    """Число цели для показа: «−» вместо дефиса у отрицательных."""
+    return _fmtn(v).replace("-", "−")
+
+
+def _goal_pct(g, vals):
+    """Доля в процентах — шкала и график до 100."""
+    return "%" in g["name"] and max(vals) <= 100
+
+
+def _goal_scale(g):
+    """Шкала «цель — порог»: зелёный, жёлтый, красный отрезки, яркий — где значение сейчас; метка — значение."""
+    v, goal, alarm, lower = g["value"], g["goal"], g["alarm"], g["lower"]
+    if v is None:
+        return ""
+    vals = [v, goal] + ([alarm] if alarm is not None else [])
+    if _goal_pct(g, vals) and not lower:
+        lo, hi = 0.0, 100.0
+    else:
+        lo = min(0.0, v, goal)
+        hi = max((alarm if alarm is not None else goal) * 1.35, v * 1.1, goal + 1)
+        lo = lo * 1.4 if lo < 0 else lo
+    P = lambda x: (x - lo) / ((hi - lo) or 1) * 100
+    if lower:
+        zs = [(lo, goal, "ok")] + ([(goal, alarm, "warn"), (alarm, hi, "bad")] if alarm is not None else [(goal, hi, "bad")])
+    else:
+        zs = ([(lo, alarm, "bad"), (alarm, goal, "warn")] if alarm is not None else [(lo, goal, "bad")]) + [(goal, hi, "ok")]
+    z = "".join(f'<i class="z {c}{" hit" if c == g["color"] else ""}" style="left:{P(x0):.1f}%;width:calc({P(x1) - P(x0):.1f}% - 2px)"></i>'
+                for x0, x1, c in zs if x1 > x0)
+    return (f'<div class="gb-sc" role="img" aria-label="шкала: зелёное — цель, красное — за порогом; метка — {_fmtg(v)}">{z}'
+            f'<i class="m" style="left:{min(max(P(v), 0), 100):.1f}%"></i></div>')
+
+
+def _trend_svg(g, mini=False):
+    """Динамика цели за квартал (my-FT Т-108, Т-114): линия и заливка цвета состояния, цель — сплошная, порог — пунктир,
+    подписи слева; будущие недели — точками на оси; текущая неделя — крупная точка с числом. mini — для табло."""
+    ser = g["series"]
+    w, h = (300, 118) if mini else (520, 170)
+    pl, pr, pt, pb = (44 if mini else 72), 10, 18, 22
+    vals = [v for _, v, _ in ser if v is not None] + [g["goal"]] + ([g["alarm"]] if g["alarm"] is not None else [])
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО (6.13): масштаб графика — по значениям, цели и порогу с отступом, а не 0–100 для долей и не от нуля
+    # ПОЧЕМУ: «Доля долгостроя» 8–21% на шкале 0–100 легла на дно графика — динамику не видно (чат 15.10)
+    # ----------------------------------------------------------------------
+    mn, mx = min(vals), max(vals)
+    span = (mx - mn) or abs(mx) or 1.0
+    lo, hi = mn - span * .15, mx + span * .25
+    if mn >= 0:
+        lo = max(0.0, lo)
+    n = len(ser)
+    X = lambda i: pl + 14 + (w - pl - 14 - pr) * i / max(n - 1, 1)
+    Y = lambda v: pt + (h - pt - pb) * (1 - (v - lo) / ((hi - lo) or 1))
+    _GTR_N[0] += 1
+    gid = f"gtr{_GTR_N[0]}"
+    s = (f'<defs><linearGradient id="{gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--st)" stop-opacity=".25"/>'
+         f'<stop offset="1" stop-color="var(--st)" stop-opacity="0"/></linearGradient></defs>'
+         f'<line x1="{pl}" x2="{w - pr}" y1="{Y(lo):.1f}" y2="{Y(lo):.1f}" stroke="var(--rule)"/>')
+    yg = Y(g["goal"])
+    ya = Y(g["alarm"]) if g["alarm"] is not None else None
+    lg, la = yg, ya
+    if ya is not None and abs(yg - ya) < 15:                 # подписи цели и порога не наезжают
+        m, d = (yg + ya) / 2, (7.5 if yg > ya else -7.5)
+        lg, la = m + d, m - d
+    s += (f'<line x1="{pl}" x2="{w - pr}" y1="{yg:.1f}" y2="{yg:.1f}" stroke="var(--c-ok)" stroke-width="1.4"/>'
+          f'<text x="{pl - 6}" y="{lg + 4:.1f}" text-anchor="end" class="lg" fill="var(--c-ok)">{"" if mini else "цель "}{_fmtg(g["goal"])}</text>')
+    if ya is not None:
+        s += (f'<line x1="{pl}" x2="{w - pr}" y1="{ya:.1f}" y2="{ya:.1f}" stroke="var(--c-bad)" stroke-width="1.4" stroke-dasharray="5 4"/>'
+              f'<text x="{pl - 6}" y="{la + 4:.1f}" text-anchor="end" class="lg" fill="var(--c-bad)">{"" if mini else "порог "}{_fmtg(g["alarm"])}</text>')
+    cur_i = max((j for j, (_, _, f) in enumerate(ser) if not f), default=-1)
+    pts = [(X(i), Y(v), v, lab, c, i == cur_i) for i, ((lab, v, fut), c) in enumerate(zip(ser, g["colors"])) if v is not None]
+    if len(pts) > 1:
+        line = " ".join(f"{x:.1f},{y:.1f}" for x, y, *_ in pts)
+        s += (f'<polygon fill="url(#{gid})" points="{pts[0][0]:.1f},{Y(lo):.1f} {line} {pts[-1][0]:.1f},{Y(lo):.1f}"/>'
+              f'<polyline fill="none" stroke="var(--st)" stroke-width="2.4" stroke-linejoin="round" points="{line}"/>')
+    for i, (lab, v, fut) in enumerate(ser):
+        if fut:
+            s += f'<circle cx="{X(i):.1f}" cy="{Y(lo):.1f}" r="1.8" fill="var(--dim)"/>'
+        if not mini or i in (0, n // 2, n - 1):
+            s += f'<text x="{X(i):.1f}" y="{h - 5}" text-anchor="middle" class="ax{" fut" if fut else ""}">{E(lab)}</text>'
+    for x, y, v, lab, c, cur in pts:
+        s += (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{6 if cur else 4}" fill="var(--s-{c})" stroke="var(--paper)" stroke-width="2">'
+              f'<title>{E(lab)}: {_fmtg(v)}</title></circle>')
+        if cur and x > w - pr - 40:                          # последняя неделя квартала — число над точкой, не за краем
+            s += f'<text x="{x:.1f}" y="{y - 11:.1f}" text-anchor="end" class="tv">{_fmtg(v)}</text>'
+        elif cur:
+            s += f'<text x="{x + 12:.1f}" y="{y + 4:.1f}" class="tv">{_fmtg(v)}</text>'
+        elif not mini:                                       # на табло — число только у текущей недели
+            s += f'<text x="{x:.1f}" y="{y + 20 if y - 11 < pt - 4 else y - 11:.1f}" text-anchor="middle" class="tv">{_fmtg(v)}</text>'
+    if len(pts) < 2:
+        # подсказка — сверху или снизу поля, где дальше от линий цели и порога
+        lines = [yg] + ([ya] if ya is not None else [])
+        top, bot = pt + 8, h - pb - 6
+        hy = top if min(abs(top - y) for y in lines) > min(abs(bot - y) for y in lines) else bot
+        s += (f'<text x="{pl + 14}" y="{hy}" class="ax">'
+              f'{"история — со следующих прогонов" if mini else "прошлых недель в истории ещё нет — появятся со следующих прогонов"}</text>')
+    return f'<svg class="gtr" viewBox="0 0 {w} {h}" role="img" aria-label="Динамика по неделям квартала: {E(g["name"])}">{s}</svg>'
+
+
+def _goal_tile(g):
+    """Плитка цели — верх бокса: название и состояние, число цветом состояния, колонкой цель / порог / до цели, шкала, срок."""
+    sg, sa = ("≤", ">") if g["lower"] else ("≥", "<")
+    if g["value"] is None:
+        gap = "нет значения"
+    elif g["color"] == "ok":
+        gap = "цель достигнута"
+    else:
+        gap = f"до цели {'−' if g['lower'] else '+'}{_fmtn(abs(g['value'] - g['goal']))}"
+    run = f' · в цели {g["ok_run"]} нед. — поднять планку?' if g["ok_run"] >= ACHIEVED_WEEKS else ""
+    alarm = f'<span>порог</span><b>{sa} {_fmtg(g["alarm"])}</b>' if g["alarm"] is not None else ""
+    return (f'<div class="gb-t"><div class="gb-h"><h4>{E(g["name"])}</h4><span class="gb-w">{GOAL_SHORT[g["color"]]}</span></div>'
+            f'<div class="gb-r"><div class="gb-v">{_fmtg(g["value"])}</div>'
+            f'<div class="gb-c"><span>цель</span><b>{sg} {_fmtg(g["goal"])}</b>{alarm}<span class="gp">{gap}</span></div></div>'
+            f'{_goal_scale(g)}<div class="gb-d">к {MON_FULL_GEN[g["due"].month]} {g["due"].year}{run}</div></div>')
+
+
+def _goal_box(g, mini=False, href=None):
+    """Бокс цели: плитка + график; на табло весь бокс — ссылка на слайд цели."""
+    tag, attr = ("a", f' href="{href}" title="Открыть слайд цели"') if href else ("div", "")
+    return (f'<{tag} class="gbox gs-{g["color"]}"{attr}>{_goal_tile(g)}'
+            f'<div class="gb-g">{_trend_svg(g, mini)}</div></{tag}>')
+
+
+def _quarter_label(R):
+    y, q, _, _ = report_quarter(R)
+    return f"{q} кв. {y}"
+
+
+def goal_rows_html(R, key):
+    """Цели слайда — одна панель (my-FT Т-105, Т-108): строка на цель — плитка и динамика за квартал; одна сноска на панель."""
+    gs = [g for g in R.PLAN["goals"] if g["slide"] == key]
+    if not gs:
+        return ""
+    rows = '<div class="gboxes gboxes-s">' + "".join(_goal_box(g) for g in gs) + "</div>"   # 6.11: вертикальные боксы (Т-114)
+    return (f'<section class="panel goals"><header class="ph"><h3>Цели слайда — {_quarter_label(R)}</h3>'
+            f'<div class="stamps"><span class="stamp">plan.csv</span></div></header><div class="pb">{rows}</div>'
+            f'<p class="why"><b>Что это.</b> Цели из plan.csv: значение за {R.PER_S} (очередь — на срез), цель и порог, срок цели; '
+            f'график — недели {_quarter_label(R)}, пустые справа — сколько осталось. Цвет: зелёный — цель достигнута, '
+            f'жёлтый — между целью и порогом, красный — хуже порога.</p>'
+            f'<p class="use"><b>Польза / проблема.</b> Идём ли к цели к сроку; панели ниже раскрывают эти цели, поручения внизу слайда — что делается.</p></section>')
+
+
+def board_html(R):
+    """Табло первой страницы: плитки целей с «на табло: да» по группам меню; клик — на слайд плитки."""
+    on = [g for g in R.PLAN["goals"] if g["board"]]
+    if not on:
+        return ""
+    groups = ""
+    for gname, items in NAV:
+        gs = [g for k, _ in items for g in on if g["slide"] == k]
+        if gs:
+            groups += (f'<div class="bd-g"><div class="act">{E(gname)}</div><div class="gboxes">'   # 6.11: боксы с мини-графиком (Т-114)
+                       + "".join(_goal_box(g, mini=True, href=f"#{g['slide']}") for g in gs) + "</div></div>")
+    cnt = Counter(g["color"] for g in on)
+    head = " · ".join(f"{GOAL_COLOR[c][1]} — {cnt[c]}" for c in ("bad", "warn", "ok", "na") if cnt[c])
+    return (f'<section class="panel board"><header class="ph"><h3>Табло целей — {_quarter_label(R)}</h3><div class="stamps"><span class="stamp">{E(head)}</span></div></header>'
+            f'<div class="pb">{groups}</div>'
+            f'<p class="why"><b>Что это.</b> Цели из plan.csv с отметкой «на табло»: значение за {R.PER_S} (очередь — на срез), цвет — по цели и порогу, '
+            f'срок цели — месяц и год; график — недели квартала. Клик по боксу — слайд с динамикой и поручениями.</p>'
+            f'<p class="use"><b>Польза / проблема.</b> Один взгляд: красное — тема совещания и поручение; зелёное держится '
+            f'{ACHIEVED_WEEKS} нед. — цель можно поднять. Цели и пороги меняются в plan.csv без правки кода.</p></section>')
+
+
+# ----------------------------------------------------------------------
+# ЧТО ИЗМЕНЕНО (6.14): поручения правятся прямо в отчёте (my-FT Т-70, Т-71, Т-103, В-34 = б): внизу каждого слайда и на
+#               итоговом слайде s12 — список поручений и поле ввода; строки рисует скрипт шаблона из встроенного plan.csv
+#               (plan_json), статус — кликом, «Сохранить в plan.csv» пишет файл целиком. Следующий прогон читает plan.csv —
+#               невыполненное переходит в новый отчёт, как раньше
+# ПОЧЕМУ: «мы договаривались сделать внизу каждого слайда поле для ввода»; «где итоговый слайд с поручениями?» (чат 15.10)
+# ----------------------------------------------------------------------
+def _task_form(slide):
+    """Поле ввода поручения: что, кому, срок; на итоговом слайде — ещё слайд, к которому оно относится."""
+    pick = ""
+    if slide == "*":
+        opts = "".join(f'<option value="{k}">{k} · {E(t)}</option>' for _, items in NAV for k, t in items if k not in ("s1", "s10"))
+        pick = f'<label>Слайд<select name="slide">{opts}</select></label>'
+    return (f'<form class="tk-form" data-slide="{slide}" autocomplete="off">'
+            f'<label class="tk-w">Поручение<input name="what" required placeholder="что сделать — одно проверяемое действие"></label>'
+            f'<label>Кому<input name="who" list="tk-who" placeholder="ФИО или роль"></label>'
+            f'<label>Срок<input name="due" type="date"></label>{pick}'
+            f'<button type="submit">Добавить</button></form>')
+
+
+def tasks_html(R, key):
+    """Поручения слайда (my-FT Т-103): список (рисует скрипт из plan_json) и поле ввода; просрочка подсвечена, статус — кликом."""
+    n = sum(t["slide"] == key for t in R.PLAN["tasks"])
+    return (f'<section class="panel tasksp"><header class="ph"><h3>Поручения по слайду</h3>'
+            f'<div class="stamps"><span class="stamp">plan.csv</span></div></header><div class="pb">'
+            f'<div class="tk-list" data-slide="{key}" data-cnt="{n}"></div>{_task_form(key)}</div>'
+            f'<p class="why"><b>Что это.</b> Поручения из plan.csv по этому слайду: «предложено» и «в работе» переходят из отчёта в отчёт, '
+            f'пока не станут «выполнено» или «отклонено»; закрытые за {R.PER_S} показаны один раз. Добавить — полем ниже, статус — кликом; '
+            f'сохранить — кнопкой «Сохранить поручения» вверху (порядок — на слайде «Поручения»).</p>'
+            f'<p class="use"><b>Польза / проблема.</b> Контрмера к красной плитке: что делается, кем и к какому сроку; просрочка видна сразу.</p></section>')
+
+
+def slide_tasks(R):
+    """Итоговый слайд «Поручения» (my-FT Т-70, В-34): все поручения по слайдам, поле ввода и инструкция — как и когда сохранять."""
+    n = len(R.PLAN["tasks"]) if getattr(R, "PLAN", None) else 0
+    how = ('<ol class="tk-how">'
+           '<li><b>Когда.</b> После разбора отчёта на совещании — и до следующего прогона: новый отчёт возьмёт поручения из plan.csv.</li>'
+           '<li><b>Как править.</b> Добавить — полем внизу любого слайда или здесь; статус — кликом по нему '
+           '(предложено → в работе → выполнено → отклонено); «В поручения» у решений на первом слайде добавляет строку сюда.</li>'
+           '<li><b>Как сохранить.</b> Кнопка «Сохранить поручения» вверху справа (число на ней — несохранённые правки). '
+           'Chrome и Edge спросят, куда записать, — выберите <code>plan.csv</code> в папке проекта (рядом с RepSSPR.ipynb), дальше до закрытия '
+           'отчёта сохранение одним кликом. Другой браузер — файл скачается: положите его в папку проекта вместо старого.</li>'
+           '<li><b>Excel закройте</b> перед сохранением: открытый plan.csv записать нельзя. В файл пишутся все строки — и цели, и поручения.</li>'
+           '<li><b>Colab.</b> Сохранённый plan.csv при следующем прогоне выберите в окне загрузки вместе с выгрузкой '
+           '(иначе ноутбук возьмёт plan.csv из GitHub).</li>'
+           '<li>Закрыть отчёт с несохранёнными правками браузер не даст без предупреждения.</li></ol>')
+    return (f'<article class="slide" id="s12"><div class="sh"><h2>Поручения</h2><p class="lead">Все поручения по слайдам из plan.csv · '
+            f'открытые и закрытые за {R.PER_S}</p></div>'
+            f'<section class="panel tk-help"><header class="ph"><h3>Как и когда сохранять поручения</h3></header><div class="pb">{how}</div>'
+            f'<p class="why"><b>Что это.</b> Порядок работы с поручениями в отчёте.</p>'
+            f'<p class="use"><b>Польза / проблема.</b> Отчёт — файл без сервера: правки живут в браузере, пока их не сохранили в plan.csv.</p></section>'
+            f'<section class="panel tasksp"><header class="ph"><h3>Все поручения</h3><div class="stamps"><span class="stamp">plan.csv</span></div></header>'
+            f'<div class="pb"><div class="tk-list" data-slide="*" data-cnt="{n}"></div>{_task_form("*")}</div>'
+            f'<p class="why"><b>Что это.</b> Поручения всех слайдов: открытые («предложено», «в работе») и закрытые за {R.PER_S}; '
+            f'просроченные — красным, сверху.</p>'
+            f'<p class="use"><b>Польза / проблема.</b> Один список для совещания: кто что делает и к какому сроку; невыполненное переходит в следующий отчёт.</p></section>'
+            f'</article>')
+
+
+def plan_json(R):
+    """plan.csv целиком (все строки) + справочники для правки поручений в браузере; «</» экранирован для <script>."""
+    if not getattr(R, "PLAN", None):
+        return ""
+    who = sorted({short(n) for n in getattr(R, "anl_slug", {})}) + ["руководитель поддержки", "руководитель разработки",
+                                                                   "владелец процесса", "владелец НСИ"]
+    data = {"cols": PLAN_COLUMNS, "rows": R.PLAN["rows"], "open": list(PLAN_OPEN), "who": who,
+            "slides": {k: t.format(WEEK=R.WEEK, NOW=f"{R.NOW:%d.%m}") for _, items in NAV for k, t in items},
+            "ws": f"{R.WS:%Y-%m-%d}", "we": f"{R.WE:%Y-%m-%d}", "now": f"{R.NOW:%Y-%m-%d}", "file": PLAN_FILE}
+    return ('<script type="application/json" id="plan-data">' + json.dumps(data, ensure_ascii=False).replace("</", "<\\/") + "</script>"
+            '<datalist id="tk-who">' + "".join(f'<option value="{E(w)}">' for w in who) + "</datalist>")
+
+
+_TOP = re.compile(r"<(/?)(div|section|article|details)\b[^>]*>")
+
+
+def _top_children(html_):
+    """HTML → верхние элементы (div/section/details) списком строк; вложенность считается по этим тегам."""
+    out, depth, start = [], 0, None
+    for m in _TOP.finditer(html_):
+        if m.group(1):
+            depth -= 1
+            if depth == 0 and start is not None:
+                out.append(html_[start:m.end()]); start = None
+        else:
+            if depth == 0:
+                start = m.start()
+            depth += 1
+    return out
+
+
+def compose_slide(R, key, slide_html, ai_html=None):
+    """Раскладка слайда по плану (my-FT Р-14): заголовок → [табло на s1] → строки целей → панели, раскрывающие цели →
+    разбор ИИ → поручения (кроме s1) → «подвал» с остальными панелями. У слайда без целей — как был, плюс поручения."""
+    P_ = getattr(R, "PLAN", None)
+    if not P_ or key in ("s10", "s12"):
+        return slide_html
+    m = re.match(r'(<article class="slide" id="[^"]+">)(.*)(</article>)$', slide_html, re.S)
+    if not m:
+        return slide_html
+    open_tag, inner, close_tag = m.groups()
+    kids = _top_children(inner)
+    head = [k for k in kids if k.startswith('<div class="sh">')]
+    rest = [k for k in kids if not k.startswith('<div class="sh">')]
+    ai = [k for k in rest if 'class="panel aibox"' in k[:60]]
+    rest = [k for k in rest if k not in ai]
+    keys = {g["key"] for g in P_["goals"] if g["slide"] == key}
+    pm = PANEL_METRICS.get(key, {})
+    main, cellar = [], []
+    for k in rest:
+        titles = [re.sub(r"<[^>]+>", "", t).strip() for t in re.findall(r"<h3>(.*?)</h3>", k, re.S)]
+        if not keys or not titles:
+            main.append(k); continue
+        hit = any(keys & ms for t in titles for p, ms in pm.items() if t.startswith(p))
+        (main if hit else cellar).append(k)
+    out = "".join(head)
+    if key == "s1":
+        out += board_html(R)
+    out += goal_rows_html(R, key) + "".join(main) + "".join(ai)
+    if key != "s1":
+        out += tasks_html(R, key)
+    if cellar:
+        out += (f'<details class="cellar"><summary>Подвал слайда — ещё {len(cellar)}: панели, которые не раскрывают цели слайда. '
+                f'Посмотреть и решить, что вернуть наверх, а что убрать</summary>' + "".join(cellar) + "</details>")
+    return open_tag + out + close_tag
 
 
 # ================================================================ ВЁРСТКА
@@ -1184,6 +1939,7 @@ def _months6(R):
 
 def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
     """Слайды отчёта: (меню, {ключ слайда: HTML}). with_ai=False — без блоков «Разбор ИИ по слайду» (текст для промпта)."""
+    _GTR_N[0] = 0                    # 6.11: id заливок графиков целей — с нуля в каждой сборке, отчёт воспроизводим
     raw, rows, dropped = R.raw, R.rows, R.dropped
     AI, AIT, AIO, BYID, RAWID, M = R.AI, R.AIT, R.AIO, R.BYID, R.RAWID, R.M
     NOW, WS, WE, WEEK, DAYS, PER, PER_S, rule, in_per = R.NOW, R.WS, R.WE, R.WEEK, R.DAYS, R.PER, R.PER_S, R.rule, R.in_per
@@ -1258,52 +2014,75 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         tid = f'<a class="tid" href="{E(url)}">{E(i)}</a>' if url else f'<span class="tid">{E(i)}</span>'
         cli = short(r.get("cli", "")) if isinstance(r.get("cli"), str) else ""
         # ----------------------------------------------------------------------
-        # ЧТО ИЗМЕНЕНО (5.3): описание и решение — по клику; полный текст живёт один раз в реестре
-        # XTEXT внизу отчёта, в ячейке — только кнопка (З-4, З-6)
-        # ПОЧЕМУ: без реестра полный текст повторялся в разметке при каждом упоминании обращения
-        #         (отчёт ×3–3,6 раза); клик вставляет строку <tr><td> с копией из реестра и
-        #         сворачивается без потери текста — раскрыть можно снова
+        # ЧТО ИЗМЕНЕНО (6.5): расшифровка — значок сразу после номера у каждого обращения (полный и компактный вид);
+        #               клик открывает окно с описанием и решением из 1С без сокращений (шаблон 6.3, #xdlg)
+        # ПОЧЕМУ: значок был не у всех, вставка строки ломала таблицу, решение обрезалось чисткой и 3000 символами
         # ----------------------------------------------------------------------
-        more = ""
-        if r.get("desc") or r.get("sol"):
-            XTEXT.setdefault(i, (r.get("desc") or "", r.get("sol") or ""))
-            # ЧТО ИЗМЕНЕНО (5.4): кнопка раскрытия — компактный значок «⤵»; в полном виде
-            # (revью 06.10, п. 10) — только в компактном виде и в колонке «Суть (ИИ)» — ai_btn
-            more = '<button class="tmore" title="Описание и решение — по клику">⤵</button>'
+        num = f'<span class="tkn">{tid}{xbtn(r)}</span>'
         # ЧТО ИЗМЕНЕНО (5.4, ревью 07.10): строка 1 — «рег ДД · инициатор», строка 2 — «реш ДД · аналитик»
         ln1 = f"рег {DD(reg)} · {E(cli)}" if cli else f"рег {DD(reg)}"
-        if full:
-            return f'<span class="tk" data-tid="{E(i)}">{tid}<small>{ln1}</small><small>{d}</small></span>'
-        # компактный вид — как раньше, плюс «⤵» с раскрытием (З-3.3)
-        return f'<span class="tk" data-tid="{E(i)}">{tid}{more}<small>{ln1}</small><small>{d}</small></span>'
+        return f'<span class="tk" data-tid="{E(i)}">{num}<small>{ln1}</small><small>{d}</small></span>'
+
+    XICON = ('<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2.5h8M2 5h8M2 7.5h5.5M2 10h4" '
+             'stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/></svg>')
+
+    def xbtn(r):
+        """Значок расшифровки у номера: описание и решение из выгрузки как есть (desc_raw/sol_raw) — в реестр, кнопка — в ячейку."""
+        desc, sol_ = r.get("desc_raw") or r.get("desc") or "", r.get("sol_raw") or r.get("sol") or ""
+        if not (desc or sol_):
+            return ""
+        if r["id"] not in XTEXT:
+            reg = P(r["reg"]) if isinstance(r.get("reg"), str) else r.get("reg_dt")
+            head = r.get("name") or (r.get("ai") if isinstance(r.get("ai"), dict) else {}).get("s") or short_name(r)
+            meta = " · ".join(x for x in (f"рег {reg:%d.%m.%Y}" if reg else "", E(r.get("cli", "")) and f"инициатор {E(short(r.get('cli', '')))}",
+                                          E(r.get("anl", "")) and f"аналитик {E(short(r.get('anl', '')))}", E(r.get("st", "")), E(r.get("sec", ""))) if x)
+            url = r.get("url")
+            num = f'<a class="tid" href="{E(url)}">{E(r["id"])}</a>' if url else f'<span class="tid">{E(r["id"])}</span>'
+            XTEXT[r["id"]] = (f'<div class="xh">{num} <small>{meta}</small><h3>{E(head)}</h3></div>', desc, sol_)
+        return f'<button class="tx" data-x="{E(r["id"])}" title="Описание и решение — как в 1С" aria-label="Описание и решение {E(r["id"])}">{XICON}</button>'
 
     def xtext_registry():
-        """Скрытый реестр полных текстов (id → описание и решение ≤ 3000 симв.) —
-        заполняется вызовами tk(); в отчёте один экземпляр, читается скриптом раскрытия."""
+        """Скрытый реестр расшифровок (id → шапка, описание и решение из 1С целиком) — заполняется xbtn();
+        в отчёте один экземпляр, окно #xdlg шаблона берёт содержимое отсюда."""
         if not XTEXT:
             return ""
         parts = "".join(
-            f'<div class="xtf" id="xtf-{E(k)}">'
-            + (f'<b>Описание</b><div class="xt">{E(_clip(v[0]))}</div>' if v[0] else "")
-            + (f'<b>Решение</b><div class="xt">{E(_clip(v[1]))}</div>' if v[1] else "")
+            f'<div class="xtf" id="xtf-{E(k)}">{h}'
+            # 6.12: классы xl-q / xl-s — значки «запрос» и «решение» рисует шаблон (my-FT Т-117), в реестре только класс
+            + (f'<b class="xl xl-q">Описание</b><div class="xt xd">{E(d)}</div>' if d else "")      # длинное — своей прокруткой, решение видно сразу
+            + (f'<b class="xl xl-s">Решение</b><div class="xt">{E(sl)}</div>' if sl else "")
             + "</div>"
-            for k, v in XTEXT.items())
+            for k, (h, d, sl) in XTEXT.items())
         return f'<div id="xtreg" hidden>{parts}</div>'
 
     def tks(ids):
         return "".join(tk(i) for i in ids)
 
     def ai_cell(r):
-        """Последняя колонка «Суть (ИИ)» (ревью 06.10, п. 10): наименование или суть + кнопка раскрытия
-        описания и решения — кнопка живёт здесь, а не в первой колонке (Т-78: наименование обязано быть)."""
-        more = ""
-        if r.get("desc") or r.get("sol"):
-            XTEXT.setdefault(r["id"], (r.get("desc") or "", r.get("sol") or ""))
-            more = '<button class="tmore" title="Описание и решение — по клику">⤵</button>'
+        """Последняя колонка «Суть (ИИ)»: наименование или суть; расшифровка — значком у номера (6.5)."""
         s = r["ai"].get("s", "") or short_name(r)          # нет сути ИИ — краткое описание из выгрузки (З-3.1)
-        return f'<span class="tk" data-tid="{E(r["id"])}">{E(s)}{more}</span>'
+        return f'<span class="tk" data-tid="{E(r["id"])}">{E(s)}</span>'
+
+    def stub_note(pkey, short=False):
+        """Заглушка ИИ (6.8) в панели: режим и, в режиме 2, текст промпта блока; пустая строка — заглушки нет."""
+        mode = getattr(R, "STUB", 0)
+        if mode not in (1, 2):
+            return ""
+        if mode == 1:
+            return '<div class="ai-stub"><b>✦ Заглушка ИИ · пусто</b></div>'
+        if short and pkey.startswith("slide:"):
+            return (f'<div class="ai-stub"><b>✦ Заглушка ИИ · промпт</b> Часть разбора слайда {pkey[6:]} — '
+                    f'промпт целиком в блоке «Разбор ИИ по слайду» внизу слайда.</div>')
+        return (f'<div class="ai-stub"><b>✦ Заглушка ИИ · промпт</b> {E(pkey)}'
+                f'<pre>{E(R.STUB_PROMPTS.get(pkey) or "промпт не передан")}</pre></div>')
 
     def panel(title, st, body, what, use, cls=""):
+        # ЧТО ИЗМЕНЕНО (6.8): панель с ответом этапа ИИ при заглушке получает пометку (и промпт — в режиме 2)
+        # ПОЧЕМУ: Т-113 — видно, какой промпт отвечает за панель, без вызова модели
+        if getattr(R, "STUB", 0):
+            pk = next((k for t, k in STUB_PANELS if re.sub(r"<[^>]+>", "", title).startswith(t)), None)
+            if pk:
+                body = stub_note(pk, short=True) + body
         return (f'<section class="panel {cls}"><header class="ph"><h3>{title}</h3>{st}</header><div class="pb">{body}</div>'
                 f'<p class="why"><b>Что это.</b> {what}</p><p class="use"><b>Польза / проблема.</b> {use}</p></section>')
 
@@ -1314,6 +2093,10 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
     def ai_block(key, extra=""):
         if not with_ai:
             return ""
+        if getattr(R, "STUB", 0) in (1, 2):
+            return (f'<section class="panel aibox"><header class="ph"><h3>✦ Разбор ИИ по слайду</h3>{stamps("ai")}</header>'
+                    f'<div class="pb">{stub_note(f"slide:{key}")}{extra}</div>'
+                    f'<p class="why"><b>Что это.</b> {AI_WHAT}</p><p class="use"><b>Польза / проблема.</b> {AI_USE}</p></section>')
         s = AI["slides"].get(key)
         if not s:
             # ----------------------------------------------------------------------
@@ -1329,8 +2112,10 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
             for x in s.get("items", []))
         tbl = (f'<div class="tw"><table class="ai"><thead><tr><th>Факт</th><th>Вывод</th><th>Действие</th><th>Кому</th><th>Эффект</th></tr></thead>'
                f'<tbody>{rows_}</tbody></table></div>') if rows_ else ""
+        smp = (f'<div class="ai-stub"><b>✦ Заглушка ИИ · текст из готового отчёта</b> {E(getattr(R, "STUB_SRC", ""))} — '
+               f'цифры и номера обращений той недели, с этой выгрузкой не сверяются.</div>') if getattr(R, "STUB", 0) == 3 else ""
         return (f'<section class="panel aibox"><header class="ph"><h3>✦ Разбор ИИ по слайду</h3>{stamps("ai")}</header>'
-                f'<div class="pb"><p class="ai-sum">{fmt(s.get("summary"))}</p>{tbl}{extra}</div>'
+                f'<div class="pb">{smp}<p class="ai-sum">{fmt(s.get("summary"))}</p>{tbl}{extra}</div>'
                 f'<p class="why"><b>Что это.</b> {AI_WHAT}</p>'
                 f'<p class="use"><b>Польза / проблема.</b> {AI_USE}</p></section>')
 
@@ -1339,10 +2124,14 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         кромка и подложка. Текст — из разметки ИИ слайда (ключ notes); нет текста — пустая строка."""
         if not with_ai or not text:
             return ""
+        if isinstance(text, tuple):                     # 6.8: заглушка ИИ — ("stub", ключ слайда, имя врезки)
+            return stub_note(f"slide:{text[1]}", short=True)
         return f'<div class="ai-note"><i>✦</i><div>{fmt(text)}</div></div>'
 
     def ai_notes(key, name):
         """Текст встраиваемого разбора ИИ для панели: AI["slides"][key]["notes"][name]."""
+        if getattr(R, "STUB", 0) in (1, 2):
+            return ("stub", key, name)
         s = AI["slides"].get(key) or {}
         n = (s.get("notes") or {}) if isinstance(s, dict) else {}
         return n.get(name) if isinstance(n, dict) else None
@@ -1390,7 +2179,12 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         out.append("</svg>")
         return "".join(out)
 
-    def hbars(items, color="#3B4754", unit="", maxv=None, fmtv=lambda v: v):
+    # ----------------------------------------------------------------------
+    # ЧТО ИЗМЕНЕНО (6.10): нейтральные полосы, оси и точки — переменные шаблона (--bar, --bar2, --ink2, --muted, --rule,
+    #               --paper, --heat), а не зашитые цвета
+    # ПОЧЕМУ: my-FT Т-116 — тёмная тема: тёмно-серые полосы и белые точки на тёмном фоне пропадали или резали глаз
+    # ----------------------------------------------------------------------
+    def hbars(items, color="var(--bar)", unit="", maxv=None, fmtv=lambda v: v):
         maxv = maxv or max([v for _, v, _ in items] + [1])
         return '<div class="hbars">' + "".join(
             f'<div class="hb"><span class="hb-l" title="{E(l)}">{E(l)}</span><span class="hb-t"><i style="width:{100*v/maxv:.0f}%;background:{c or color}"></i></span>'
@@ -1440,55 +2234,13 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
 
     h1 = lambda x: "—" if x is None else f"{x:.1f} ч".replace(".", ",")
 
-    # ================================================================ СЛАЙД 1 — светофор
+    # ================================================================ СЛАЙД 1 — неделя
     # ----------------------------------------------------------------------
-    # ЧТО ИЗМЕНЕНО (5.7): первый слайд — только «всё хорошо или плохо»: 7 плиток-светофоров;
-    # цифры, графики и решения руководителя перенесены на слайд s12 «Поток и динамика»
-    # ПОЧЕМУ: по решению от 13.10 первый слайд отвечает на один вопрос — есть красная плитка или нет
+    # ЧТО ИЗМЕНЕНО (6.1): первый слайд возвращён к виду 5.6 — «Неделя N: поток, скорость, решения»; светофор 5.7
+    #               и слайд s12 убраны, медианы по типам — снова здесь, решения руководителя — снова в разборе s1
+    # ПОЧЕМУ: светофор не был требованием пользователя (my-FT Р-13: «а конечно» — вернуть прежнюю первую страницу)
     # ----------------------------------------------------------------------
     def slide1():
-        G, Y, Rd, Nx = "#1E8E3E", "#D08700", "#D93025", "#9AA5B1"
-        lamp = lambda name, val, note, col: (
-            f'<div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #E1E6EB;'
-            f'border-left:6px solid {col};border-radius:10px;padding:10px 14px">'
-            f'<span style="width:24px;height:24px;border-radius:50%;background:{col};flex:0 0 24px"></span>'
-            f'<span style="flex:1;min-width:0"><b>{E(name)}</b><br><small class="mut">{note}</small></span>'
-            f'<b style="font-size:20px;white-space:nowrap">{E(val)}</b></div>')
-        oi = [r for r in opn if r["type"] == "Инцидент"]
-        prev_med = med([r["h"] for r in wk[-2]["s"]])
-        dq_c = G if M["dq"] <= 0 else (Y if M["dq"] < 10 and M["dq_prev"] <= 0 else Rd)
-        md_c = Nx if prev_med in (None, 0) else (G if M["med_all"] <= prev_med * 1.1 else (Y if M["med_all"] <= prev_med * 1.3 else Rd))
-        lng_pct = 100 * M["long_all"] / max(1, len(real))
-        lg_c = G if lng_pct <= 5 else (Y if lng_pct <= 15 else Rd)
-        ic_c = G if len(oi) <= 3 else (Y if len(oi) <= 8 else Rd)
-        if R.ksr_on:
-            ko_c = G if M["ksr_over"] == 0 else (Y if M["ksr_over"] <= 2 else Rd)
-            ko_note = f"просрочено {M['ksr_over']} · истекает за неделю {M['ksr_late']} · с планом {M['ksr_open']}"
-        else:
-            ko_c, ko_note = Nx, "в выгрузке нет планов решения (ksr)"
-        old_c = G if M["open_gt30"] <= 5 else (Y if M["open_gt30"] <= 15 else Rd)
-        bd_c = Nx if M["sol_ai"] == 0 else None
-        if bd_c is None:
-            bad_pct = 100 * M["bad_n"] / max(1, M["sol_ai"])
-            bd_c = G if bad_pct <= 5 else (Y if bad_pct <= 10 else Rd)
-        bad_val = "—" if M["sol_ai"] == 0 else c1(100 * M["bad_n"] / max(1, M["sol_ai"])) + "%"
-        tiles = [("Очередь за период", f'{M["dq"]:+d}', "пришло − решено − отклонено; жёлтая — рост до 9, красная — 10 и больше или рост две недели подряд", dq_c),
-                 ("Медиана срока", f'{c1(M["med_all"])} ч', f"неделей ранее {h1(prev_med)}; жёлтая — хуже на 10–30%, красная — больше", md_c),
-                 ("Долгострой", str(M["long_all"]), f'{M["lng_share"]}% решённых дольше {LONG_H} раб. ч; жёлтая — 5–15%, красная — больше', lg_c),
-                 ("Инциденты в работе", str(len(oi)), "открыто сейчас; жёлтая — 4–8, красная — больше 8", ic_c),
-                 ("План решения (ksr)", str(M.get("ksr_over", 0)), ko_note + "; зелёная — просрочек нет, жёлтая — 1–2, красная — больше", ko_c),
-                 ("Открытые старше месяца", str(M["open_gt30"]), "жёлтая — 6–15, красная — больше 15", old_c),
-                 ("Доля «Плохо»", bad_val, f'{M["bad_n"]} из {M["sol_ai"]} размеченных решённых; жёлтая — 5–10%, красная — больше', bd_c)]
-        p0 = panel("Светофор недели", stamps("in", "sol", "rej", "open", "ai"),
-                   '<div class="grid g2">' + "".join(lamp(*t) for t in tiles) + "</div>",
-                   "Зелёный — норма, жёлтый — внимание, красный — плохо, серый — нет данных. Цифры и графики по каждой плитке — на слайде «Поток и динамика» и на своих слайдах.",
-                   "Один взгляд на состояние: красная плитка — тема совещания, зелёные — работаем как работали.", "hero")
-        return (f'<article class="slide" id="s1"><div class="sh"><h2>Неделя {WEEK}: светофор</h2>'
-                f'<p class="lead">Период {PER} ({rule}) · срез открытых на {NOW:%d.%m.%Y %H:%M} · выгрузка {len(raw)} строк</p></div>'
-                + p0 + ai_block("s1") + "</article>")
-
-    # ================================================================ СЛАЙД 12 — поток и динамика (бывший s1 до 5.7)
-    def slide12():
         cc = lambda lst: Counter(r["cat"] for r in lst)
         inc_c, sol_c, rej_c = cc(inc), cc(sol), cc(rej)
         was = len(opn) - M["dq"]
@@ -1532,9 +2284,9 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         prev_med = med([r["h"] for r in wk[-2]["s"]])
         k = [kpi("Время до решения, медиана", stamps("sol"), c1(M["med_all"]), "раб. ч",
                  h1(M["med_l1"]), h1(M["med_l2"]),
-                 f'неделей ранее {h1(prev_med)}' + "; раб. ч: 8 ч в рабочем дне, выходные не считаются"
-                 # ЧТО ИЗМЕНЕНО (5.2): срок по 1С рядом с нашим. ПОЧЕМУ: Т-74 — сравнить, потом решить, какой основной
-                 + (f'<br>по БД без пауз — <b>{c1(M["sla1c_med"])} ч</b> · <a href="#s11">сравнение →</a>' if M.get("sla1c_med") is not None else "")
+                 f'неделей ранее {h1(prev_med)}' + f"; срок по 1С без пауз (у {M['h1c_share']}% решённых, у остальных — расчётный)"
+                 # ЧТО ИЗМЕНЕНО (6.4): основной срок — 1С; рядом — общий расчётный срок с уточнениями (Т-106)
+                 + (f'<br>общий срок с уточнениями — <b>{c1(M["med_calc"])} раб. ч</b> · <a href="#s11">сравнение →</a>' if M.get("med_calc") is not None else "")
                  # ЧТО ИЗМЕНЕНО (5.4): фазы срока рядом с медианой (phases_v1, разд. 2.3)
                  + (f'<br>из них ожидание {c1(M["ph_wait_wsh"])}% · уточнение {c1(M["ph_clar_wsh"])}% календарного времени · <a href="#s11">фазы →</a>' if M.get("ph_wait_wsh") is not None else "")),
              kpi("Решено в пределах рабочего дня", stamps("sol"), le8(real)[:-1], "%", le8(L1), le8(L2), f"≤ {FAST_H} раб. ч от регистрации до решения"),
@@ -1551,21 +2303,33 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         # ЧТО ИЗМЕНЕНО: таблица «Долгострой» убрана со слайда 1 — теперь отдельный слайд (slide11)
         # ПОЧЕМУ: Т-61, ответ на В-11 «б» — на первом слайде только крупное, детали по плитке — на своём слайде
         # ----------------------------------------------------------------------
-        # ----------------------------------------------------------------------
-        # ЧТО ИЗМЕНЕНО (5.7): панель «Сколько ждут решения — по типам» перенесена на s11 (Сроки и долгострой) —
-        # медианы по типам — про сроки, а не про поток; на s12 остаются потоки и динамика
-        # ----------------------------------------------------------------------
+        # строка 2 — медианы по типам (Т-15)
+        cards = ""
+        for c in CATS + ["Служебное"]:
+            s = [r for r in sol if r["cat"] == c]
+            if not s: continue
+            # ЧТО ИЗМЕНЕНО (5.4): мини-полоса долей фаз типа (phases_v1, разд. 2.4); числа — по наведению
+            ag = None
+            if any(r["ph"] for r in s):
+                ag = {k_: sum(r["ph"][k_] for r in s if r["ph"]) for k_, _ in PH_NAMES}
+                ag["total"] = sum(r["ph"]["total"] for r in s if r["ph"])
+            cards += (f'<div class="tc" style="--c:{CAT_COLOR[c]}"><span>{c}</span><b>{c1(med([r["h"] for r in s]))}</b><small>раб. ч медиана</small>'
+                      f'<em>{len(s)} решено · {hsum(s):.0f} ч трудозатрат</em>'
+                      + (f'<em>{ph_bar(ag, w=120)}</em>' if ag else "") + "</div>")
+        row2 = panel("Сколько ждут решения — по типам", stamps("sol"), f'<div class="tcs">{cards}</div>{ph_legend()}',
+                     "Медиана от регистрации до решения по типу при регистрации. НСИ — раздел «Нормализация» целиком, «Правка данных» — без НСИ. Трудозатраты — поле AmountTrud. "
+                     "Полоса под медианой — из чего состоит срок типа по истории статусов; календарные часы, хвост автоподтверждения исключён. Медианы фаз не суммируются в медиану срока.",
+                     "Сравнение типов между собой: какой тип заставляет ждать и сколько стоит в часах. Инцидент в десятки раз медленнее правки — место для ускорения.")
         # строка 3 — поток по дням и типам
         days_in = [(f"{WD[d.weekday()]}|{d:%d.%m}", Counter(r["cat"] for r in inc if r["reg_dt"].date() == d.date()), False) for d in DAYS]
         days_sol = [(f"{WD[d.weekday()]}|{d:%d.%m}", Counter(r["cat"] for r in sol if r["done_dt"].date() == d.date()), False) for d in DAYS]
         ym = max(max(sum(g[1].values()) for g in days_in), max(sum(g[1].values()) for g in days_sol))
         cats7 = CATS + ["Служебное"]
         # ЧТО ИЗМЕНЕНО (5.5, ревью 07.10): под графиком потока — вывод ИИ (notes.flow: инциденты, правки данных)
-        # ЧТО ИЗМЕНЕНО (5.7): выводы ИИ и таблица решений руководителя — с ключом s12 (слайд переехал с s1)
         row3 = panel("Поток по дням и типам", stamps("in", "sol"),
                      f'<div class="grid g2"><div><div class="ch">Что пришло — по дню регистрации</div>{stack_svg(days_in, cats7, ymax=ym)}</div>'
                      f'<div><div class="ch">Что решено — по дню решения</div>{stack_svg(days_sol, cats7, ymax=ym)}</div></div>{legend(cats7)}'
-                     f'{ai_note(ai_notes("s12", "flow"))}',
+                     f'{ai_note(ai_notes("s1", "flow"))}',
                      "Слева — нагрузка на входе, справа — выход, шкала одна. Цвет — тип обращения.",
                      "Видно, в какие дни не успевали и какой тип копится: если столбец справа ниже левого — очередь в этот день росла.")
         # строка 4 — динамика по неделям
@@ -1578,10 +2342,10 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         # ЧТО ИЗМЕНЕНО (5.5, ревью 07.10): таблица после графика заменена выводом ИИ (notes.weeks):
         # акцент — поступление и решение инцидентов по неделям, правки данных; ниже — вывод по истории
         # недель (notes.history; модель пишет пустую строку, если истории ещё нет — блок не рисуется)
-        wk_note = ai_notes("s12", "weeks") or "Разбор ИИ недоступен: сбой модели или ответ не прошёл проверку. Подробности — в журнале запуска."
+        wk_note = ai_notes("s1", "weeks") or "Разбор ИИ недоступен: сбой модели или ответ не прошёл проверку. Подробности — в журнале запуска."
         row4 = panel("Динамика по неделям", stamps("in4", "sol4"),
                      f'{stack_svg([(g[0].replace(" пришло", " ▲").replace(" решено", " ▼"), g[1], g[2]) for g in wgroups], cats7, w=1100, h=240)}{legend(cats7)}'
-                     f'{ai_note(wk_note)}{ai_note(ai_notes("s12", "history"))}',
+                     f'{ai_note(wk_note)}{ai_note(ai_notes("s1", "history"))}',
                      f"Пары столбцов: ▲ пришло и ▼ решено за неделю по типам. Последняя неделя — отчётный период {PER_S} (без выходных). Источник — та же выгрузка за 4 недели.",
                      "Тренд, а не один снимок: поток снижается, очередь тает — или наоборот. Смена состава типов видна раньше, чем рост очереди.")
         # строка 5 — по месяцам
@@ -1629,9 +2393,17 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
                      f"Те же разрезы, что по неделям, но по календарным месяцам. {MON_FULL[months[-1][1]].capitalize()} — до даты выгрузки.",
                      "Сезонность и долгий тренд: растёт ли доля инцидентов и НСИ от месяца к месяцу. Недели этого не показывают.")
         # строка 6 — что требует решения руководителя
-        S = AI["slides"].get("s12") or {}
-        dec = "".join(f'<tr><td><b>{E(d.get("problem", ""))}</b></td><td>{fmt(d.get("fact"))}<div class="ids">{tks(d.get("ids", []))}</div></td>'
-                      f'<td><b>{fmt(d.get("act"))}</b></td><td>{E(d.get("who", ""))}</td><td>{fmt(d.get("eff"))}</td></tr>' for d in S.get("decisions", []))
+        S = AI["slides"].get("s1") or {}
+        # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО (6.9): «Проблема» решений руководителя и «Первопричина» первопричин недели — через fmt, а не E
+        # ПОЧЕМУ: my-FT Т-115 — в боевом отчёте W41 ключи {open_gt30}, {pr_n}, {mis_n}… остались без цифр; ключи в этих
+        #         полях проверяет validate, fmt экранирует текст так же, как E
+        # ----------------------------------------------------------------------
+        dec = "".join(f'<tr><td><b>{fmt(d.get("problem", ""))}</b></td><td>{fmt(d.get("fact"))}<div class="ids">{tks(d.get("ids", []))}</div></td>'
+                      # 6.14: «В поручения» — строка на итоговый слайд с действием и кому (my-FT Т-71, п. 2)
+                      f'<td><b>{fmt(d.get("act"))}</b><br><button type="button" class="tk-add" data-what="{E(fmt_plain(R, d.get("act", "")))}" '
+                      f'data-who="{E(d.get("who", ""))}" data-note="{E(fmt_plain(R, d.get("problem", "")))}">В поручения</button></td>'
+                      f'<td>{E(d.get("who", ""))}</td><td>{fmt(d.get("eff"))}</td></tr>' for d in S.get("decisions", []))
         if not dec:
             dec = '<tr><td colspan="5" class="mut">Разбор ИИ недоступен — решения недели не сформированы.</td></tr>'
         # ----------------------------------------------------------------------
@@ -1643,14 +2415,14 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
                      f'<div class="tw"><table class="dec"><thead><tr><th>Проблема</th><th>Факт и обращения</th><th>Действие</th><th>Кому</th><th>Эффект</th></tr></thead><tbody>{dec}</tbody></table></div>',
                      "Пять решений недели по схеме «проблема — факт — действие — кому — эффект». Ручные правки считаются без НСИ. Решения сохраняются в истории недель.",
                      "Совещание начинается с этого блока: не «что случилось», а что делаем и кто отвечает.")
-        ra = "".join(f'<tr><td><b>{E(x.get("cause", ""))}</b></td><td>{tks(x.get("ids", []))}</td><td><b>{E(x.get("act", ""))}</b></td><td>{E(x.get("who", ""))}</td></tr>' for x in S.get("root_all", []))
+        ra = "".join(f'<tr><td><b>{fmt(x.get("cause", ""))}</b></td><td>{tks(x.get("ids", []))}</td><td><b>{E(x.get("act", ""))}</b></td><td>{E(x.get("who", ""))}</td></tr>' for x in S.get("root_all", []))
         row7 = panel("Первопричины недели — все типы обращений", stamps("ai", "sol", "open"),
                      f'<div class="tw"><table class="ai"><thead><tr><th>Первопричина</th><th>Обращения</th><th>Что сделать</th><th>Кому</th></tr></thead><tbody>{ra}</tbody></table></div>',
                      "Корневые причины, которые ИИ видит сразу в нескольких обращениях разных типов — правках, консультациях, инцидентах (бывшие «Выводы ИИ» старого отчёта, Т-50).",
                      "Одна мера по первопричине снимает сразу группу обращений разных типов — это уровень решений руководителя, а не аналитика.")
-        return (f'<article class="slide" id="s12"><div class="sh"><h2>Поток и динамика: цифры недели</h2>'
+        return (f'<article class="slide" id="s1"><div class="sh"><h2>Неделя {WEEK}: поток, скорость, решения</h2>'
                 f'<p class="lead">Период {PER} ({rule}) · срез открытых на {NOW:%d.%m.%Y %H:%M} · выгрузка {len(raw)} строк</p></div>'
-                + p0 + row1 + row3 + row4 + row5 + row6 + row7 + ai_block("s12") + "</article>")
+                + p0 + row1 + row2 + row3 + row4 + row5 + row6 + row7 + ai_block("s1") + "</article>")
 
     # ================================================================ СЛАЙД 11 — сроки и долгострой
     # ----------------------------------------------------------------------
@@ -1690,8 +2462,8 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         bt = Counter(r["cat"] for r in lng).most_common(); ba = Counter(short(r["anl"]) for r in lng).most_common(); bs = Counter(r["sec"] for r in lng).most_common(6)
         p3 = panel("Кто и что в долгострое", stamps("sol"),
                    f'<div class="grid g2"><div><div class="ch">По типу обращения</div>{hbars([(c, v, CAT_COLOR.get(c)) for c, v in bt])}</div>'
-                   f'<div><div class="ch">По аналитику</div>{hbars([(a, v, "#3B4754") for a, v in ba])}</div></div>'
-                   f'<div class="ch" style="margin-top:12px">По разделу (первые 6)</div>{hbars([(c, v, "#5D6B7A") for c, v in bs])}',
+                   f'<div><div class="ch">По аналитику</div>{hbars([(a, v, "var(--bar)") for a, v in ba])}</div></div>'
+                   f'<div class="ch" style="margin-top:12px">По разделу (первые 6)</div>{hbars([(c, v, "var(--bar2)") for c, v in bs])}',
                    f"Те же {n} обращений в трёх разрезах: тип при регистрации, ответственный аналитик, раздел.",
                    "Концентрация — признак системной причины: один аналитик, один раздел или один тип (консультации не должны идти неделями).")
         # ----------------------------------------------------------------------
@@ -1757,7 +2529,7 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
             # ЧТО ИЗМЕНЕНО (5.4, ревью п. 11): «наш» → «расч.», «по 1С» → «по БД»; пауза и «Что» убраны;
             # справа — третья часть ширины: открытые в ожидании (Т-90, Т-91)
             body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td>'
-                           f'<td class="c"><b>{c1(r["h"])}</b><br><small class="mut">по БД {c1(r["h1c"])}</small></td>'
+                           f'<td class="c"><b>{c1(r["h_calc"])}</b><br><small class="mut">по БД {c1(r["h1c"])}</small></td>'
                            f'<td>{E(r["cat"])}</td><td>{ai_cell(r)}</td></tr>' for r in dv[:10])
             ow11 = [r for r in opn if r["st"] == "Ожидает анализа"]
             ow_rows = "".join(f'<tr><td>{tk(r["id"])}</td><td class="c">{r["age"]} дн.</td></tr>' for r in ow11) or '<tr><td class="mut">нет</td><td class="mut">·</td></tr>'
@@ -1769,29 +2541,9 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
             p_sla = panel("Расч. срок и срок по БД", stamps("sol"), two_tbl,
                           f"KPI: расч. срок, медиана — {c1(M['sla1c_our_med'])} раб. ч (8 ч в рабочем дне, паузы считаются); по БД — {c1(M['sla1c_med'])} ч (без пауз; на паузе — медиана {c1(M['sla1c_pause_med'])} ч); сильно расходятся — {len(dv)} из {len(R.sla1c)} (по БД дольше — {M['sla1c_div_more']}, короче — {M['sla1c_div_less']}). Решённые за {PER_S} без служебных с временем по статусам из БД (tab_sla): {len(R.sla1c)} из {len(real)}; срок по БД — сумма секунд в статусах без пауз, рабочие это часы или календарные — ещё не проверено. «Сильно расходятся» — больший срок не меньше меньшего × {c1(SLA_DIV_X)} и разница от {SLA_DIV_H:g} ч.",
                           "Расч. срок включает ожидание пользователя, БД — нет: где сильно расходятся — либо долгое ожидание пользователя, либо статусы ведут не так. По итогам нескольких недель решаем, какой срок основной (my-FT Т-74). Справа — сегодняшняя очередь в ожидании анализа.")
-        # ----------------------------------------------------------------------
-        # ЧТО ИЗМЕНЕНО (5.7): панель «Сколько ждут решения — по типам» переехала со слайда потока (бывший s1,
-        # теперь s12) — медианы по типам относятся к срокам (Т-15)
-        # ----------------------------------------------------------------------
-        cards = ""
-        for c in CATS + ["Служебное"]:
-            s = [r for r in sol if r["cat"] == c]
-            if not s: continue
-            # ЧТО ИЗМЕНЕНО (5.4): мини-полоса долей фаз типа (phases_v1, разд. 2.4); числа — по наведению
-            ag = None
-            if any(r["ph"] for r in s):
-                ag = {k_: sum(r["ph"][k_] for r in s if r["ph"]) for k_, _ in PH_NAMES}
-                ag["total"] = sum(r["ph"]["total"] for r in s if r["ph"])
-            cards += (f'<div class="tc" style="--c:{CAT_COLOR[c]}"><span>{c}</span><b>{c1(med([r["h"] for r in s]))}</b><small>раб. ч медиана</small>'
-                      f'<em>{len(s)} решено · {hsum(s):.0f} ч трудозатрат</em>'
-                      + (f'<em>{ph_bar(ag, w=120)}</em>' if ag else "") + "</div>")
-        row_types = panel("Сколько ждут решения — по типам", stamps("sol"), f'<div class="tcs">{cards}</div>{ph_legend()}',
-                          "Медиана от регистрации до решения по типу при регистрации. НСИ — раздел «Нормализация» целиком, «Правка данных» — без НСИ. Трудозатраты — поле AmountTrud. "
-                          "Полоса под медианой — из чего состоит срок типа по истории статусов; календарные часы, хвост автоподтверждения исключён. Медианы фаз не суммируются в медиану срока.",
-                          "Сравнение типов между собой: какой тип заставляет ждать и сколько стоит в часах. Инцидент в десятки раз медленнее правки — место для ускорения.")
         return (f'<article class="slide" id="s11"><div class="sh"><h2>Сроки решения и долгострой</h2>'
                 f'<p class="lead">Решено за {PER_S}: {len(real)} обращений без служебных; дольше {LONG_H} раб. ч — {n}</p></div>'
-                + p0 + p_ph + p_sla + p1 + p2 + p3 + row_types + ai_block("s11") + "</article>")
+                + p0 + p_ph + p_sla + p1 + p2 + p3 + ai_block("s11") + "</article>")
 
     # ================================================================ СЛАЙД 2 — очередь
     def slide2():
@@ -1956,10 +2708,10 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         # ось инцидентов за период
         ii = sorted([r for r in inc if r["type"] == "Инцидент"] + [r for r in sol if r["type_ai"] == "Инцидент" and r["type"] != "Инцидент" and in_per(r["reg_dt"])], key=lambda r: r["reg_dt"])
         w, h = 1100, 200; x0, x1 = 40, w - 20; span = (WE - WS).total_seconds()
-        svg = [f'<svg class="chart" viewBox="0 0 {w} {h}"><line x1="{x0}" x2="{x1}" y1="95" y2="95" stroke="#3B4754" stroke-width="2"/>']
+        svg = [f'<svg class="chart" viewBox="0 0 {w} {h}"><line x1="{x0}" x2="{x1}" y1="95" y2="95" stroke="var(--ink2)" stroke-width="2"/>']
         for d in DAYS:
             x = x0 + (x1 - x0) * (d - WS).total_seconds() / span
-            svg.append(f'<line x1="{x:.0f}" x2="{x:.0f}" y1="85" y2="105" stroke="#9AA6B2"/><text class="ax day" x="{x+6:.0f}" y="122">{WD[d.weekday()]} {d:%d.%m}</text>')
+            svg.append(f'<line x1="{x:.0f}" x2="{x:.0f}" y1="85" y2="105" stroke="var(--muted)"/><text class="ax day" x="{x+6:.0f}" y="122">{WD[d.weekday()]} {d:%d.%m}</text>')
         # ----------------------------------------------------------------------
         # ЧТО ИЗМЕНЕНО: уровень подписи — первый свободный (не ближе 40 px к предыдущей на том же уровне); точка — ссылка, если есть url
         # ПОЧЕМУ: подписи 34989 и 34998 налезали друг на друга; Т-57 — номер открывает карточку
@@ -1971,13 +2723,13 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
             last[lv] = x; y, up = lv
             hidden = r["type"] != "Инцидент"
             crit = r.get("ai", {}).get("crit") or r["id"] in OPEN_CRIT
-            fill = "#fff" if r["is_open"] else ("#B7800F" if hidden else "#D93025")
+            fill = "var(--paper)" if r["is_open"] else ("#B7800F" if hidden else "#D93025")
             a0, a1 = (f'<a href="{E(r["url"])}">', "</a>") if r.get("url") else ("", "")
-            svg.append(f'<line x1="{x:.0f}" x2="{x:.0f}" y1="95" y2="{y:.0f}" stroke="#C3CCD5"/>'
+            svg.append(f'<line x1="{x:.0f}" x2="{x:.0f}" y1="95" y2="{y:.0f}" stroke="var(--rule)"/>'
                        f'{a0}<circle cx="{x:.0f}" cy="95" r="{9 if crit else 6}" fill="{fill}" stroke="{"#7A0F0A" if crit else "#D93025"}" stroke-width="{3 if crit else 2}"><title>{r["id"]} · {r["reg_dt"]:%d.%m %H:%M} · {E(r["st"])} · {E(short(r["anl"]))}</title></circle>{a1}'
                        f'<text class="lbl" x="{x+3:.0f}" y="{y - 4 if up else y + 12:.0f}">{r["id"][-5:]}</text>')
         svg.append("</svg>")
-        lg = ('<div class="legend"><span><i style="background:#D93025"></i>инцидент решён</span><span><i style="background:#fff;border:2px solid #D93025"></i>открыт</span>'
+        lg = ('<div class="legend"><span><i style="background:#D93025"></i>инцидент решён</span><span><i style="background:var(--paper);border:2px solid #D93025"></i>открыт</span>'
               '<span><i style="background:#B7800F"></i>скрытый: зарегистрирован другим типом</span><span><i style="background:#D93025;border:3px solid #7A0F0A"></i>критичный</span></div>')
         p3 = panel("Ось инцидентов периода", stamps("in", "ai"), "".join(svg) + lg,
                    f"Все инциденты, зарегистрированные за {PER_S}, плюс скрытые (по сути — инцидент). Точка — момент регистрации, подпись — последние цифры номера.",
@@ -2061,8 +2813,8 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         ssl = [r for r in sol if r["ai"].get("ss")]
         body = "".join(f'<tr><td>{tk(r["id"], full=True)}</td><td>{E(r["cli"])}</td><td>{ai_cell(r)}</td><td>{E(r["ai"].get("rec") or "Право или инструкция")}</td></tr>' for r in ssl)
         p4 = panel("Кто просит · кто делает", stamps("sol"),
-                   f'<div class="grid g2"><div><div class="ch">Инициаторы</div>{hbars([(c, n, "#5D6B7A") for c, n in cli])}</div>'
-                   f'<div><div class="ch">Исполнители</div>{hbars([(short(a) + (" · 1-я линия" if a.startswith(L1_ANALYST) else ""), n, "#3B4754") for a, n in anl])}</div></div>',
+                   f'<div class="grid g2"><div><div class="ch">Инициаторы</div>{hbars([(c, n, "var(--bar2)") for c, n in cli])}</div>'
+                   f'<div><div class="ch">Исполнители</div>{hbars([(short(a) + (" · 1-я линия" if a.startswith(L1_ANALYST) else ""), n, "var(--bar)") for a, n in anl])}</div></div>',
                    "Инициаторы и исполнители ручных правок за период (без НСИ).",
                    "Слева — кому нужны права или обучение: у кого правки повторяются. Справа — нагрузка правками по людям.")
         p5 = panel(f"Мог бы сделать сам — {len(ssl)}", stamps("ai", "sol"),
@@ -2082,9 +2834,32 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
                    f'<div><div class="ch" style="margin-top:14px">Не-правки в НСИ за 4 недели — классификация ИИ</div><div class="tw"><table><thead><tr><th>Обращение</th><th>Тип при регистрации</th><th>Что это по сути</th><th>Комментарий</th></tr></thead><tbody>{ne}</tbody></table></div></div></div>',
                    "НСИ — раздел «Нормализация» целиком. Слева — что правят за период, справа — всё, что в НСИ зарегистрировано не правкой, с классификацией ИИ.",
                    "НСИ дёшева по часам, но это постоянный поток — место для самообслуживания. Инциденты в НСИ — либо бардак в разделе, либо реальный сбой справочника: оба случая требуют разбора.")
+        # ----------------------------------------------------------------------
+        # ЧТО ИЗМЕНЕНО (6.7): панель «Отложенное исправление — со ссылкой и сроком»: решение целиком, найденная ссылка,
+        #               срок и итог; ksr здесь не используется
+        # ПОЧЕМУ: my-FT Т-107 (уточнение 15.10) — «будет решено в рамках ЗИ № … тогда-то» норма, без ссылки или срока — залёт;
+        #         решение показывается полностью: короткая цитата отрезала срок
+        # ----------------------------------------------------------------------
+        def _ref_cell(d):
+            if d["refs"]:
+                return tks([x["id"] for x in d["refs"]])
+            if d["link"].lower().startswith("идеи?ref="):
+                return '<small class="mut">гиперссылка на обращение (номер в выгрузку не попал)</small>'
+            return E(d["link"]) if d["link"] else '<b class="bad">нет</b>'
+        body = "".join(f'<tr><td>{tk(d["r"]["id"], full=True)}</td><td>{E(d["r"]["type"])}</td>'
+                       f'<td><div class="soltxt">{E(d["r"].get("sol_raw") or d["r"].get("sol") or "")}</div></td>'
+                       f'<td>{_ref_cell(d)}</td><td>{E(d["date"]) if d["date"] else "<b class=bad>нет</b>"}</td>'
+                       f'<td>{"<b class=ok>в порядке</b>" if d["ok"] else "<b class=bad>залёт</b>"}</td></tr>'
+                       for d in sorted(R.defer, key=lambda d: (d["ok"], d["r"]["id"])))
+        p8 = panel(f"Отложенное исправление — со ссылкой и сроком: {M['plan_ok_n']} из {M['plan_ref_n']}", stamps("sol"),
+                   f'<div class="tw"><table><thead><tr><th>Обращение</th><th>Тип</th><th>Решение (целиком, из 1С)</th><th>Ссылка</th><th>Срок</th><th>Итог</th></tr></thead><tbody>{body}</tbody></table></div>'
+                   if R.defer else '<p class="mut">За период нет решений с формулировкой «будет решено в рамках …».</p>',
+                   f"Решённые за период, где в решении сказано, что исправление будет сделано позже («будет решено в рамках …»). "
+                   f"В порядке — в решении есть ссылка на обращение и срок. Без ссылки — {M['plan_nolink_n']}, без срока — {M['plan_nodate_n']}.",
+                   "Обращение закрыли, а проблема осталась: без ссылки и срока её никто не отследит — она вернётся новым обращением.")
         return (f'<article class="slide" id="s4"><div class="sh"><h2>Ручные правки данных: что, почему, кто — и отдельно НСИ</h2>'
                 f'<p class="lead">Решённые за {PER}, если не сказано иное. Правки — без НСИ</p></div>'
-                + p1 + p2 + p3 + '<div class="grid g2">' + p4 + p6 + "</div>" + p5 + p7 + ai_block("s4") + "</article>")
+                + p1 + p2 + p3 + p8 + '<div class="grid g2">' + p4 + p6 + "</div>" + p5 + p7 + ai_block("s4") + "</article>")
 
     # ================================================================ СЛАЙД 5 — повторы
     def slide5():
@@ -2130,7 +2905,7 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         for s in secs:
             vals = [sum(1 for r in w["i"] if r["sec"] == s) for w in wk]
             body += f'<tr><th>{E(s)}</th>' + "".join(
-                f'<td style="background:rgba(29,51,80,{0.08 + 0.8 * v / mx:.2f});color:{"#fff" if v / mx > 0.5 else "var(--ink)"}">{v}</td>' for v in vals) + \
+                f'<td style="background:color-mix(in srgb,var(--heat) {8 + 80 * v / mx:.0f}%,transparent);color:{"var(--heat-hi)" if v / mx > 0.5 else "var(--ink)"}">{v}</td>' for v in vals) + \
                 f'<td class="{"bad" if vals[-1] > vals[0] else "ok"}">{vals[-1] - vals[0]:+d}</td></tr>'
         p4 = panel("Где растёт поток: раздел × неделя", stamps("in4"),
                    f'<div class="tw"><table class="num heat"><thead><tr><th>Раздел</th>' + "".join(f'<th>W{w["a"].isocalendar()[1]}</th>' for w in wk) +
@@ -2274,7 +3049,7 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
                    "Все обращения со словом «планшет» за 4 недели и все открытые; причина — по тексту обращения и решения.",
                    "Внедрение на контроле руководства: видно, падает ли поток и какая причина главная — вход, зависания, связь или массовые сбои.")
         p2 = panel("Где и на каких устройствах", stamps("w4"),
-                   f'<div class="grid g2"><div><div class="ch">Места</div>{hbars([(k, v, "#3B4754") for k, v in places.most_common()])}</div>'
+                   f'<div class="grid g2"><div><div class="ch">Места</div>{hbars([(k, v, "var(--bar)") for k, v in places.most_common()])}</div>'
                    f'<div><div class="ch">Повторы по одному устройству</div>{hbars(devs)}</div></div>',
                    "Место и номер планшета — из текста обращения (терминал, ремзона, линейка, ID).",
                    "Устройство с тремя и более обращениями — на замену; место с проблемами связи — на карту покрытия.")
@@ -2535,10 +3310,15 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
         trust = [("Файл выгрузки", R.dump_name, "Из него посчитан весь отчёт"),
                  ("«Закрыто» поставлено в 19:30", f"{auto} из {len(cl)} ({pct(auto, len(cl))}%)", "Дата закрытия — автоматическая, поэтому везде берётся дата решения"),
                  ("Решённые за период без трудозатрат", f"{sum(r['trud'] == 0 for r in real)} из {len(real)} ({pct(sum(r['trud'] == 0 for r in real), len(real))}%)", "Цена в часах занижена на эти обращения"),
+                 # 6.4: основной срок — из 1С; где tab_sla нет — расчётный (my-FT Т-106)
+                 ("Основной срок решения — из 1С (tab_sla)", f"у {M.get('h1c_share') if M.get('h1c_share') is not None else 0}% решённых без служебных",
+                  "У остальных — расчётный срок (от регистрации до решения, 8 ч в рабочем дне); история недель до перехода — расчётная"),
                  ("Решённые без оценки ИИ (Н/Д)", f"{len([r for r in sol if not r['ai']])} из {len(sol)}", "Сбой разметки: не входят в рейтинг и списки «Плохо» / «Лучшие»"),
                  names_row]
         if not R.cover_ok:
             trust.append(("Выгрузка покрывает 4 недели", f"нет: первое решение {R.first_res:%d.%m}, окно — с {W4S:%d.%m}", "Блоки «4 недели» неполные: нужна выгрузка за 4 недели"))
+        if (getattr(R, "PLAN", None) or {}).get("errors"):
+            trust.append(("Ошибки в plan.csv", "; ".join(R.PLAN["errors"][:8]), "Строки пропущены: цель или поручение не попали в отчёт — поправить plan.csv"))
         if R.warnings:
             trust.append(("Предупреждения вёрстки", "; ".join(sorted(set(R.warnings))), "Разбор ИИ сослался на то, чего нет в данных: проверить журнал запуска"))
         p6 = panel("Доверие к данным", "", '<div class="tw"><table><thead><tr><th>Показатель</th><th>Значение</th><th>Что значит</th></tr></thead><tbody>'
@@ -2570,11 +3350,11 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
                    f'</tbody></table></div>',
                    "Файлы и версии, из которых собран этот отчёт; мажор модуля и шаблона сверялся с ноутбуком в ячейке 1, до вызовов ИИ.",
                    "Воспроизводимость: прогоны на разных версиях модуля и шаблона нельзя сравнивать молча — состав сборки фиксируется в паспорте.")
-        return (f'<article class="slide" id="s10"><div class="sh"><h2>Паспорт данных и проверки</h2><p class="lead">Какие выборки в отчёте и можно ли верить цифрам · генератор report_v5 {VERSION}</p></div>'
+        return (f'<article class="slide" id="s10"><div class="sh"><h2>Паспорт данных и проверки</h2><p class="lead">Какие выборки в отчёте и можно ли верить цифрам · генератор report_v{TEMPLATE_MAJOR} {VERSION}</p></div>'
                 + '<div class="grid g2">' + p1 + p2 + "</div>" + '<div class="grid g2">' + p3 + p4 + "</div>" + p6 + p5 + p7 + p8 + "</article>")
 
     # ================================================================ СБОРКА
-    FN = {"s1": slide1, "s2": slide2, "s3": slide3, "s4": slide4, "s5": slide5, "s6": slide6, "s7": slide7, "s8": slide8, "s9": slide9, "s10": slide10, "s11": slide11, "s12": slide12}
+    FN = {"s1": slide1, "s2": slide2, "s3": slide3, "s4": slide4, "s5": slide5, "s6": slide6, "s7": slide7, "s8": slide8, "s9": slide9, "s10": slide10, "s11": slide11, "s12": lambda: slide_tasks(R)}
     num = {k: i + 1 for i, k in enumerate(ORDER)}
     # ссылки меню идут в порядке ORDER — JS сопоставляет их со слайдами по индексу
     nav = [(g, [(k, t.format(WEEK=WEEK, NOW=f"{NOW:%d.%m}")) for k, t in items]) for g, items in NAV]
@@ -2582,6 +3362,8 @@ def _build(R, with_ai=True, strict=False, run_log=None, template_text=None):
     rail = "".join(f'<div class="act">{g}</div><ol>' + "".join(f'<li><a href="#{k}"><span>{num[k]}</span>{E(t)}</a></li>' for k, t in sorted(items, key=lambda kt: num[kt[0]])) + "</ol>"
                    for g, items in [(g, [(k, rail_links[k]) for k in ORDER if k in dict(it)]) for g, it in nav])
     slides = {k: FN[k]() for k in ORDER}
+    # 6.2: цели, поручения и подвал из plan.csv (Р-14); без плана — слайды как были
+    slides = {k: compose_slide(R, k, v) for k, v in slides.items()}
     return rail, slides, xtext_registry()
 
 
@@ -2596,7 +3378,7 @@ def render(R, template_text, title=None, banner=None, run_log=None, strict=False
     return Environment(autoescape=True).from_string(template_text).render(
         title=title or f"Качество 1С-поддержки · Неделя {R.WEEK}", banner=banner,
         period=f"Неделя {R.WEEK} · {R.PER} · срез {R.NOW:%d.%m %H:%M}", rail=rail,
-        slides="".join(slides[k] for k in ORDER) + xreg)
+        slides="".join(slides[k] for k in ORDER) + xreg + plan_json(R))
 
 
 def report_file_name(R):

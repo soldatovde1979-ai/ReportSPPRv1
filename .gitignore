@@ -2,3 +2,8 @@
 __pycache__/
 # Ключи API для локального запуска (my-FT В-25): только на своём компьютере, в репозиторий — никогда
 .env
+# Рабочая копия ноутбука для локального запуска (run_local.bat): Jupyter пишет в неё вывод — RepSSPR.ipynb остаётся чистым
+run/
+
+# копия макета для правки — собирается examples/build_mockup_edit.py и публикуется страницей claude.ai
+examples/mockup_edit.html
